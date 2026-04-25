@@ -34,15 +34,6 @@ const licenseSchema = z.object({
     }, 'Expiry date cannot be in the past'),
 });
 
-const licenseEditSchema = z.object({
-  expiryDate: z
-    .string()
-    .min(1)
-    .refine((v) => {
-      const d = new Date(`${v}T00:00:00Z`);
-      return !isNaN(d.getTime());
-    }, 'Invalid expiry date'),
-});
 
 const certSchema = z.object({
   issueDate: z
@@ -288,7 +279,7 @@ export async function postUpdateHuntingLicense(req: Request, res: Response) {
       return res.status(404).send('License not found');
     }
 
-    const result = licenseEditSchema.safeParse(req.body);
+    const result = licenseSchema.safeParse(req.body);
     if (!result.success) return res.status(400).send(result.error.issues[0].message);
 
     await db

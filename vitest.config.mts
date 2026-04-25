@@ -46,6 +46,22 @@ export default defineConfig({
           },
         },
       },
+      {
+        resolve: { alias },
+        test: {
+          name: 'e2e',
+          globals: true,
+          environment: 'node',
+          include: ['src/tests/e2e/**/*.test.ts'],
+          globalSetup: ['src/tests/global-setup.integration.ts'],
+          setupFiles: ['src/tests/setup.integration.ts'],
+          fileParallelism: false,
+          env: {
+            DB_PROVIDER: 'local',
+            LOCAL_DATABASE_URL: 'postgresql://app:app@localhost:5434/appdb_test',
+          },
+        },
+      },
     ],
   },
 });
