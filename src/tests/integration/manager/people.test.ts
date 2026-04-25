@@ -29,8 +29,6 @@ beforeAll(async () => {
 
 afterAll(async () => { await teardown(setup.estateId); });
 
-// ── GET /manager/people ───────────────────────────────────────────────────────
-
 describe('GET /manager/people', () => {
   it('returns 200 for authenticated manager', async () => {
     const res = await setup.agent.get('/manager/people');
@@ -43,8 +41,6 @@ describe('GET /manager/people', () => {
     expect(res.headers.location).toBe('/login');
   });
 });
-
-// ── POST /manager/people ──────────────────────────────────────────────────────
 
 describe('POST /manager/people', () => {
   it('creates a user with token and redirects to their page', async () => {
@@ -81,8 +77,6 @@ describe('POST /manager/people', () => {
   });
 });
 
-// ── GET /manager/people/:id ───────────────────────────────────────────────────
-
 describe('GET /manager/people/:id', () => {
   it('returns 200 for a person in own estate', async () => {
     const res = await setup.agent.get(`/manager/people/${staffId}`);
@@ -94,8 +88,6 @@ describe('GET /manager/people/:id', () => {
     expect(res.status).toBe(404);
   });
 });
-
-// ── POST /manager/people/:id/role ─────────────────────────────────────────────
 
 describe('POST /manager/people/:id/role', () => {
   it('promotes staff to manager', async () => {
@@ -125,8 +117,6 @@ describe('POST /manager/people/:id/role', () => {
   });
 });
 
-// ── POST /manager/people/:id/deactivate ──────────────────────────────────────
-
 describe('POST /manager/people/:id/deactivate', () => {
   it('deactivates account', async () => {
     await db.update(accountsTable).set({ active: true }).where(eq(accountsTable.userId, staffId));
@@ -139,8 +129,6 @@ describe('POST /manager/people/:id/deactivate', () => {
   });
 });
 
-// ── POST /manager/people/:id/reactivate ──────────────────────────────────────
-
 describe('POST /manager/people/:id/reactivate', () => {
   it('reactivates account', async () => {
     await db.update(accountsTable).set({ active: false }).where(eq(accountsTable.userId, staffId));
@@ -152,8 +140,6 @@ describe('POST /manager/people/:id/reactivate', () => {
     expect(account.active).toBe(true);
   });
 });
-
-// ── POST /manager/people/:id/resend-activation ───────────────────────────────
 
 describe('POST /manager/people/:id/resend-activation', () => {
   it('regenerates activation token and redirects', async () => {
@@ -169,8 +155,6 @@ describe('POST /manager/people/:id/resend-activation', () => {
     expect(token.type).toBe('activation');
   });
 });
-
-// ── POST /manager/people/:id/delete ──────────────────────────────────────────
 
 describe('POST /manager/people/:id/delete', () => {
   it('deletes user and redirects to /manager/people', async () => {

@@ -38,8 +38,6 @@ function mockNext(): NextFunction {
   return vi.fn();
 }
 
-// ── requireAuth ───────────────────────────────────────────────────────────────
-
 describe('requireAuth', () => {
   it('calls next() if session user exists', () => {
     const req = mockReq({ session: { user: { id: 1, role: 'admin' } } as any });
@@ -63,8 +61,6 @@ describe('requireAuth', () => {
     expect(next).not.toHaveBeenCalled();
   });
 });
-
-// ── requireAdmin ──────────────────────────────────────────────────────────────
 
 describe('requireAdmin', () => {
   it('calls next() if user is admin', () => {
@@ -100,8 +96,6 @@ describe('requireAdmin', () => {
     expect(next).not.toHaveBeenCalled();
   });
 });
-
-// ── requireManager ────────────────────────────────────────────────────────────
 
 describe('requireManager', () => {
   beforeEach(() => {
@@ -165,8 +159,6 @@ describe('requireManager', () => {
   });
 });
 
-// ── requireStaff ──────────────────────────────────────────────────────────────
-
 describe('requireStaff', () => {
   it('calls next() if user is staff', () => {
     const req = mockReq({ session: { user: { id: 1, role: 'staff' } } as any });
@@ -201,8 +193,6 @@ describe('requireStaff', () => {
     expect(next).not.toHaveBeenCalled();
   });
 });
-
-// ── requireEstateAccess ───────────────────────────────────────────────────────
 
 describe('requireEstateAccess', () => {
   it('calls next() if user is admin', () => {
@@ -257,8 +247,6 @@ describe('requireEstateAccess', () => {
     expect(next).not.toHaveBeenCalled();
   });
 });
-
-// ── requireUserAccess ─────────────────────────────────────────────────────────
 
 describe('requireUserAccess', () => {
   beforeEach(() => {

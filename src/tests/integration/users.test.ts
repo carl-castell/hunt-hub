@@ -67,8 +67,6 @@ afterAll(async () => {
   await db.delete(estatesTable).where(eq(estatesTable.id, estateId));
 });
 
-// ── getUser ───────────────────────────────────────────────────────────────────
-
 describe('GET /users/:id', () => {
   it('returns 200 for admin viewing any user', async () => {
     const agent = await loginAs('admin');
@@ -95,8 +93,6 @@ describe('GET /users/:id', () => {
   });
 });
 
-// ── updateUser ────────────────────────────────────────────────────────────────
-
 describe('POST /users/:id/update', () => {
   it('updates user details successfully', async () => {
     const agent = await loginAs('admin');
@@ -106,7 +102,7 @@ describe('POST /users/:id/update', () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(`/users/${staffId}`);
 
-    // Revert
+    // revert so loginAs('staff') still works in subsequent tests
     await db.update(usersTable)
       .set({ firstName: 'Staff', lastName: 'User' })
       .where(eq(usersTable.id, staffId));
@@ -140,8 +136,6 @@ describe('POST /users/:id/update', () => {
   });
 });
 
-// ── deactivateUser ────────────────────────────────────────────────────────────
-
 describe('POST /users/:id/deactivate', () => {
   it('deactivates a user successfully', async () => {
     const agent = await loginAs('admin');
@@ -156,7 +150,7 @@ describe('POST /users/:id/deactivate', () => {
       .limit(1);
     expect(account.active).toBe(false);
 
-    // Revert
+    // revert so loginAs('staff') still works in subsequent tests
     await db.update(accountsTable)
       .set({ active: true })
       .where(eq(accountsTable.userId, staffId));
@@ -174,8 +168,6 @@ describe('POST /users/:id/deactivate', () => {
     expect(res.headers.location).toBe('/login');
   });
 });
-
-// ── reactivateUser ────────────────────────────────────────────────────────────
 
 describe('POST /users/:id/reactivate', () => {
   it('reactivates a user successfully', async () => {
@@ -209,8 +201,6 @@ describe('POST /users/:id/reactivate', () => {
     expect(res.headers.location).toBe('/login');
   });
 });
-
-// ── deleteUser ────────────────────────────────────────────────────────────────
 
 describe('POST /users/:id/delete', () => {
   it('admin deletes a user with estateId and redirects to estate page', async () => {
@@ -257,8 +247,6 @@ describe('POST /users/:id/delete', () => {
     expect(res.headers.location).toBe('/login');
   });
 });
-
-// ── resendActivation ──────────────────────────────────────────────────────────
 
 describe('POST /users/:id/resend-activation', () => {
   it('generates a new activation token and redirects', async () => {

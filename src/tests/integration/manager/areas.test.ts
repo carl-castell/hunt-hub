@@ -39,8 +39,6 @@ afterAll(async () => {
   await teardown(setup.estateId);
 });
 
-// ── POST /manager/areas ───────────────────────────────────────────────────────
-
 describe('POST /manager/areas', () => {
   it('creates an area and redirects to the new area page', async () => {
     const res = await setup.agent.post('/manager/areas').send({ name: 'New Area' });
@@ -60,8 +58,6 @@ describe('POST /manager/areas', () => {
   });
 });
 
-// ── GET /manager/areas/:id ────────────────────────────────────────────────────
-
 describe('GET /manager/areas/:id', () => {
   it('returns 200 for an area in own estate', async () => {
     const res = await setup.agent.get(`/manager/areas/${existingAreaId}`);
@@ -73,8 +69,6 @@ describe('GET /manager/areas/:id', () => {
     expect(res.status).toBe(404);
   });
 });
-
-// ── POST /manager/areas/:id/rename ────────────────────────────────────────────
 
 describe('POST /manager/areas/:id/rename', () => {
   it('renames area and redirects', async () => {
@@ -99,8 +93,6 @@ describe('POST /manager/areas/:id/rename', () => {
     expect(res.status).toBe(404);
   });
 });
-
-// ── POST /manager/areas/:id/delete ────────────────────────────────────────────
 
 describe('POST /manager/areas/:id/delete', () => {
   it('returns 400 when confirmation name does not match', async () => {

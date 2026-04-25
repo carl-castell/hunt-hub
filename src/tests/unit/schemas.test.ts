@@ -8,8 +8,6 @@ import {
   renameEstateSchema,
 } from '@/schemas';
 
-// ── loginSchema ───────────────────────────────────────────────────────────────
-
 describe('loginSchema', () => {
   it('passes with valid credentials', () => {
     const result = loginSchema.safeParse({ email: 'test@example.com', password: 'password123' });
@@ -31,8 +29,6 @@ describe('loginSchema', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ── createManagerSchema ───────────────────────────────────────────────────────
 
 describe('createManagerSchema', () => {
   it('passes with valid data', () => {
@@ -90,8 +86,6 @@ describe('createManagerSchema', () => {
   });
 });
 
-// ── updateUserSchema ──────────────────────────────────────────────────────────
-
 describe('updateUserSchema', () => {
   it('passes with valid data', () => {
     const result = updateUserSchema.safeParse({
@@ -135,8 +129,6 @@ describe('updateUserSchema', () => {
   });
 });
 
-// ── activateSchema ────────────────────────────────────────────────────────────
-
 describe('activateSchema', () => {
   it('passes with matching passwords', () => {
     const result = activateSchema.safeParse({
@@ -176,8 +168,6 @@ describe('activateSchema', () => {
   });
 });
 
-// ── createEstateSchema ────────────────────────────────────────────────────────
-
 describe('createEstateSchema', () => {
   it('passes with a valid name', () => {
     const result = createEstateSchema.safeParse({ name: 'Glenfern Estate' });
@@ -199,8 +189,6 @@ describe('createEstateSchema', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ── renameEstateSchema ────────────────────────────────────────────────────────
 
 describe('renameEstateSchema', () => {
   it('passes with a valid name', () => {

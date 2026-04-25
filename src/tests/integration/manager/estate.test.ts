@@ -8,8 +8,6 @@ let setup: ManagerSetup;
 beforeAll(async () => { setup = await setupManager('estate'); });
 afterAll(async () => { await teardown(setup.estateId); });
 
-// ── GET /manager/estate ───────────────────────────────────────────────────────
-
 describe('GET /manager/estate', () => {
   it('returns 200 for authenticated manager', async () => {
     const res = await setup.agent.get('/manager/estate');
@@ -22,8 +20,6 @@ describe('GET /manager/estate', () => {
     expect(res.headers.location).toBe('/login');
   });
 });
-
-// ── POST /manager/estate/rename ───────────────────────────────────────────────
 
 describe('POST /manager/estate/rename', () => {
   it('renames estate and redirects', async () => {

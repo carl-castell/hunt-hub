@@ -22,6 +22,7 @@ beforeAll(async () => {
   }).returning();
   userId = user.id;
 
+  // unactivated users have no password and start inactive until they complete activation
   await db.insert(accountsTable).values({
     userId: user.id, email: 'activate-test@example.com', password: null, active: false,
   });
@@ -33,6 +34,7 @@ beforeAll(async () => {
   });
 
   expiredToken = crypto.randomUUID();
+  // set expiry 1 second in the past so it is already expired on insert
   await db.insert(userAuthTokensTable).values({
     userId: user.id, token: expiredToken, type: 'activation',
     expiresAt: new Date(Date.now() - 1000),
@@ -44,8 +46,6 @@ afterAll(async () => {
   await db.delete(usersTable).where(eq(usersTable.id, userId));
   await db.delete(estatesTable).where(eq(estatesTable.id, estateId));
 });
-
-// ── GET /activate/:token ──────────────────────────────────────────────────────
 
 describe('GET /activate/:token', () => {
   it('returns 200 for a valid token', async () => {
@@ -65,8 +65,6 @@ describe('GET /activate/:token', () => {
     expect(res.text).toContain('expired');
   });
 });
-
-// ── POST /activate/:token ─────────────────────────────────────────────────────
 
 describe('POST /activate/:token', () => {
   it('activates account, redirects to /login, and deletes the token', async () => {

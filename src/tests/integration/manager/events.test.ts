@@ -35,8 +35,6 @@ afterAll(async () => {
   await teardown(setup.estateId);
 });
 
-// ── POST /manager/events ──────────────────────────────────────────────────────
-
 describe('POST /manager/events', () => {
   it('creates an event and redirects to event page', async () => {
     const res = await setup.agent.post('/manager/events').send({
@@ -69,8 +67,6 @@ describe('POST /manager/events', () => {
   });
 });
 
-// ── GET /manager/events/:id ───────────────────────────────────────────────────
-
 describe('GET /manager/events/:id', () => {
   it('returns 200 for an event in own estate', async () => {
     const res = await setup.agent.get(`/manager/events/${eventId}`);
@@ -82,8 +78,6 @@ describe('GET /manager/events/:id', () => {
     expect(res.status).toBe(404);
   });
 });
-
-// ── POST /manager/events/:id/update ──────────────────────────────────────────
 
 describe('POST /manager/events/:id/update', () => {
   it('updates event and redirects', async () => {
@@ -108,8 +102,6 @@ describe('POST /manager/events/:id/update', () => {
     expect(res.status).toBe(404);
   });
 });
-
-// ── POST /manager/events/:id/delete ──────────────────────────────────────────
 
 describe('POST /manager/events/:id/delete', () => {
   it('returns 404 for an event in another estate', async () => {

@@ -21,6 +21,7 @@ beforeAll(async () => {
     .values({ firstName: 'Existing', lastName: 'Guest', role: 'guest', estateId: setup.estateId })
     .returning();
   guestId = guest.id;
+  // guest controller joins contactsTable — a row is required for the page to render
   await db.insert(contactsTable).values({ userId: guest.id, email: `existing-guest-${setup.estateId}@test.com` });
 
   const [otherEstate] = await db.insert(estatesTable).values({ name: 'Other Guests Estate' }).returning();
@@ -30,6 +31,7 @@ beforeAll(async () => {
     .values({ firstName: 'Other', lastName: 'Guest', role: 'guest', estateId: otherEstate.id })
     .returning();
   otherGuestId = otherGuest.id;
+  // guest controller joins contactsTable — a row is required for the page to render
   await db.insert(contactsTable).values({ userId: otherGuest.id, email: `other-guest-${otherEstate.id}@test.com` });
 });
 
@@ -38,8 +40,6 @@ afterAll(async () => {
   await db.delete(estatesTable).where(eq(estatesTable.id, otherEstateId));
   await teardown(setup.estateId);
 });
-
-// ── GET /manager/guests ───────────────────────────────────────────────────────
 
 describe('GET /manager/guests', () => {
   it('returns 200 for authenticated manager', async () => {
@@ -53,8 +53,6 @@ describe('GET /manager/guests', () => {
     expect(res.headers.location).toBe('/login');
   });
 });
-
-// ── POST /manager/guests ──────────────────────────────────────────────────────
 
 describe('POST /manager/guests', () => {
   it('creates a guest and redirects to guest page', async () => {
@@ -78,8 +76,6 @@ describe('POST /manager/guests', () => {
   });
 });
 
-// ── GET /manager/guests/:id ───────────────────────────────────────────────────
-
 describe('GET /manager/guests/:id', () => {
   it('returns 200 for a guest in own estate', async () => {
     const res = await setup.agent.get(`/manager/guests/${guestId}`);
@@ -96,8 +92,6 @@ describe('GET /manager/guests/:id', () => {
     expect(res.status).toBe(404);
   });
 });
-
-// ── POST /manager/guests/:id/update ──────────────────────────────────────────
 
 describe('POST /manager/guests/:id/update', () => {
   it('updates guest details and redirects', async () => {
@@ -123,8 +117,6 @@ describe('POST /manager/guests/:id/update', () => {
   });
 });
 
-// ── POST /manager/guests/:id/delete ──────────────────────────────────────────
-
 describe('POST /manager/guests/:id/delete', () => {
   it('returns 404 for a guest in another estate', async () => {
     const res = await setup.agent.post(`/manager/guests/${otherGuestId}/delete`);
@@ -136,6 +128,7 @@ describe('POST /manager/guests/:id/delete', () => {
       .insert(usersTable)
       .values({ firstName: 'Delete', lastName: 'Me', role: 'guest', estateId: setup.estateId })
       .returning();
+    // guest controller joins contactsTable — a row is required for the page to render
     await db.insert(contactsTable).values({ userId: guest.id, email: `delete-guest-${guest.id}@test.com` });
 
     const res = await setup.agent.post(`/manager/guests/${guest.id}/delete`);
