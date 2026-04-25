@@ -92,7 +92,7 @@ app.use(logger);
 app.use(generalLimiter);
 app.use(generateCsrfToken);
 app.use(verifyCsrfToken);
-app.use(express.static(path.join(process.cwd(), "public")));
+app.use(express.static(path.join(process.cwd(), "public"), { maxAge: "7d" }));
 
 app.use("/", homeRouter);
 app.use("/", authRouter);
