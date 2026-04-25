@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
 import { estatesTable } from '@/db/schema/estates';
 import { eq } from 'drizzle-orm';
-import { setupManager, teardown, ManagerSetup } from './helpers';
+import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
 let setup: ManagerSetup;
 let existingAreaId: number;

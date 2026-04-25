@@ -11,7 +11,7 @@ import { contactsTable } from '@/db/schema/contacts';
 import { huntingLicensesTable } from '@/db/schema/licenses';
 import { trainingCertificatesTable } from '@/db/schema/licenses';
 import { eq } from 'drizzle-orm';
-import { setupManager, teardown, ManagerSetup } from './helpers';
+import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
 const jpegBuffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0xFF, 0xD9]);
 

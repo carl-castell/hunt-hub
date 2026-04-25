@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import app from '@/app';
-import { setupManager, teardown, ManagerSetup } from './helpers';
+import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
 let setup: ManagerSetup;
 

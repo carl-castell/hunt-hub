@@ -7,7 +7,7 @@ import { accountsTable } from '@/db/schema/accounts';
 import { userAuthTokensTable } from '@/db/schema/user_auth_tokens';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
-import { setupManager, teardown, ManagerSetup } from './helpers';
+import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
 let setup: ManagerSetup;
 let staffId: number;

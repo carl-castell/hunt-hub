@@ -6,7 +6,7 @@ import { usersTable } from '@/db/schema/users';
 import { contactsTable } from '@/db/schema/contacts';
 import { estatesTable } from '@/db/schema/estates';
 import { eq } from 'drizzle-orm';
-import { setupManager, teardown, ManagerSetup } from './helpers';
+import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
 let setup: ManagerSetup;
 let guestId: number;

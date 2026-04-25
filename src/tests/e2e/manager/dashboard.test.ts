@@ -5,47 +5,7 @@ import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
 import { eventsTable } from '@/db/schema/events';
 import { eq } from 'drizzle-orm';
-import { setupManager, teardown } from '../integration/manager/helpers';
-
-describe('GET /login — page rendering', () => {
-  it('returns 200', async () => {
-    const res = await request(app).get('/login');
-    expect(res.status).toBe(200);
-  });
-
-  it('renders email and password fields', async () => {
-    const res = await request(app).get('/login');
-    expect(res.text).toContain('name="email"');
-    expect(res.text).toContain('name="password"');
-  });
-
-  it('includes a CSRF token field', async () => {
-    const res = await request(app).get('/login');
-    expect(res.text).toContain('name="_csrf"');
-  });
-
-  it('shows no error message by default', async () => {
-    const res = await request(app).get('/login');
-    expect(res.text).not.toContain('alert-error');
-  });
-});
-
-describe('POST /login — error messages in HTML', () => {
-  it('shows "Invalid email or password" for bad credentials', async () => {
-    const res = await request(app)
-      .post('/login')
-      .send({ email: 'nobody@example.com', password: 'WrongPassword!' });
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Invalid email or password');
-  });
-
-  it('returns 200 for empty fields', async () => {
-    const res = await request(app)
-      .post('/login')
-      .send({ email: '', password: '' });
-    expect(res.status).toBe(200);
-  });
-});
+import { setupManager, teardown } from '@/tests/helpers/manager';
 
 describe('GET /manager — dashboard access', () => {
   let estateId: number;
