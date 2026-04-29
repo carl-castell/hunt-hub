@@ -43,6 +43,7 @@ export default defineConfig({
           env: {
             DB_PROVIDER: 'local',
             LOCAL_DATABASE_URL: 'postgresql://app:app@localhost:5434/appdb_test',
+            SKIP_TOTP: 'true',
           },
         },
       },
