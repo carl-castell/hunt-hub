@@ -1,0 +1,66 @@
+<div style="margin-bottom: 2rem;">
+  <h2 style="margin: 0;">My Account</h2>
+</div>
+
+<!-- ── Account Info ───────────────────────────────────────────────────────── -->
+<article>
+  <dl>
+    <dt>First Name</dt>
+    <dd><%= fullUser.firstName %></dd>
+
+    <dt>Last Name</dt>
+    <dd><%= fullUser.lastName %></dd>
+
+    <dt>Email</dt>
+    <dd><%= user.email %></dd>
+
+    <dt>Role</dt>
+    <dd style="text-transform: capitalize;"><%= fullUser.role %></dd>
+  </dl>
+</article>
+
+<!-- ── Change Password ────────────────────────────────────────────────────── -->
+<article>
+  <header><strong>Password</strong></header>
+
+  <% if (error) { %>
+    <p style="color: var(--pico-color-red-500);"><%= error %></p>
+  <% } %>
+
+  <% if (success) { %>
+    <p style="color: var(--pico-color-green-500);"><%= success %></p>
+  <% } %>
+
+  <button class="outline" data-dialog="change-password-dialog">
+    Change Password
+  </button>
+</article>
+
+<!-- ── Change Password Dialog ────────────────────────────────────────────── -->
+<dialog id="change-password-dialog">
+  <article>
+    <header>
+      <button aria-label="Close" rel="prev" data-close-dialog="change-password-dialog"></button>
+      <h3>Change Password</h3>
+    </header>
+    <form action="/admin/account/password" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <label>
+        Current Password
+        <input type="password" name="oldPassword" required />
+      </label>
+      <label>
+        New Password
+        <input type="password" name="newPassword" required minlength="8" />
+      </label>
+      <label>
+        Repeat New Password
+        <input type="password" name="confirmPassword" required minlength="8" />
+      </label>
+      <footer>
+        <button type="button" class="outline" data-close-dialog="change-password-dialog">Cancel</button>
+        <button type="submit">Save</button>
+      </footer>
+    </form>
+  </article>
+</dialog>

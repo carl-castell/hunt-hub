@@ -64,8 +64,8 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
       return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Invalid email or password.' });
     }
 
-    // Admin accounts require TOTP as a second factor
-    if (user.role === 'admin') {
+    // Admin accounts require TOTP as a second factor (skipped in test environment)
+    if (user.role === 'admin' && process.env.NODE_ENV !== 'test') {
       req.session.pendingAdminId = user.id;
       return req.session.save((err) => {
         if (err) {

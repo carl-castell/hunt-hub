@@ -86,7 +86,7 @@ async function completeAdminSession(req: Request, res: Response, userId: number)
 // ---------------------------------------------------------------------------
 
 totpRouter.get('/totp', requirePending, (_req: Request, res: Response) => {
-  res.render('totp-verify', {
+  res.render('totp/verify', {
     layout: false,
     title: 'Hunt-Hub | Two-Factor Authentication',
     error: null,
@@ -107,7 +107,7 @@ totpRouter.post('/totp', authLimiter, requirePending, async (req: Request, res: 
     if (!row?.totpSecret) return res.redirect('/login');
 
     if (!checkToken(token, row.totpSecret)) {
-      return res.render('totp-verify', {
+      return res.render('totp/verify', {
         layout: false,
         title: 'Hunt-Hub | Two-Factor Authentication',
         error: 'Invalid code. Please try again.',
@@ -117,7 +117,7 @@ totpRouter.post('/totp', authLimiter, requirePending, async (req: Request, res: 
     await completeAdminSession(req, res, userId);
   } catch (err) {
     console.error('[totp verify error]', err);
-    res.render('totp-verify', {
+    res.render('totp/verify', {
       layout: false,
       title: 'Hunt-Hub | Two-Factor Authentication',
       error: 'Something went wrong. Please try again.',
@@ -150,7 +150,7 @@ totpRouter.get('/totp/setup', requirePending, async (req: Request, res: Response
     });
     const qrDataUrl = await QRCode.toDataURL(otpauth);
 
-    res.render('totp-setup', {
+    res.render('totp/setup', {
       layout: false,
       title: 'Hunt-Hub | Set Up Two-Factor Authentication',
       qrDataUrl,
@@ -183,7 +183,7 @@ totpRouter.post('/totp/setup', authLimiter, requirePending, async (req: Request,
       const otpauth = generateURI({ label: row.email, issuer: 'Hunt-Hub', secret });
       const qrDataUrl = await QRCode.toDataURL(otpauth);
 
-      return res.render('totp-setup', {
+      return res.render('totp/setup', {
         layout: false,
         title: 'Hunt-Hub | Set Up Two-Factor Authentication',
         qrDataUrl,
@@ -224,7 +224,7 @@ totpRouter.post('/totp/setup', authLimiter, requirePending, async (req: Request,
 // ---------------------------------------------------------------------------
 
 totpRouter.get('/totp/backup-codes', requireBackupCodes, (req: Request, res: Response) => {
-  res.render('totp-backup-codes', {
+  res.render('totp/backup-codes', {
     layout: false,
     title: 'Hunt-Hub | Save Your Backup Codes',
     codes: req.session.pendingBackupCodes!,
@@ -257,7 +257,7 @@ totpRouter.post('/totp/backup-codes/confirm', requireBackupCodes, async (req: Re
 // ---------------------------------------------------------------------------
 
 totpRouter.get('/totp/backup', requirePending, (_req: Request, res: Response) => {
-  res.render('totp-backup', {
+  res.render('totp/backup', {
     layout: false,
     title: 'Hunt-Hub | Use Backup Code',
     error: null,
@@ -269,7 +269,7 @@ totpRouter.post('/totp/backup', authLimiter, requirePending, async (req: Request
   const raw: string = (req.body.code ?? '').trim().toUpperCase();
 
   if (!raw) {
-    return res.render('totp-backup', {
+    return res.render('totp/backup', {
       layout: false,
       title: 'Hunt-Hub | Use Backup Code',
       error: 'Please enter a backup code.',
@@ -289,7 +289,7 @@ totpRouter.post('/totp/backup', authLimiter, requirePending, async (req: Request
       .limit(1);
 
     if (!match) {
-      return res.render('totp-backup', {
+      return res.render('totp/backup', {
         layout: false,
         title: 'Hunt-Hub | Use Backup Code',
         error: 'Invalid or already used backup code.',
@@ -317,7 +317,7 @@ totpRouter.post('/totp/backup', authLimiter, requirePending, async (req: Request
     });
   } catch (err) {
     console.error('[totp backup error]', err);
-    res.render('totp-backup', {
+    res.render('totp/backup', {
       layout: false,
       title: 'Hunt-Hub | Use Backup Code',
       error: 'Something went wrong. Please try again.',

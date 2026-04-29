@@ -61,6 +61,7 @@
       <details class="dropdown" style="margin: 0">
         <summary><%= user.firstName %> <%= user.lastName %></summary>
         <ul>
+          <li><a href="/admin/account">Account</a></li>
           <li>
             <form method="POST" action="/logout" style="margin: 0">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
