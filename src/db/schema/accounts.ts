@@ -5,9 +5,9 @@ import { usersTable } from "./users";
 export const accountsTable = pgTable("accounts", {
   userId: integer('user_id').primaryKey().references(() => usersTable.id, { onDelete: 'cascade' }),
   email: varchar({ length: 255 }).notNull().unique(),
-  password: varchar({ length: 255 }), // nullable — user sets password after clicking magic link invitation
+  password: varchar({ length: 255 }),
   active: boolean().notNull().default(false),
-  totpSecret: varchar('totp_secret', { length: 64 }), // nullable — only set for admin accounts after TOTP setup
+  totpSecret: varchar('totp_secret', { length: 64 }),
 }, (table) => ({
   activeRequiresPassword: check(
     'active_requires_password',

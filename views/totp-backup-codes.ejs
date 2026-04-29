@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hunt-Hub | Save Your Backup Codes</title>
+    <link rel="stylesheet" href="/css/style.css?v=1" />
+  </head>
+  <body class="centered-page">
+    <div class="card centered-card">
+      <h1>Hunt-Hub</h1>
+      <p>Save your backup codes</p>
+
+      <p style="font-size: 0.875rem; margin-bottom: 1rem;">
+        If you lose access to your authenticator app, you can use one of these codes to log in.
+        Each code can only be used once. Store them somewhere safe.
+      </p>
+
+      <div style="background: #f5f5f5; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; font-family: monospace; font-size: 1rem;">
+        <% codes.forEach(code => { %>
+          <div style="padding: 0.2rem 0;"><%= code %></div>
+        <% }) %>
+      </div>
+
+      <a href="/totp/backup-codes/download" style="display: block; text-align: center; margin-bottom: 1rem; font-size: 0.875rem;">
+        Download as .txt
+      </a>
+
+      <form action="/totp/backup-codes/confirm" method="POST">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="btn-confirm btn-full">I've saved my codes — continue</button>
+      </form>
+    </div>
+  </body>
+</html>

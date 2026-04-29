@@ -18,6 +18,7 @@ declare module 'express-session' {
     csrfToken?: string;
     pendingAdminId?: number;
     pendingTotpSecret?: string;
+    pendingBackupCodes?: string[];
   }
 }
 declare module 'shapefile';

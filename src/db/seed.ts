@@ -61,6 +61,7 @@ async function main() {
     `DROP TABLE IF EXISTS contacts CASCADE`,
     `DROP TABLE IF EXISTS users CASCADE`,
     `DROP TABLE IF EXISTS estates CASCADE`,
+    `DROP TABLE IF EXISTS totp_backup_codes CASCADE`,
     `DROP TABLE IF EXISTS __drizzle_migrations CASCADE`,
     `DROP SCHEMA IF EXISTS drizzle CASCADE`,
     `DROP TYPE IF EXISTS role CASCADE`,
@@ -68,6 +69,7 @@ async function main() {
     `DROP TYPE IF EXISTS invitation_status CASCADE`,
     `DROP TYPE IF EXISTS attachment_kind CASCADE`,
     `DROP TYPE IF EXISTS token_type CASCADE`,
+
   ];
   for (const stmt of drops) {
     await db.execute(sql.raw(stmt));

@@ -13,7 +13,7 @@ export const generalLimiter = rateLimit({
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isTest ? 0 : 5,
+  max: isTest ? 0 : 20,
   skip: () => isTest,
   standardHeaders: true,
   legacyHeaders: false,

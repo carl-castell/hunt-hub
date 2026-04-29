@@ -36,6 +36,20 @@
       "when": 1777065415979,
       "tag": "0004_big_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777502840346,
+      "tag": "0005_complex_typhoid_mary",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777503209828,
+      "tag": "0006_flowery_blackheart",
+      "breakpoints": true
     }
   ]
 }
