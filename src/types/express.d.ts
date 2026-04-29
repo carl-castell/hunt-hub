@@ -16,6 +16,8 @@ declare module 'express-session' {
   interface SessionData {
     user?: SessionUser;
     csrfToken?: string;
+    pendingAdminId?: number;
+    pendingTotpSecret?: string;
   }
 }
 declare module 'shapefile';

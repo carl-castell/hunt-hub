@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hunt-Hub | Two-Factor Authentication</title>
+    <link rel="stylesheet" href="/css/style.css?v=1" />
+  </head>
+  <body class="centered-page">
+    <div class="card centered-card">
+      <h1>Hunt-Hub</h1>
+      <p>Enter the 6-digit code from your authenticator app</p>
+
+      <% if (error) { %>
+        <div class="alert-error"><%= error %></div>
+      <% } %>
+
+      <form action="/totp" method="POST">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <div class="form-group">
+          <label for="token">Authentication Code</label>
+          <input
+            type="text"
+            id="token"
+            name="token"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            autocomplete="one-time-code"
+            required
+            autofocus
+          />
+        </div>
+        <button type="submit" class="btn-confirm btn-full">Verify</button>
+      </form>
+
+      <form action="/login" method="GET" style="margin-top: 1rem;">
+        <button type="submit" class="btn-cancel btn-full">Back to Login</button>
+      </form>
+    </div>
+  </body>
+</html>

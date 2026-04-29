@@ -19,6 +19,7 @@ import usersRouter from './routes/users';
 import activateRouter from './routes/activate';
 import mapRouter from "./routes/map";
 import rsvpRouter from './routes/rsvp';
+import totpRouter from './routes/totp';
 
 import { estatesTable } from './db/schema/estates';
 import { db } from './db';
@@ -96,6 +97,7 @@ app.use(express.static(path.join(process.cwd(), "public"), { maxAge: "7d" }));
 
 app.use("/", homeRouter);
 app.use("/", authRouter);
+app.use("/", totpRouter);
 app.use('/admin', requireAdmin, (req, res, next) => {
   res.locals.layout = 'admin/layout';
   next();

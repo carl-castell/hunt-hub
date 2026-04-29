@@ -7,6 +7,7 @@ export const accountsTable = pgTable("accounts", {
   email: varchar({ length: 255 }).notNull().unique(),
   password: varchar({ length: 255 }), // nullable — user sets password after clicking magic link invitation
   active: boolean().notNull().default(false),
+  totpSecret: varchar('totp_secret', { length: 64 }), // nullable — only set for admin accounts after TOTP setup
 }, (table) => ({
   activeRequiresPassword: check(
     'active_requires_password',

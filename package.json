@@ -45,7 +45,9 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.5",
     "nodemailer-mailgun-transport": "^2.1.5",
+    "otplib": "^13.4.0",
     "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
     "shapefile": "^0.6.6",
     "zod": "^4.3.6"
   },
@@ -61,6 +63,7 @@
     "@types/node": "^22.7.2",
     "@types/nodemailer": "^6.4.16",
     "@types/nodemailer-mailgun-transport": "^1.4.6",
+    "@types/qrcode": "^1.5.6",
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^4.1.4",
     "drizzle-kit": "^0.31.10",

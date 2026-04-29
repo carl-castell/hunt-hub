@@ -64,6 +64,18 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
       return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Invalid email or password.' });
     }
 
+    // Admin accounts require TOTP as a second factor
+    if (user.role === 'admin') {
+      req.session.pendingAdminId = user.id;
+      return req.session.save((err) => {
+        if (err) {
+          console.error('[session save error]', err);
+          return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
+        }
+        return res.redirect(account.totpSecret ? '/totp' : '/totp/setup');
+      });
+    }
+
     req.session.user = {
       id:        user.id,
       firstName: user.firstName,
