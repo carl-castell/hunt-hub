@@ -10,25 +10,20 @@
   }
 
   function timeUntilExpiry(dateStr) {
-    const target = new Date(dateStr);
-    const now = new Date();
+    const target = new Date(`${dateStr}T00:00:00Z`);
+    const now = new Date(); now.setUTCHours(0, 0, 0, 0);
     const diffMs = target - now;
     const totalDays = Math.floor(Math.abs(diffMs) / 86400000);
-
-    if (totalDays > 365) return diffMs > 0 ? 'more than a year' : 'more than a year ago';
-
-    if (diffMs <= 0) {
-      return `${totalDays} day${totalDays !== 1 ? 's' : ''} ago`;
-    }
 
     const years  = Math.floor(totalDays / 365);
     const months = Math.floor((totalDays % 365) / 30);
     const days   = totalDays % 30;
     const parts  = [];
-    if (years)  parts.push(`${years} yr`);
-    if (months) parts.push(`${months} mo`);
+    if (years)         parts.push(`${years} year${years !== 1 ? 's' : ''}`);
+    if (years && months) parts.push(`${months} month${months !== 1 ? 's' : ''}`);
     if (days || parts.length === 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
-    return parts.join(', ');
+    const label = parts.join(', ');
+    return diffMs <= 0 ? `${label} ago` : label;
   }
 
   function timeSinceIssue(dateStr) {
