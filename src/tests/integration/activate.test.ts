@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import app from '@/app';
 import { db } from '@/db';
@@ -124,5 +124,26 @@ describe('POST /activate/:token', () => {
       .send({ password: 'ValidPass1!', confirmPassword: 'ValidPass1!' });
     expect(res.status).toBe(200);
     expect(res.text).toContain('Invalid or expired');
+  });
+
+  it('rejects a pwned password with a breach error message', async () => {
+    const token = crypto.randomUUID();
+    await db.insert(userAuthTokensTable).values({
+      userId, token, type: 'activation', expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+    });
+
+    // SHA-1('password') suffix after the 5-char prefix
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('1E4C9B93F3F0682250B6CF8331B7EE68FD8:5', { status: 200 }),
+    );
+
+    const res = await request(app)
+      .post(`/activate/${token}`)
+      .send({ password: 'password', confirmPassword: 'password' });
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('known data breach');
+
+    vi.restoreAllMocks();
   });
 });

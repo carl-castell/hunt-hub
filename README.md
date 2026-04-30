@@ -17,7 +17,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 | Storage | AWS S3-compatible — MinIO locally, Cloudflare R2 in production |
 | Email | Nodemailer — Mailgun SMTP in production, Mailpit locally |
 | Validation | Zod |
-| Security | Helmet, bcrypt, CSRF tokens, express-rate-limit |
+| Security | Helmet, bcrypt, CSRF tokens, express-rate-limit, HIBP Pwned Passwords |
 | 2FA | TOTP via otplib + qrcode (admin accounts) |
 | Testing | Vitest + Supertest |
 
@@ -304,7 +304,8 @@ src/
 ├── services/
 │   ├── storage.ts              # S3-compatible upload/delete (MinIO or R2)
 │   ├── mail.ts                 # Nodemailer transport + template rendering
-│   └── audit.ts                # Audit log helper
+│   ├── audit.ts                # Audit log helper
+│   └── hibp.ts                 # HaveIBeenPwned k-anonymity password check
 │
 ├── schemas/                    # Shared Zod schemas
 ├── mail-views/                 # EJS email templates

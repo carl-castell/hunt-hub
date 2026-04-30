@@ -13,7 +13,8 @@ type AuditEvent =
   | 'user_resend_activation'
   | 'estate_created'
   | 'estate_deleted'
-  | 'invitation_email_sent';
+  | 'invitation_email_sent'
+  | 'hibp_service_error';
 
 interface AuditOptions {
   userId?: number | null;

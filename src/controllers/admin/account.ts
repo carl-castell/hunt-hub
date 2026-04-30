@@ -5,6 +5,7 @@ import { usersTable } from '../../db/schema/users';
 import { accountsTable } from '../../db/schema/accounts';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
+import { isPasswordPwned } from '@/services/hibp';
 
 const changePasswordSchema = z.object({
   oldPassword: z.string().min(1),
@@ -52,6 +53,10 @@ export async function postChangePassword(req: Request, res: Response) {
     const match = await bcrypt.compare(oldPassword, account.password);
     if (!match) {
       return await renderAccount(req, res, { error: 'Current password is incorrect.', success: null });
+    }
+
+    if (await isPasswordPwned(newPassword, { userId: user.id, ip: req.ip })) {
+      return await renderAccount(req, res, { error: 'This password has appeared in a known data breach. Please choose a different password.', success: null });
     }
 
     await db.update(accountsTable).set({ password: await bcrypt.hash(newPassword, 10) }).where(eq(accountsTable.userId, user.id));
