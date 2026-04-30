@@ -6,7 +6,7 @@ import { usersTable, userAuthTokensTable } from '@/db/schema';
 import { accountsTable } from '@/db/schema/accounts';
 import { estatesTable } from '@/db/schema/estates';
 import { eq } from 'drizzle-orm';
-import crypto from 'crypto';
+import crypto, { createHash } from 'crypto';
 
 let userId: number;
 let estateId: number;
@@ -132,14 +132,15 @@ describe('POST /activate/:token', () => {
       userId, token, type: 'activation', expiresAt: new Date(Date.now() + 1000 * 60 * 60),
     });
 
-    // SHA-1('password') suffix after the 5-char prefix
+    const hibpPassword = 'Password1!';
+    const hibpHash = createHash('sha1').update(hibpPassword).digest('hex').toUpperCase();
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response('1E4C9B93F3F0682250B6CF8331B7EE68FD8:5', { status: 200 }),
+      new Response(`${hibpHash.slice(5)}:5`, { status: 200 }),
     );
 
     const res = await request(app)
       .post(`/activate/${token}`)
-      .send({ password: 'password', confirmPassword: 'password' });
+      .send({ password: hibpPassword, confirmPassword: hibpPassword });
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('known data breach');

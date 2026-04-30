@@ -166,6 +166,38 @@ describe('activateSchema', () => {
     const result = activateSchema.safeParse({});
     expect(result.success).toBe(false);
   });
+
+  it('fails when password has no uppercase letter', () => {
+    const result = activateSchema.safeParse({
+      password: 'securepass1!',
+      confirmPassword: 'securepass1!',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('fails when password has no number', () => {
+    const result = activateSchema.safeParse({
+      password: 'SecurePass!',
+      confirmPassword: 'SecurePass!',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('fails when password has no special character', () => {
+    const result = activateSchema.safeParse({
+      password: 'SecurePass1',
+      confirmPassword: 'SecurePass1',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('passes with a password containing uppercase and special character', () => {
+    const result = activateSchema.safeParse({
+      password: 'SecurePass1!',
+      confirmPassword: 'SecurePass1!',
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('createEstateSchema', () => {

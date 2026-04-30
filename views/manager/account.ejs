@@ -51,7 +51,13 @@
       </label>
       <label>
         New Password
-        <input type="password" name="newPassword" required minlength="8" />
+        <input type="password" id="new-password" name="newPassword" required minlength="8" />
+        <ul id="pw-hints" style="list-style:none; padding:0; margin:4px 0 0; font-size:0.82rem;">
+          <li id="hint-length"  style="color:#6b7280">✓ At least 8 characters</li>
+          <li id="hint-upper"   style="color:#6b7280">✓ One uppercase letter</li>
+          <li id="hint-number"  style="color:#6b7280">✓ One number</li>
+          <li id="hint-special" style="color:#6b7280">✓ One special character</li>
+        </ul>
       </label>
       <label>
         Repeat New Password
@@ -64,3 +70,17 @@
     </form>
   </article>
 </dialog>
+
+<script>
+  const pw = document.getElementById('new-password');
+  const hl = document.getElementById('hint-length');
+  const hu = document.getElementById('hint-upper');
+  const hn = document.getElementById('hint-number');
+  const hs = document.getElementById('hint-special');
+  pw.addEventListener('input', function () {
+    hl.style.color = pw.value.length >= 8            ? '#16a34a' : '#6b7280';
+    hu.style.color = /[A-Z]/.test(pw.value)          ? '#16a34a' : '#6b7280';
+    hn.style.color = /[0-9]/.test(pw.value)          ? '#16a34a' : '#6b7280';
+    hs.style.color = /[^a-zA-Z0-9]/.test(pw.value)  ? '#16a34a' : '#6b7280';
+  });
+</script>
