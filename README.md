@@ -95,13 +95,14 @@ npm run dev
 
 | Variable | Required | Description | Example |
 |---|---|---|---|
-| `MAILGUN_SMTP_HOST` | No | SMTP host (default: `smtp.mailgun.org`) | `smtp.mailgun.org` |
-| `SMTP_PORT` | No | SMTP port (default: `587`) | `587` |
-| `MAILGUN_SMTP_USER` | Yes | SMTP username | `postmaster@mg.example.com` |
-| `MAILGUN_SMTP_PASSWORD` | Yes | SMTP password | `key-...` |
+| `MAIL_PROVIDER` | Yes | `local` (Mailpit) or `mailgun` | `local` |
 | `MAIL_FROM` | Yes | Sender address | `noreply@example.com` |
+| `MAILGUN_SMTP_HOST` | If mailgun | SMTP host | `smtp.mailgun.org` |
+| `SMTP_PORT` | If mailgun | SMTP port (default: `587`) | `587` |
+| `MAILGUN_SMTP_USER` | If mailgun | SMTP username | `postmaster@mg.example.com` |
+| `MAILGUN_SMTP_PASSWORD` | If mailgun | SMTP password | `key-...` |
 
-For local development without Mailgun, point these at a [Mailpit](https://github.com/axllent/mailpit) instance (`MAILGUN_SMTP_HOST=localhost`, `SMTP_PORT=1025`) — Mailpit requires no credentials.
+**Local development:** set `MAIL_PROVIDER=local` — Mailpit is included in `docker-compose.yml` and requires no credentials. All outgoing emails are intercepted and visible at `http://localhost:8025` regardless of the recipient address.
 
 ### File Storage
 
