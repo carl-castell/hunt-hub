@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { usersTable } from '../db/schema/users';
 import { contactsTable } from '../db/schema/contacts';
@@ -163,23 +163,27 @@ export async function postCreateHuntingLicense(req: Request, res: Response) {
     const validationError = validateFiles(files, 4);
     if (validationError) return res.status(400).send(validationError);
 
-    const [license] = await db
-      .insert(huntingLicensesTable)
-      .values({ userId: id, estateId: user.estateId!, expiryDate: result.data.expiryDate })
-      .returning();
+    const [license] = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(huntingLicensesTable)
+        .values({ userId: id, estateId: user.estateId!, expiryDate: result.data.expiryDate })
+        .returning();
 
-    for (const file of files) {
-      const key = `licenses/hunting/${license.id}/${file.originalname}`;
-      await uploadFile(key, file.buffer, file.mimetype);
-      await db.insert(huntingLicenseAttachmentsTable).values({
-        licenseId: license.id,
-        kind: file.mimetype === ALLOWED_PDF_TYPE ? 'document' : 'photo',
-        key,
-        contentType: file.mimetype,
-        originalName: file.originalname,
-        sizeBytes: file.size,
-      });
-    }
+      for (const file of files) {
+        const key = `licenses/hunting/${created.id}/${file.originalname}`;
+        await uploadFile(key, file.buffer, file.mimetype);
+        await tx.insert(huntingLicenseAttachmentsTable).values({
+          licenseId: created.id,
+          kind: file.mimetype === ALLOWED_PDF_TYPE ? 'document' : 'photo',
+          key,
+          contentType: file.mimetype,
+          originalName: file.originalname,
+          sizeBytes: file.size,
+        });
+      }
+
+      return [created];
+    });
 
     res.redirect(`/manager/guests/${id}/hunting-license?licenseId=${license.id}`);
   } catch (err) {
@@ -208,20 +212,24 @@ export async function postCheckHuntingLicense(req: Request, res: Response) {
       return res.status(404).send('License not found');
     }
 
-    await db
-      .update(huntingLicensesTable)
-      .set({ checked: true, checkedAt: new Date() })
-      .where(eq(huntingLicensesTable.id, licenseId));
+    const allLicenses = await db.select().from(huntingLicensesTable).where(eq(huntingLicensesTable.userId, id));
+    const oldLicenses = allLicenses.filter(l => l.id !== licenseId);
 
-    const allLicenses = await db
-      .select()
-      .from(huntingLicensesTable)
-      .where(eq(huntingLicensesTable.userId, id));
+    // Collect S3 keys before the transaction so we can clean up after commit
+    const oldAttachmentKeys = oldLicenses.length > 0
+      ? (await db.select().from(huntingLicenseAttachmentsTable)
+          .where(inArray(huntingLicenseAttachmentsTable.licenseId, oldLicenses.map(l => l.id))))
+          .map(a => a.key)
+      : [];
 
-    for (const old of allLicenses) {
-      if (old.id === licenseId) continue;
-      await deleteLicense(old.id);
-    }
+    await db.transaction(async (tx) => {
+      await tx.update(huntingLicensesTable).set({ checked: true, checkedAt: new Date() }).where(eq(huntingLicensesTable.id, licenseId));
+      for (const old of oldLicenses) {
+        await tx.delete(huntingLicensesTable).where(eq(huntingLicensesTable.id, old.id));
+      }
+    });
+
+    for (const key of oldAttachmentKeys) await deleteFile(key);
 
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {
@@ -368,23 +376,27 @@ export async function postCreateTrainingCertificate(req: Request, res: Response)
     const validationError = validateFiles(files, 2);
     if (validationError) return res.status(400).send(validationError);
 
-    const [certificate] = await db
-      .insert(trainingCertificatesTable)
-      .values({ userId: id, estateId: user.estateId!, issueDate: result.data.issueDate })
-      .returning();
+    const [certificate] = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(trainingCertificatesTable)
+        .values({ userId: id, estateId: user.estateId!, issueDate: result.data.issueDate })
+        .returning();
 
-    for (const file of files) {
-      const key = `certificates/${certificate.id}/${file.originalname}`;
-      await uploadFile(key, file.buffer, file.mimetype);
-      await db.insert(trainingCertificateAttachmentsTable).values({
-        certId: certificate.id,
-        kind: file.mimetype === ALLOWED_PDF_TYPE ? 'document' : 'photo',
-        key,
-        contentType: file.mimetype,
-        originalName: file.originalname,
-        sizeBytes: file.size,
-      });
-    }
+      for (const file of files) {
+        const key = `certificates/${created.id}/${file.originalname}`;
+        await uploadFile(key, file.buffer, file.mimetype);
+        await tx.insert(trainingCertificateAttachmentsTable).values({
+          certId: created.id,
+          kind: file.mimetype === ALLOWED_PDF_TYPE ? 'document' : 'photo',
+          key,
+          contentType: file.mimetype,
+          originalName: file.originalname,
+          sizeBytes: file.size,
+        });
+      }
+
+      return [created];
+    });
 
     res.redirect(`/manager/guests/${id}/training-certificate?certId=${certificate.id}`);
   } catch (err) {
@@ -413,20 +425,23 @@ export async function postCheckTrainingCertificate(req: Request, res: Response) 
       return res.status(404).send('Certificate not found');
     }
 
-    await db
-      .update(trainingCertificatesTable)
-      .set({ checked: true, checkedAt: new Date() })
-      .where(eq(trainingCertificatesTable.id, certId));
+    const allCertificates = await db.select().from(trainingCertificatesTable).where(eq(trainingCertificatesTable.userId, id));
+    const oldCertificates = allCertificates.filter(c => c.id !== certId);
 
-    const allCertificates = await db
-      .select()
-      .from(trainingCertificatesTable)
-      .where(eq(trainingCertificatesTable.userId, id));
+    const oldAttachmentKeys = oldCertificates.length > 0
+      ? (await db.select().from(trainingCertificateAttachmentsTable)
+          .where(inArray(trainingCertificateAttachmentsTable.certId, oldCertificates.map(c => c.id))))
+          .map(a => a.key)
+      : [];
 
-    for (const old of allCertificates) {
-      if (old.id === certId) continue;
-      await deleteCertificate(old.id);
-    }
+    await db.transaction(async (tx) => {
+      await tx.update(trainingCertificatesTable).set({ checked: true, checkedAt: new Date() }).where(eq(trainingCertificatesTable.id, certId));
+      for (const old of oldCertificates) {
+        await tx.delete(trainingCertificatesTable).where(eq(trainingCertificatesTable.id, old.id));
+      }
+    });
+
+    for (const key of oldAttachmentKeys) await deleteFile(key);
 
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {

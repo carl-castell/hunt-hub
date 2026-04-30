@@ -63,22 +63,25 @@ export async function postCreateUser(req: Request, res: Response) {
 
     if (existing) return res.status(400).send('A user with that email already exists.');
 
-    const [newUser] = await db
-      .insert(usersTable)
-      .values({ firstName, lastName, role, estateId: user.estateId! })
-      .returning();
-
     const throwawayPassword = await bcrypt.hash(crypto.randomUUID(), 10);
-    await db
-      .insert(accountsTable)
-      .values({ userId: newUser.id, email, password: throwawayPassword, active: false });
-
     const token = crypto.randomUUID();
-    await db.insert(userAuthTokensTable).values({
-      userId:    newUser.id,
-      token,
-      type:      'activation',
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+
+    const [newUser] = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(usersTable)
+        .values({ firstName, lastName, role, estateId: user.estateId! })
+        .returning();
+
+      await tx.insert(accountsTable).values({ userId: created.id, email, password: throwawayPassword, active: false });
+
+      await tx.insert(userAuthTokensTable).values({
+        userId:    created.id,
+        token,
+        type:      'activation',
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+      });
+
+      return [created];
     });
 
     res.redirect(`/manager/people/${newUser.id}`);
@@ -271,16 +274,16 @@ export async function postResendActivation(req: Request, res: Response) {
       return res.status(404).send('User not found');
     }
 
-    await db
-      .delete(userAuthTokensTable)
-      .where(eq(userAuthTokensTable.userId, Number(id)));
-
     const token = crypto.randomUUID();
-    await db.insert(userAuthTokensTable).values({
-      userId:    Number(id),
-      token,
-      type:      'activation',
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+
+    await db.transaction(async (tx) => {
+      await tx.delete(userAuthTokensTable).where(eq(userAuthTokensTable.userId, Number(id)));
+      await tx.insert(userAuthTokensTable).values({
+        userId:    Number(id),
+        token,
+        type:      'activation',
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+      });
     });
 
     res.redirect(`/manager/people/${id}`);

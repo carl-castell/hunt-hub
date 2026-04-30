@@ -15,34 +15,20 @@ export async function createManager(req: Request, res: Response) {
 
     const { firstName, lastName, email, estateId } = result.data;
 
-    // Insert into usersTable (no password/email/active here anymore)
-    const [newManager] = await db
-      .insert(usersTable)
-      .values({
-        firstName,
-        lastName,
-        role: 'manager',
-        estateId: Number(estateId),
-      })
-      .returning();
-
-    // Insert into accountsTable
-    await db.insert(accountsTable).values({
-      userId: newManager.id,
-      email,
-      password: null,
-      active: false,
-    });
-
-    // Create activation token — expires in 48 hours
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 48);
 
-    await db.insert(userAuthTokensTable).values({
-      userId: newManager.id,
-      token,
-      type: 'activation',
-      expiresAt,
+    const [newManager] = await db.transaction(async (tx) => {
+      const [manager] = await tx
+        .insert(usersTable)
+        .values({ firstName, lastName, role: 'manager', estateId: Number(estateId) })
+        .returning();
+
+      await tx.insert(accountsTable).values({ userId: manager.id, email, password: null, active: false });
+
+      await tx.insert(userAuthTokensTable).values({ userId: manager.id, token, type: 'activation', expiresAt });
+
+      return [manager];
     });
 
     // Send activation email

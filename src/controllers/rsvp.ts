@@ -202,23 +202,25 @@ export async function postUploadLicense(req: Request, res: Response) {
       const fileError = validateFiles(files, 4);
       if (fileError) return res.status(400).send(fileError);
 
-      const [license] = await db
-        .insert(huntingLicensesTable)
-        .values({ userId: invitation.userId, estateId: invitation.estateId, expiryDate: result.data.expiryDate })
-        .returning();
+      await db.transaction(async (tx) => {
+        const [license] = await tx
+          .insert(huntingLicensesTable)
+          .values({ userId: invitation.userId, estateId: invitation.estateId, expiryDate: result.data.expiryDate })
+          .returning();
 
-      for (const file of files) {
-        const key = `licenses/hunting/${license.id}/${file.originalname}`;
-        await uploadFile(key, file.buffer, file.mimetype);
-        await db.insert(huntingLicenseAttachmentsTable).values({
-          licenseId: license.id,
-          kind: file.mimetype === ALLOWED_PDF_TYPE ? 'document' : 'photo',
-          key,
-          contentType: file.mimetype,
-          originalName: file.originalname,
-          sizeBytes: file.size,
-        });
-      }
+        for (const file of files) {
+          const key = `licenses/hunting/${license.id}/${file.originalname}`;
+          await uploadFile(key, file.buffer, file.mimetype);
+          await tx.insert(huntingLicenseAttachmentsTable).values({
+            licenseId: license.id,
+            kind: file.mimetype === ALLOWED_PDF_TYPE ? 'document' : 'photo',
+            key,
+            contentType: file.mimetype,
+            originalName: file.originalname,
+            sizeBytes: file.size,
+          });
+        }
+      });
     }
 
     res.redirect(`/rsvp/${invitation.publicId}?step=2`);
@@ -243,23 +245,25 @@ export async function postUploadCertificate(req: Request, res: Response) {
       const fileError = validateFiles(files, 2);
       if (fileError) return res.status(400).send(fileError);
 
-      const [certificate] = await db
-        .insert(trainingCertificatesTable)
-        .values({ userId: invitation.userId, estateId: invitation.estateId, issueDate: result.data.issueDate })
-        .returning();
+      await db.transaction(async (tx) => {
+        const [certificate] = await tx
+          .insert(trainingCertificatesTable)
+          .values({ userId: invitation.userId, estateId: invitation.estateId, issueDate: result.data.issueDate })
+          .returning();
 
-      for (const file of files) {
-        const key = `certificates/${certificate.id}/${file.originalname}`;
-        await uploadFile(key, file.buffer, file.mimetype);
-        await db.insert(trainingCertificateAttachmentsTable).values({
-          certId: certificate.id,
-          kind: file.mimetype === ALLOWED_PDF_TYPE ? 'document' : 'photo',
-          key,
-          contentType: file.mimetype,
-          originalName: file.originalname,
-          sizeBytes: file.size,
-        });
-      }
+        for (const file of files) {
+          const key = `certificates/${certificate.id}/${file.originalname}`;
+          await uploadFile(key, file.buffer, file.mimetype);
+          await tx.insert(trainingCertificateAttachmentsTable).values({
+            certId: certificate.id,
+            kind: file.mimetype === ALLOWED_PDF_TYPE ? 'document' : 'photo',
+            key,
+            contentType: file.mimetype,
+            originalName: file.originalname,
+            sizeBytes: file.size,
+          });
+        }
+      });
     }
 
     res.redirect(`/rsvp/${invitation.publicId}?step=3`);

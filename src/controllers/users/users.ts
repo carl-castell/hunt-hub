@@ -199,14 +199,16 @@ export async function resendActivation(req: Request, res: Response) {
 
     if (!existing) return res.status(404).send('User not found');
 
-    await db.delete(userAuthTokensTable).where(eq(userAuthTokensTable.userId, Number(id)));
-
     const token = crypto.randomUUID();
-    await db.insert(userAuthTokensTable).values({
-      userId:    Number(id),
-      token,
-      type:      'activation',
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+
+    await db.transaction(async (tx) => {
+      await tx.delete(userAuthTokensTable).where(eq(userAuthTokensTable.userId, Number(id)));
+      await tx.insert(userAuthTokensTable).values({
+        userId:    Number(id),
+        token,
+        type:      'activation',
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+      });
     });
 
     await audit({

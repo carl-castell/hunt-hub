@@ -128,14 +128,16 @@ export async function postCreateGuest(req: Request, res: Response) {
 
     const { firstName, lastName, email, phone, dateOfBirth, rating } = result.data;
 
-    const [newUser] = await db
-      .insert(usersTable)
-      .values({ firstName, lastName, role: 'guest', estateId: user.estateId! })
-      .returning();
+    const [newUser] = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(usersTable)
+        .values({ firstName, lastName, role: 'guest', estateId: user.estateId! })
+        .returning();
 
-    await db
-      .insert(contactsTable)
-      .values({ userId: newUser.id, email, phone, dateOfBirth, rating });
+      await tx.insert(contactsTable).values({ userId: created.id, email, phone, dateOfBirth, rating });
+
+      return [created];
+    });
 
     res.redirect(`/manager/guests/${newUser.id}`);
   } catch (err) {
@@ -285,15 +287,10 @@ export async function postUpdateGuest(req: Request, res: Response) {
 
     const { firstName, lastName, email, phone, dateOfBirth, rating } = result.data;
 
-    await db
-      .update(usersTable)
-      .set({ firstName, lastName })
-      .where(eq(usersTable.id, Number(id)));
-
-    await db
-      .update(contactsTable)
-      .set({ email, phone, dateOfBirth, rating })
-      .where(eq(contactsTable.userId, Number(id)));
+    await db.transaction(async (tx) => {
+      await tx.update(usersTable).set({ firstName, lastName }).where(eq(usersTable.id, Number(id)));
+      await tx.update(contactsTable).set({ email, phone, dateOfBirth, rating }).where(eq(contactsTable.userId, Number(id)));
+    });
 
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {

@@ -53,14 +53,16 @@ export async function postActivate(req: Request, res: Response) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await db
-      .update(accountsTable)
-      .set({ password: hashedPassword, active: true })
-      .where(eq(accountsTable.userId, authToken.userId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(accountsTable)
+        .set({ password: hashedPassword, active: true })
+        .where(eq(accountsTable.userId, authToken.userId));
 
-    await db
-      .delete(userAuthTokensTable)
-      .where(eq(userAuthTokensTable.id, authToken.id));
+      await tx
+        .delete(userAuthTokensTable)
+        .where(eq(userAuthTokensTable.id, authToken.id));
+    });
 
     await audit({
       userId: authToken.userId,
