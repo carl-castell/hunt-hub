@@ -6,7 +6,10 @@ export const guestGroupsTable = pgTable('guest_groups', {
   id:       integer().primaryKey().generatedAlwaysAsIdentity(),
   name:     varchar('name', { length: 255 }).notNull(),
   estateId: integer('estate_id').notNull().references(() => estatesTable.id, { onDelete: 'cascade' }),
-});
+}, (t) => [
+  index('idx_guest_groups_estate_id').on(t.estateId),
+  index('idx_guest_groups_name_trgm').using('gin', t.name.op('gin_trgm_ops')),
+]);
 
 export const guestGroupMembersTable = pgTable('guest_group_members', {
   id:      integer().primaryKey().generatedAlwaysAsIdentity(),

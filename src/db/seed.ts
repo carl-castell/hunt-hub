@@ -77,7 +77,8 @@ async function main() {
   console.log('> schema objects dropped\n');
 
   await db.execute(sql`CREATE EXTENSION IF NOT EXISTS postgis`);
-  console.log('> PostGIS extension enabled');
+  await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+  console.log('> PostGIS + pg_trgm extensions enabled');
 
   console.log('> syncing schema...');
   const migUrl = process.env.DB_PROVIDER === 'neon'

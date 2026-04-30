@@ -18,7 +18,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:neon": "DB_PROVIDER=neon SEED_MOCK_DATA=false tsx src/db/seed.ts",
     "db:reset": "docker compose down -v && docker compose up -d && node -e \"console.log('Waiting for DB...')\" && tsx -e \"setTimeout(()=>process.exit(0), 5000)\" && npm run db:push && npm run db:seed",
-    "db:reset:test": "docker compose down db_test -v && docker compose up -d db_test && node -e \"console.log('Waiting for test DB...')\" && tsx -e \"setTimeout(()=>process.exit(0), 5000)\" && LOCAL_DATABASE_URL=\"postgres://app:app@localhost:5434/appdb_test\" npm run db:push"
+    "db:reset:test": "docker compose down db_test -v && docker compose up -d db_test && node -e \"console.log('Waiting for test DB...')\" && tsx -e \"setTimeout(()=>process.exit(0), 5000)\" && LOCAL_DATABASE_URL=\"postgres://app:app@localhost:5434/appdb_test\" npm run db:push",
+    "db:analyze": "tsx scripts/analyze-queries.ts"
   },
   "keywords": [],
   "author": "",

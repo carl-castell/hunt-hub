@@ -1,4 +1,4 @@
-import { integer, pgTable, pgEnum, varchar, timestamp, check } from "drizzle-orm/pg-core";
+import { check, index, integer, pgTable, pgEnum, varchar, timestamp } from "drizzle-orm/pg-core";
 import { relations, sql } from 'drizzle-orm';
 import { estatesTable } from "./estates";
 import { userAuthTokensTable } from "./user_auth_tokens";
@@ -18,12 +18,13 @@ export const usersTable = pgTable("users", {
   role: roleEnum().notNull(),
   estateId: integer('estate_id').references(() => estatesTable.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-}, (table) => ({
-  estateIdRequiredForNonAdmin: check(
-    'estate_id_required_for_non_admin',
-    sql`${table.role} = 'admin' OR ${table.estateId} IS NOT NULL`
-  ),
-}));
+}, (table) => [
+  check('estate_id_required_for_non_admin', sql`${table.role} = 'admin' OR ${table.estateId} IS NOT NULL`),
+  index('idx_users_estate_id').on(table.estateId),
+  index('idx_users_estate_role').on(table.estateId, table.role),
+  index('idx_users_firstname_trgm').using('gin', table.firstName.op('gin_trgm_ops')),
+  index('idx_users_lastname_trgm').using('gin', table.lastName.op('gin_trgm_ops')),
+]);
 
 export const usersRelations = relations(usersTable, ({ one, many }) => ({
   estate: one(estatesTable, {

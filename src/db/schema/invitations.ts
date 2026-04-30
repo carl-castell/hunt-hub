@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   check,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -53,20 +54,15 @@ export const invitationsTable = pgTable(
 
     emailSentAt: timestamp("email_sent_at"),
   },
-  (t) => ({
-    uniqPublicId: unique("uniq_invitations_public_id").on(t.publicId),
-    uniqEventUser: unique("uniq_invitations_event_user").on(t.eventId, t.userId),
-    uniqToken: unique("uniq_invitations_token_id").on(t.tokenId),
-
-    respondedAtRequiredIfClosed: check(
-      "responded_at_required_if_response_not_open",
-      sql`${t.response} = 'open' OR ${t.respondedAt} IS NOT NULL`
-    ),
-    respondedAtMustBeNullIfOpen: check(
-      "responded_at_must_be_null_if_open",
-      sql`${t.response} != 'open' OR ${t.respondedAt} IS NULL`
-    ),
-  })
+  (t) => [
+    unique("uniq_invitations_public_id").on(t.publicId),
+    unique("uniq_invitations_event_user").on(t.eventId, t.userId),
+    unique("uniq_invitations_token_id").on(t.tokenId),
+    check("responded_at_required_if_response_not_open", sql`${t.response} = 'open' OR ${t.respondedAt} IS NOT NULL`),
+    check("responded_at_must_be_null_if_open", sql`${t.response} != 'open' OR ${t.respondedAt} IS NULL`),
+    index('idx_invitations_event_status').on(t.eventId, t.status),
+    index('idx_invitations_user_id').on(t.userId),
+  ]
 );
 
 export const invitationsRelations = relations(invitationsTable, ({ one }) => ({
