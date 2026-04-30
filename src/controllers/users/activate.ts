@@ -5,7 +5,7 @@ import { db } from '../../db';
 import { accountsTable } from '../../db/schema/accounts';
 import { userAuthTokensTable } from '../../db/schema/user_auth_tokens';
 import { activateSchema } from '@/schemas';
-import { audit } from '@/audit';
+import { audit } from '@/services/audit';
 
 export async function getActivate(req: Request, res: Response) {
   try {

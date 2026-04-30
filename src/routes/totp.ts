@@ -7,7 +7,7 @@ import { db } from '../db';
 import { accountsTable } from '../db/schema/accounts';
 import { usersTable } from '../db/schema/users';
 import { totpBackupCodesTable } from '../db/schema/totp_backup_codes';
-import { audit } from '../audit';
+import { audit } from '@/services/audit';
 import { authLimiter } from '@/middlewares/rateLimiter';
 
 const totpRouter: Router = express.Router();

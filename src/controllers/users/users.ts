@@ -5,7 +5,7 @@ import { db } from '../../db';
 import { usersTable, userAuthTokensTable } from '../../db/schema';
 import { accountsTable } from '../../db/schema/accounts';
 import { updateUserSchema } from '@/schemas';
-import { audit } from '@/audit';
+import { audit } from '@/services/audit';
 
 export async function getUser(req: Request, res: Response) {
   try {

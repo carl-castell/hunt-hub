@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { usersTable, userAuthTokensTable } from '../../db/schema';
 import { accountsTable } from '../../db/schema/accounts';
 import { createManagerSchema } from '@/schemas';
-import { renderTemplate, sendMail } from '@/mail';
+import { renderTemplate, sendMail } from '@/services/mail';
 
 export async function createManager(req: Request, res: Response) {
   try {

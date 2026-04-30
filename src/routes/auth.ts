@@ -6,7 +6,7 @@ import { usersTable } from '../db/schema/users';
 import { accountsTable } from '../db/schema/accounts';
 import { loginSchema } from '../schemas';
 import { authLimiter } from '@/middlewares/rateLimiter';
-import { audit } from '@/audit';
+import { audit } from '@/services/audit';
 
 const authRouter: Router = express.Router();
 

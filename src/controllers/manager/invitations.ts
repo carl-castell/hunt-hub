@@ -7,8 +7,8 @@ import { eventsTable } from '../../db/schema/events';
 import { usersTable } from '../../db/schema/users';
 import { contactsTable } from '../../db/schema/contacts';
 import { guestGroupMembersTable, guestGroupsTable } from '../../db/schema/guest_groups';
-import { renderTemplate, sendMail } from '../../mail';
-import { audit } from '../../audit';
+import { renderTemplate, sendMail } from '@/services/mail';
+import { audit } from '@/services/audit';
 import crypto from 'crypto';
 
 const PICKER_LIMIT = 50;

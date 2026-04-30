@@ -3,7 +3,7 @@ import { db } from '../../db';
 import { estatesTable, usersTable } from '../../db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { createEstateSchema, renameEstateSchema } from '@/schemas';
-import { audit } from '@/audit';
+import { audit } from '@/services/audit';
 
 export async function createEstate(req: Request, res: Response) {
   try {

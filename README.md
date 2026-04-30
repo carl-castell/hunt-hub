@@ -252,8 +252,6 @@ src/tests/
 src/
 ├── index.ts                    # Entry point — binds Express app to port
 ├── app.ts                      # Middleware stack + route mounting
-├── audit.ts                    # Audit log helper
-├── mail.ts                     # Nodemailer transport setup
 │
 ├── db/
 │   ├── index.ts                # Database client (pg or neon)
@@ -303,7 +301,9 @@ src/
 │       └── users.ts
 │
 ├── services/
-│   └── storage.ts              # S3-compatible upload/delete (MinIO or R2)
+│   ├── storage.ts              # S3-compatible upload/delete (MinIO or R2)
+│   ├── mail.ts                 # Nodemailer transport + template rendering
+│   └── audit.ts                # Audit log helper
 │
 ├── schemas/                    # Shared Zod schemas
 ├── mail-views/                 # EJS email templates
