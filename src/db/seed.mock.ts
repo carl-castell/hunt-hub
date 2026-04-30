@@ -5,18 +5,18 @@ import { db } from '@/db';
 import { estatesTable, usersTable, accountsTable, userAuthTokensTable, contactsTable, guestGroupsTable, guestGroupMembersTable, eventsTable, invitationsTable } from '@/db/schema';
 
 // ── seed config ─────────────────────────────────
-const GUEST_COUNT       = 1000;
+const GUEST_COUNT       = 500;
 const MANAGER_EMAIL     = 'a@a.de';
 const MANAGER_PASSWORD  = 'jjjjjjjj';
 const ESTATE_NAME       = 'Mock Estate';
-const GROUP_COUNT       = 4;
+const GROUP_COUNT       = 7;
 const GUESTS_PER_GROUP  = 50;
-const PAST_EVENTS       = 3;
+const PAST_EVENTS       = 40;
 const FUTURE_EVENTS     = 10;
-const GUESTS_PER_EVENT  = 60;
+const GUESTS_PER_EVENT  = 80;
 
-const FILLER_BEFORE = { name: 'Filler Estate Alpha', guests: 10000, events: 200,  invitationsPerEvent: 100 };
-const FILLER_AFTER  = { name: 'Filler Estate Beta',  guests: 10000, events: 1000, invitationsPerEvent: 200 };
+const FILLER_BEFORE = { name: 'Filler Estate Alpha', guests: 500000, events: 30,  invitationsPerEvent: 90 };
+const FILLER_AFTER  = { name: 'Filler Estate Beta',  guests: 500000, events: 30, invitationsPerEvent: 90 };
 // ─────────────────────────────────────────────────
 
 const CHUNK_SIZE = 500;

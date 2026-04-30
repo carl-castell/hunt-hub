@@ -120,7 +120,7 @@ async function measure(spec: QuerySpec, rowCounts: Record<string, number>) {
       withPages:    parsePages(planWith),
       scanWith:     parseScanType(planWith),
       speedup:      withTime > 0 ? Math.round(withoutTime / withTime) : 1,
-      tooFewRows:   (rowCounts[spec.primaryTable] ?? 0) < 100,
+      tooFewRows:   (rowCounts[spec.primaryTable] ?? 0) < 20,
     };
   } finally {
     client.release();
@@ -132,8 +132,8 @@ async function measure(spec: QuerySpec, rowCounts: Record<string, number>) {
 async function main() {
   const client = await pgPool.connect();
 
-  const estateRow = await client.query<{ id: number }>('SELECT id FROM estates LIMIT 1');
-  const eventRow  = await client.query<{ id: number }>('SELECT id FROM events  LIMIT 1');
+  const estateRow = await client.query<{ id: number }>(`SELECT id FROM estates WHERE name = 'Mock Estate' LIMIT 1`);
+  const eventRow  = await client.query<{ id: number }>('SELECT id FROM events WHERE estate_id = $1 LIMIT 1', [estateRow.rows[0]?.id ?? 0]);
   const stagedRow = await client.query<{ user_id: number }>(
     'SELECT user_id FROM invitations WHERE event_id = $1 LIMIT 5',
     [eventRow.rows[0]?.id ?? 0],
@@ -143,18 +143,39 @@ async function main() {
   const eventId   = eventRow.rows[0]?.id  ?? 0;
   const stagedIds = stagedRow.rows.map(r => r.user_id);
 
-  const rowCounts: Record<string, number> = {};
-  for (const table of ['users', 'invitations', 'events']) {
-    const r = await client.query<{ count: string }>(`SELECT COUNT(*) AS count FROM ${table}`);
-    rowCounts[table] = parseInt(r.rows[0].count, 10);
-  }
+  const counts = await client.query<{
+    users: string; users_total: string;
+    invitations: string; invitations_total: string;
+    events: string; events_total: string;
+  }>(`
+    SELECT
+      (SELECT COUNT(*) FROM users       WHERE estate_id = $1)                                            AS users,
+      (SELECT COUNT(*) FROM users)                                                                        AS users_total,
+      (SELECT COUNT(*) FROM invitations WHERE event_id IN (SELECT id FROM events WHERE estate_id = $1))  AS invitations,
+      (SELECT COUNT(*) FROM invitations)                                                                  AS invitations_total,
+      (SELECT COUNT(*) FROM events      WHERE estate_id = $1)                                            AS events,
+      (SELECT COUNT(*) FROM events)                                                                       AS events_total
+  `, [estateId]);
+
+  const rowCounts: Record<string, number> = {
+    users:       parseInt(counts.rows[0].users,       10),
+    invitations: parseInt(counts.rows[0].invitations, 10),
+    events:      parseInt(counts.rows[0].events,      10),
+  };
+  const totals: Record<string, number> = {
+    users:       parseInt(counts.rows[0].users_total,       10),
+    invitations: parseInt(counts.rows[0].invitations_total, 10),
+    events:      parseInt(counts.rows[0].events_total,      10),
+  };
   client.release();
 
   // Row count summary
-  console.log('\nTable row counts:');
-  for (const [table, count] of Object.entries(rowCounts)) {
-    const warn = count < 100 ? '  ⚠ too few rows — results may not be meaningful' : '';
-    console.log(`  ${table.padEnd(16)} ${String(count).padStart(6)}${warn}`);
+  console.log('\nRow counts (Mock Estate / total):');
+  for (const table of ['users', 'invitations', 'events']) {
+    const estate = rowCounts[table];
+    const total  = totals[table];
+    const warn   = estate < 20 ? '  ⚠ too few rows — results may not be meaningful' : '';
+    console.log(`  ${table.padEnd(16)} ${String(estate).padStart(6)} / ${String(total).padStart(8)}${warn}`);
   }
   console.log();
 
@@ -163,8 +184,8 @@ async function main() {
     await pgPool.end();
     return;
   }
-  if (rowCounts['users'] < 1000) {
-    console.log('⚠  Fewer than 1 000 users — planner may prefer seq scans on small tables.');
+  if (rowCounts['users'] < 20) {
+    console.log('⚠  Fewer than 20 users in Mock Estate — planner may prefer seq scans on small tables.');
     console.log('   Run the mock seeder with a higher guest count for more meaningful results.\n');
   }
 
@@ -194,7 +215,7 @@ async function main() {
   const results = await Promise.all(queries.map(q => measure(q, rowCounts)));
 
   // Print results table
-  const LW = 34, TW = 10, PW = 11;
+  const LW = 34, TW = 10, PW = 14;
   const header =
     'Query'.padEnd(LW) + ' │ ' +
     'Without index'.padEnd(TW + PW) + ' │ ' +
@@ -217,7 +238,7 @@ async function main() {
 
   console.log();
   console.log('Pages = 8 KB blocks touched (shared hit + shared read).');
-  console.log('✅ = index used   ⚠ = seq scan (normal when table has < ~1 000 rows)\n');
+  console.log('✅ index used  ⚠ seq scan (normal for small tables)\n');
 
   await pgPool.end();
 }
