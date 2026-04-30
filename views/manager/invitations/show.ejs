@@ -3,16 +3,29 @@
     if (!val) return '—';
     const d = new Date(val);
     if (isNaN(d)) return val;
-    return String(d.getUTCDate()).padStart(2,'0') + '/' +
-           String(d.getUTCMonth()+1).padStart(2,'0') + '/' +
-           d.getUTCFullYear() + ' ' +
-           String(d.getUTCHours()).padStart(2,'0') + ':' +
-           String(d.getUTCMinutes()).padStart(2,'0');
+    return String(d.getDate()).padStart(2,'0') + '/' +
+           String(d.getMonth()+1).padStart(2,'0') + '/' +
+           d.getFullYear() + ' ' +
+           String(d.getHours()).padStart(2,'0') + ':' +
+           String(d.getMinutes()).padStart(2,'0');
   }
+
+  const STATUS_LABELS = {
+    staged:         'Staged',
+    sent_email:     'Sent (email)',
+    sent_manually:  'Sent (manually)',
+    waitlist:       'Waitlist',
+    archived:       'Archived',
+  };
 %>
 <style>
   .inv-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
   .inv-header h2 { margin: 0; }
+  .inv-grid { display: grid; grid-template-columns: auto 1fr; gap: 0.6rem 1.5rem; align-items: center; }
+  .inv-grid select { margin: 0; padding: 0.2rem 0.4rem; width: auto; font-size: 0.85rem; height: auto; }
+  .inv-label { color: var(--pico-muted-color); font-size: 0.9rem; white-space: nowrap; }
+  .inv-value { font-size: 0.9rem; }
+  #inv-save { display: none; margin-top: 0.75rem; }
 </style>
 
 <div class="inv-header">
@@ -26,23 +39,57 @@
 </div>
 
 <article>
-  <dl>
-    <dt>Status</dt>
-    <dd><%= invitation.status %></dd>
+  <form action="/manager/events/<%= event.id %>/invitations/<%= invitation.id %>/update" method="POST">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+    <div class="inv-grid">
 
-    <dt>Response</dt>
-    <dd><%= invitation.response %></dd>
+      <span class="inv-label">Status</span>
+      <select name="status">
+        <% Object.entries(STATUS_LABELS).forEach(([val, label]) => { %>
+          <option value="<%= val %>" <%= invitation.status === val ? 'selected' : '' %>><%= label %></option>
+        <% }) %>
+      </select>
 
-    <dt>Respond By</dt>
-    <dd><%= fmtDateTime(invitation.respondBy) %></dd>
+      <span class="inv-label">Response</span>
+      <select name="response">
+        <option value="open" <%= invitation.response === 'open' ? 'selected' : '' %>>Open</option>
+        <option value="yes"  <%= invitation.response === 'yes'  ? 'selected' : '' %>>Yes</option>
+        <option value="no"   <%= invitation.response === 'no'   ? 'selected' : '' %>>No</option>
+      </select>
 
-    <dt>Responded At</dt>
-    <dd><%= fmtDateTime(invitation.respondedAt) %></dd>
+    </div>
+    <div id="inv-save">
+      <button type="submit" class="outline" style="margin:0;">Save</button>
+    </div>
+  </form>
+  <script>
+    (function () {
+      var form = document.querySelector('.inv-grid').closest('form');
+      var save = document.getElementById('inv-save');
+      form.querySelectorAll('select').forEach(function (s) {
+        s.addEventListener('change', function () { save.style.display = 'block'; });
+      });
+    })();
+  </script>
 
-    <dt>Opened At</dt>
-    <dd><%= fmtDateTime(invitation.openedAt) %></dd>
-  </dl>
+  <hr style="margin: 1.25rem 0 1rem;" />
+  <div class="inv-grid">
+    <% if (invitation.emailSentAt) { %>
+      <span class="inv-label">Email Sent</span>   <span class="inv-value"><%= fmtDateTime(invitation.emailSentAt) %></span>
+    <% } %>
+    <% if (invitation.respondBy) { %>
+      <span class="inv-label">Respond By</span>   <span class="inv-value"><%= fmtDateTime(invitation.respondBy) %></span>
+    <% } %>
+    <span class="inv-label">Responded At</span> <span class="inv-value"><%= fmtDateTime(invitation.respondedAt) %></span>
+    <% if (invitation.openedAt) { %>
+      <span class="inv-label">Opened At</span>    <span class="inv-value"><%= fmtDateTime(invitation.openedAt) %></span>
+    <% } %>
+  </div>
 </article>
+
+<% if (guest) { %>
+  <%- include('../guests/show', { hideGuestName: true }) %>
+<% } %>
 
 <!-- Remove dialog -->
 <dialog id="remove-inv-dialog">

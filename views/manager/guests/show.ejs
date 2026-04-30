@@ -50,7 +50,7 @@
 <article>
   <div class="guest-header">
     <div style="flex: 1;">
-      <h2 style="margin: 0;"><%= guest.firstName %> <%= guest.lastName %></h2>
+      <% if (!locals.hideGuestName) { %><h2 style="margin: 0;"><%= guest.firstName %> <%= guest.lastName %></h2><% } %>
       <div class="guest-meta">
         <span class="guest-meta-label">Email</span>       <span><%= guest.email %></span>
         <span class="guest-meta-label">Phone</span>       <span><%= guest.phone || '—' %></span>

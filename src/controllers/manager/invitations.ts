@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { and, asc, count, eq, ilike, inArray, notInArray, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, notInArray, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../../db';
 import { invitationsTable } from '../../db/schema/invitations';
@@ -7,6 +7,7 @@ import { eventsTable } from '../../db/schema/events';
 import { usersTable } from '../../db/schema/users';
 import { contactsTable } from '../../db/schema/contacts';
 import { guestGroupMembersTable, guestGroupsTable } from '../../db/schema/guest_groups';
+import { huntingLicensesTable, trainingCertificatesTable } from '../../db/schema/licenses';
 import { renderTemplate, sendMail } from '@/services/mail';
 import { audit } from '@/services/audit';
 import crypto from 'crypto';
@@ -41,13 +42,39 @@ export async function getInvitation(req: Request, res: Response) {
 
     if (!row) return res.status(404).send('Invitation not found');
 
-    const invitation = { ...row.invitations, ...row.users };
+    const invitation = { ...row.users, ...row.invitations };
+    const guestId = row.invitations.userId;
+
+    const [contactRows, licenses, certificates, guestGroupRows, allGroups] = await Promise.all([
+      db.select().from(contactsTable).innerJoin(usersTable, eq(contactsTable.userId, usersTable.id)).where(eq(contactsTable.userId, guestId)).limit(1),
+      db.select().from(huntingLicensesTable).where(eq(huntingLicensesTable.userId, guestId)).orderBy(desc(huntingLicensesTable.uploadDate)),
+      db.select().from(trainingCertificatesTable).where(eq(trainingCertificatesTable.userId, guestId)).orderBy(desc(trainingCertificatesTable.uploadDate)),
+      db.select({ id: guestGroupsTable.id, name: guestGroupsTable.name })
+        .from(guestGroupMembersTable)
+        .innerJoin(guestGroupsTable, eq(guestGroupMembersTable.groupId, guestGroupsTable.id))
+        .where(eq(guestGroupMembersTable.userId, guestId))
+        .orderBy(guestGroupsTable.name),
+      db.select({ id: guestGroupsTable.id, name: guestGroupsTable.name })
+        .from(guestGroupsTable)
+        .where(eq(guestGroupsTable.estateId, user.estateId!))
+        .orderBy(guestGroupsTable.name),
+    ]);
+
+    const contactRow = contactRows[0];
+    const guest = contactRow ? { ...contactRow.users, ...contactRow.contacts } : null;
+    const assignedGroupIds = new Set(guestGroupRows.map(g => g.id));
+    const availableGroups = allGroups.filter(g => !assignedGroupIds.has(g.id));
 
     res.render('manager/invitations/show', {
       title: `${row.users.firstName} ${row.users.lastName}`,
       user,
       event,
       invitation,
+      guest,
+      licenses,
+      certificates,
+      guestGroups: guestGroupRows,
+      availableGroups,
       breadcrumbs: [
         { label: 'Events', href: '/manager/events' },
         { label: event.eventName, href: `/manager/events/${eventId}` },
@@ -212,6 +239,48 @@ export async function getInvitationPicker(req: Request, res: Response) {
         { label: 'Select Guests' },
       ],
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
+}
+
+const updateInvitationSchema = z.object({
+  status:   z.enum(['staged', 'sent_email', 'sent_manually', 'waitlist', 'archived']),
+  response: z.enum(['open', 'yes', 'no']),
+});
+
+export async function postUpdateInvitation(req: Request, res: Response) {
+  try {
+    const user = req.session.user!;
+    const eventId = Number(req.params.eventId);
+    const invitationId = Number(req.params.invitationId);
+    if (!Number.isFinite(eventId) || !Number.isFinite(invitationId)) return res.status(400).send('Invalid id');
+
+    const event = await findEvent(eventId, user.estateId!);
+    if (!event) return res.status(404).send('Event not found');
+
+    const result = updateInvitationSchema.safeParse(req.body);
+    if (!result.success) return res.status(400).send(result.error.issues[0].message);
+
+    const { status, response } = result.data;
+
+    const [existing] = await db
+      .select({ respondedAt: invitationsTable.respondedAt })
+      .from(invitationsTable)
+      .where(and(eq(invitationsTable.id, invitationId), eq(invitationsTable.eventId, eventId)))
+      .limit(1);
+
+    if (!existing) return res.status(404).send('Invitation not found');
+
+    const respondedAt = response === 'open' ? null : (existing.respondedAt ?? new Date());
+
+    await db
+      .update(invitationsTable)
+      .set({ status, response, respondedAt })
+      .where(and(eq(invitationsTable.id, invitationId), eq(invitationsTable.eventId, eventId)));
+
+    res.redirect(`/manager/events/${eventId}/invitations/${invitationId}`);
   } catch (err) {
     console.error(err);
     res.status(500).send('Server error');
