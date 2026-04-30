@@ -38,14 +38,25 @@ export async function getPreviewRsvp(req: Request, res: Response) {
     };
 
     res.locals.layout = 'rsvp/layout';
-    const common = { invitation, drives, hasLicense: false, hasCert: false, hasValidCheckedLicense: false, contact: null };
+    const title = event.eventName;
+    const base = { invitation, drives, hasLicense: false, hasCert: false, hasValidCheckedLicense: false, contact: null };
 
-    if (state === 'no') return res.render('rsvp/declined',  { title: event.eventName, ...common });
+    if (state === 'no') return res.render('rsvp/declined', { title, ...base });
     if (state === 'yes') {
-      if (stepParam === 0) return res.render('rsvp/confirmed', { title: event.eventName, ...common });
-      return res.render('rsvp/upload', { title: event.eventName, step: Math.min(3, Math.max(1, stepParam)), ...common });
+      if (stepParam === 0) {
+        // Show presence indicators (✅) but no actual values
+        return res.render('rsvp/confirmed', {
+          title,
+          ...base,
+          hasLicense: true,
+          hasCert: true,
+          hasValidCheckedLicense: true,
+          contact: { dateOfBirth: '—', phone: '—' },
+        });
+      }
+      return res.render('rsvp/upload', { title, step: Math.min(3, Math.max(1, stepParam)), ...base });
     }
-    return res.render('rsvp/respond', { title: event.eventName, ...common });
+    return res.render('rsvp/respond', { title, ...base });
   } catch (err) {
     console.error(err);
     res.status(500).send('Server error');
