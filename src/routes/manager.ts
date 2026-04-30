@@ -4,7 +4,7 @@ import { getEstate, postRenameEstate } from '../controllers/manager/estate';
 import { getArea, postCreateArea, postRenameArea, postDeleteArea, postUploadGeofile, postDeleteGeofile } from '../controllers/manager/areas';
 import { getGuests, getNewGuest, postCreateGuest, getGuest, postUpdateGuest, postDeleteGuest, postGuestAddToGroup, postGuestRemoveFromGroup } from '../controllers/manager/guests';
 import { getEvents, getEvent, postCreateEvent, postUpdateEvent, postDeleteEvent } from '../controllers/manager/events';
-import { getInvitation, getInvitationList, getInvitationPicker, postStageInvitations, postRemoveInvitation, getSendInvitations, postSendInvitations } from '../controllers/manager/invitations';
+import { getInvitation, getInvitationList, getInvitationPicker, postStageInvitations, postRemoveInvitation, getSendInvitations, postSendInvitations, getPreviewInvitation } from '../controllers/manager/invitations';
 import { postCreateDrive, getDrive } from '../controllers/manager/drives';
 import {
   getPeople, postCreateUser,
@@ -78,6 +78,7 @@ managerRouter.post('/events/:id/delete',              postDeleteEvent);
 // Invitations
 managerRouter.get('/events/:eventId/invitations',                         getInvitationList);
 managerRouter.get('/events/:eventId/invitations/send',                    getSendInvitations);
+managerRouter.get('/events/:eventId/invitations/preview',                 getPreviewInvitation);
 managerRouter.post('/events/:eventId/invitations/send',                   postSendInvitations);
 managerRouter.get('/events/:eventId/invitations/new',                     getInvitationPicker);
 managerRouter.post('/events/:eventId/invitations',                        postStageInvitations);

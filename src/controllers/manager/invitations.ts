@@ -273,6 +273,35 @@ export async function postStageInvitations(req: Request, res: Response) {
   }
 }
 
+export async function getPreviewInvitation(req: Request, res: Response) {
+  try {
+    const user = req.session.user!;
+    const eventId = Number(req.params.eventId);
+    if (!Number.isFinite(eventId)) return res.status(400).send('Invalid event id');
+
+    const event = await findEvent(eventId, user.estateId!);
+    if (!event) return res.status(404).send('Event not found');
+
+    const rawMessage = typeof req.query.message === 'string' ? req.query.message : '';
+    const personalised = rawMessage
+      .replace(/\{\{firstName\}\}/g, 'Max')
+      .replace(/\{\{lastName\}\}/g, 'Mustermann');
+
+    const baseUrl = process.env.APP_URL ?? `${req.protocol}://${req.get('host')}`;
+    const html = await renderTemplate('invitation', {
+      message: personalised,
+      eventName: event.eventName,
+      year: new Date().getFullYear(),
+      rsvpUrl: `${baseUrl}/rsvp/preview/${eventId}`,
+    });
+
+    res.send(html);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
+}
+
 export async function getSendInvitations(req: Request, res: Response) {
   try {
     const user = req.session.user!;

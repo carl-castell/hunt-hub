@@ -94,7 +94,8 @@
       </figure>
     </article>
 
-    <div style="display:flex; justify-content:flex-end;">
+    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+      <button type="button" id="preview-btn" class="outline">Preview Email</button>
       <button type="button" id="open-confirm-btn">Send Email</button>
     </div>
 
@@ -131,6 +132,12 @@
       selectAll.checked = all.length === checked.length;
       selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
     });
+  });
+
+  document.getElementById('preview-btn').addEventListener('click', function () {
+    var message = document.querySelector('textarea[name="message"]').value;
+    var url = '/manager/events/<%= event.id %>/invitations/preview?message=' + encodeURIComponent(message);
+    window.open(url, '_blank', 'noopener');
   });
 
   document.getElementById('open-confirm-btn').addEventListener('click', function () {
