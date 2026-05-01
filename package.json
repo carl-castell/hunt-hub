@@ -14,7 +14,7 @@
     "studio": "DRIZZLE_DRIVER=pg drizzle-kit studio",
     "db:gen": "drizzle-kit generate",
     "db:push": "DRIZZLE_DRIVER=pg drizzle-kit push",
-    "db:push:neon": "drizzle-kit push",
+    "db:push:neon": "DB_PROVIDER=neon drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:neon": "DB_PROVIDER=neon SEED_MOCK_DATA=false tsx src/db/seed.ts",
     "db:reset": "docker compose down -v && docker compose up -d && node -e \"console.log('Waiting for DB...')\" && tsx -e \"setTimeout(()=>process.exit(0), 5000)\" && npm run db:push && npm run db:seed",
