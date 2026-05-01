@@ -2,24 +2,17 @@
 import 'dotenv/config';
 import * as schema from './schema';
 import { Pool } from 'pg';
-import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
-import { neon } from '@neondatabase/serverless';
-import { drizzle as drizzleNeon } from 'drizzle-orm/neon-http';
+import { drizzle } from 'drizzle-orm/node-postgres';
 
 const provider = process.env.DB_PROVIDER ?? 'local';
 
-let pool: Pool | null = null;
-
-const db =
+const pool = new Pool(
   provider === 'neon'
-    ? drizzleNeon(neon(process.env.NEON_DATABASE_URL!), { schema })
-    : (() => {
-        pool = new Pool({
-          connectionString: process.env.LOCAL_DATABASE_URL!,
-          ssl: false,
-        });
-        return drizzlePg(pool, { schema });
-      })();
+    ? { connectionString: process.env.NEON_DATABASE_URL!, ssl: true }
+    : { connectionString: process.env.LOCAL_DATABASE_URL!, ssl: false }
+);
+
+const db = drizzle(pool, { schema });
 
 export { db, pool };
 export type Db = typeof db;
