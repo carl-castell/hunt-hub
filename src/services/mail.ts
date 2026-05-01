@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import nodemailer from 'nodemailer';
 import mailgunTransport from 'nodemailer-mailgun-transport';
 import ejs from 'ejs';
@@ -12,6 +13,7 @@ const transporter = provider === 'local'
         api_key: process.env.MAILGUN_API_KEY!,
         domain: process.env.MAILGUN_DOMAIN!,
       },
+      host: process.env.MAILGUN_HOST,
     }));
 
 export async function renderTemplate(template: string, data: Record<string, unknown>): Promise<string> {
