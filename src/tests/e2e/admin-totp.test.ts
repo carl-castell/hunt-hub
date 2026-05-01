@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { generateSync, generateSecret } from 'otplib';
+import { TOTP, Secret } from 'otpauth';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
@@ -135,7 +135,7 @@ describe('Admin login → /totp/setup (no secret enrolled)', () => {
 describe('Admin login → /totp (secret already enrolled)', () => {
   let userId: number;
   let email: string;
-  const secret = generateSecret();
+  const secret = new Secret().base32;
 
   beforeAll(async () => {
     ({ userId, email } = await createAdmin('has-secret'));
@@ -192,7 +192,7 @@ describe('Full TOTP setup flow', () => {
     expect(secret).not.toBeNull();
 
     // Step 3: POST /totp/setup with valid token
-    const token = generateSync({ secret: secret!, strategy: 'totp' });
+    const token = new TOTP({ secret: Secret.fromBase32(secret!) }).generate();
     const submitRes = await agent.post('/totp/setup').send({ token });
     expect(submitRes.status).toBe(302);
     expect(submitRes.headers.location).toBe('/totp/backup-codes');
@@ -256,7 +256,7 @@ describe('TOTP setup — invalid token', () => {
 describe('TOTP verify flow', () => {
   let userId: number;
   let email: string;
-  const secret = generateSecret();
+  const secret = new Secret().base32;
 
   beforeAll(async () => {
     ({ userId, email } = await createAdmin('verify'));
@@ -270,7 +270,7 @@ describe('TOTP verify flow', () => {
   it('redirects to /admin on valid TOTP token', async () => {
     const agent = request.agent(app);
     await agent.post('/login').send({ email, password: ADMIN_PASSWORD });
-    const token = generateSync({ secret, strategy: 'totp' });
+    const token = new TOTP({ secret: Secret.fromBase32(secret) }).generate();
     const res = await agent.post('/totp').send({ token });
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/admin');
@@ -287,7 +287,7 @@ describe('TOTP verify flow', () => {
   it('/admin is accessible after successful TOTP verify', async () => {
     const agent = request.agent(app);
     await agent.post('/login').send({ email, password: ADMIN_PASSWORD });
-    const token = generateSync({ secret, strategy: 'totp' });
+    const token = new TOTP({ secret: Secret.fromBase32(secret) }).generate();
     await agent.post('/totp').send({ token });
     const res = await agent.get('/admin');
     expect(res.status).toBe(200);
@@ -301,7 +301,7 @@ describe('TOTP verify flow', () => {
 describe('Backup code recovery', () => {
   let userId: number;
   let email: string;
-  const secret = generateSecret();
+  const secret = new Secret().base32;
   const validCode = 'AAAA-1111';
   const usedCode  = 'BBBB-2222';
 
@@ -409,7 +409,7 @@ describe('Backup codes download', () => {
 
     const setupPage = await agent.get('/totp/setup');
     const secret = extractSecret(setupPage.text)!;
-    const token = generateSync({ secret, strategy: 'totp' });
+    const token = new TOTP({ secret: Secret.fromBase32(secret) }).generate();
     await agent.post('/totp/setup').send({ token });
 
     const res = await agent.get('/totp/backup-codes/download');

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import express, { Router, Request, Response, NextFunction } from 'express';
-import { generateSecret, generateURI, verifySync } from 'otplib';
+import { TOTP, Secret } from 'otpauth';
 import QRCode from 'qrcode';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db';
@@ -33,7 +33,7 @@ function requireBackupCodes(req: Request, res: Response, next: NextFunction) {
 // ---------------------------------------------------------------------------
 
 function checkToken(token: string, secret: string): boolean {
-  return verifySync({ secret, token: token.trim() }).valid;
+  return new TOTP({ secret: Secret.fromBase32(secret) }).validate({ token: token.trim() }) !== null;
 }
 
 function generateBackupCodes(): string[] {
@@ -140,14 +140,10 @@ totpRouter.get('/totp/setup', requirePending, async (req: Request, res: Response
     if (!row) return res.redirect('/login');
 
     if (!req.session.pendingTotpSecret) {
-      req.session.pendingTotpSecret = generateSecret();
+      req.session.pendingTotpSecret = new Secret().base32;
     }
 
-    const otpauth = generateURI({
-      label: row.email,
-      issuer: 'Hunt-Hub',
-      secret: req.session.pendingTotpSecret,
-    });
+    const otpauth = new TOTP({ issuer: 'Hunt-Hub', label: row.email, secret: Secret.fromBase32(req.session.pendingTotpSecret) }).toString();
     const qrDataUrl = await QRCode.toDataURL(otpauth);
 
     res.render('totp/setup', {
@@ -180,7 +176,7 @@ totpRouter.post('/totp/setup', authLimiter, requirePending, async (req: Request,
 
       if (!row) return res.redirect('/login');
 
-      const otpauth = generateURI({ label: row.email, issuer: 'Hunt-Hub', secret });
+      const otpauth = new TOTP({ issuer: 'Hunt-Hub', label: row.email, secret: Secret.fromBase32(secret) }).toString();
       const qrDataUrl = await QRCode.toDataURL(otpauth);
 
       return res.render('totp/setup', {
