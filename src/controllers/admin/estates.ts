@@ -88,14 +88,18 @@ export async function renameEstate(req: Request, res: Response) {
 export async function deleteEstate(req: Request, res: Response) {
   try {
     const { id } = req.params;
+    const estateId = Number(id);
 
-    await db.delete(estatesTable).where(eq(estatesTable.id, Number(id)));
+    await db.transaction(async (tx) => {
+      await tx.delete(usersTable).where(eq(usersTable.estateId, estateId));
+      await tx.delete(estatesTable).where(eq(estatesTable.id, estateId));
+    });
 
     await audit({
       userId: req.session.user!.id,
       event: 'estate_deleted',
       ip: req.ip,
-      metadata: { estateId: Number(id) },
+      metadata: { estateId },
     });
 
     res.redirect('/admin');
