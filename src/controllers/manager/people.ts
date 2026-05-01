@@ -38,7 +38,7 @@ export async function getPeople(req: Request, res: Response) {
 const createUserSchema = z.object({
   firstName: z.string().min(1).max(255),
   lastName:  z.string().min(1).max(255),
-  email:     z.string().email(),
+  email:     z.email(),
   role:      z.enum(['manager', 'staff']),
 });
 

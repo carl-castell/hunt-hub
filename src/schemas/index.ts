@@ -32,7 +32,7 @@ export const renameEstateSchema = z.object({
 export const createManagerSchema = z.object({
   firstName: z.string().min(1, 'First name is required.').max(255),
   lastName:  z.string().min(1, 'Last name is required.').max(255),
-  email:     z.string().email('Please enter a valid email address.'),
+  email:     z.email('Please enter a valid email address.'),
   estateId:  z.string().min(1, 'Estate ID is required.'),
 });
 

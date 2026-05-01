@@ -12,7 +12,7 @@ const optionalString = z.string().transform(v => v === '' ? undefined : v).pipe(
 const createGuestSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  email: z.string().email(),
+  email: z.email(),
   phone: optionalString,
   dateOfBirth: optionalString,
   rating: z.coerce.number().int().min(1).max(5).optional(),

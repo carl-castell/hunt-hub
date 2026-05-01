@@ -8,17 +8,17 @@ Hunting estate management platform. Managers organise events, build guest lists,
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js 18+ with TypeScript |
+| Runtime | Node.js 20.19+ with TypeScript |
 | Framework | Express.js |
 | Database | PostgreSQL 16 + PostGIS (Docker locally, Neon in production) |
 | ORM | Drizzle ORM |
 | Templating | EJS with express-ejs-layouts |
 | Auth | Session-based (express-session + connect-pg-simple) |
 | Storage | AWS S3-compatible — MinIO locally, Cloudflare R2 in production |
-| Email | Nodemailer — Mailgun SMTP in production, Mailpit locally |
+| Email | Nodemailer — Mailgun HTTP API in production, Mailpit locally |
 | Validation | Zod |
 | Security | Helmet, bcrypt, CSRF tokens, express-rate-limit, HIBP Pwned Passwords |
-| 2FA | TOTP via otplib + qrcode (admin accounts) |
+| 2FA | TOTP via otpauth + qrcode (admin accounts) |
 | Testing | Vitest + Supertest |
 
 ---
@@ -36,7 +36,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20.19+
 - Docker and Docker Compose (for local Postgres and MinIO)
 - A Mailgun account for production email, or Mailpit for local development
 
@@ -91,18 +91,19 @@ npm run dev
 | `LOCAL_DATABASE_URL` | If local | Local Postgres connection string | `postgresql://app:app@localhost:5433/appdb` |
 | `NEON_DATABASE_URL` | If neon | Neon serverless connection string | `postgresql://...` |
 
-### Email (SMTP)
+### Email
 
 | Variable | Required | Description | Example |
 |---|---|---|---|
 | `MAIL_PROVIDER` | Yes | `local` (Mailpit) or `mailgun` | `local` |
 | `MAIL_FROM` | Yes | Sender address | `noreply@example.com` |
-| `MAILGUN_SMTP_HOST` | If mailgun | SMTP host | `smtp.mailgun.org` |
-| `SMTP_PORT` | If mailgun | SMTP port (default: `587`) | `587` |
-| `MAILGUN_SMTP_USER` | If mailgun | SMTP username | `postmaster@mg.example.com` |
-| `MAILGUN_SMTP_PASSWORD` | If mailgun | SMTP password | `key-...` |
+| `MAILGUN_API_KEY` | If mailgun | Mailgun Private API key | `key-...` |
+| `MAILGUN_DOMAIN` | If mailgun | Mailgun sending domain | `mg.example.com` |
+| `MAILGUN_HOST` | If mailgun (EU) | Mailgun API host — set for EU domains | `api.eu.mailgun.net` |
 
 **Local development:** set `MAIL_PROVIDER=local` — Mailpit is included in `docker-compose.yml` and requires no credentials. All outgoing emails are intercepted and visible at `http://localhost:8025` regardless of the recipient address.
+
+**Production:** uses the Mailgun HTTP API (not SMTP) via `nodemailer-mailgun-transport`. If your Mailgun domain is EU-hosted, set `MAILGUN_HOST=api.eu.mailgun.net`.
 
 ### File Storage
 
@@ -149,6 +150,7 @@ npm run dev
 | `npm run db:push:neon` | Apply schema to Neon database |
 | `npm run db:gen` | Generate a new migration file from schema changes |
 | `npm run db:seed` | Seed admin account and optional mock data (prompts for confirmation) |
+| `npm run db:seed:neon` | Full Neon setup: drop schema, enable extensions, run all migrations, seed admin account |
 | `npm run db:reset` | Full local reset: restart Docker volumes, push schema, seed |
 | `npm run db:reset:test` | Reset the test database (port 5434) |
 | `npm run studio` | Open Drizzle Studio (database GUI) |
@@ -174,7 +176,7 @@ The app supports two drivers, switched via `DB_PROVIDER`:
 | Mode | Driver | Variable | Use for |
 |---|---|---|---|
 | `local` | `pg` | `LOCAL_DATABASE_URL` | Local development |
-| `neon` | `@neondatabase/serverless` | `NEON_DATABASE_URL` | Production / staging |
+| `neon` | `pg` (SSL) | `NEON_DATABASE_URL` | Production / staging |
 
 ### Schema overview
 
@@ -344,7 +346,7 @@ A full list of all routes, grouped by feature area and access level, is in [USEC
 
 1. Set `DB_PROVIDER=neon` and provide `NEON_DATABASE_URL`.
 2. Set `STORAGE_PROVIDER=r2` and provide R2 credentials.
-3. Configure Mailgun SMTP credentials.
+3. Configure Mailgun HTTP API credentials (`MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, and `MAILGUN_HOST` for EU domains).
 4. Set `NODE_ENV=production` — this enables secure cookies (requires HTTPS) and activates rate limiting.
 5. Run `npm run db:push:neon` to apply the schema to the production database.
 6. Build and start: `npm run build && npm start`.
