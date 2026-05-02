@@ -153,8 +153,9 @@ export async function getRsvp(req: Request, res: Response) {
     // Explicit step → always show the wizard at that step
     const stepParam = Number(req.query.step) || 0;
 
-    if (hasLicense && stepParam === 0) {
-      return res.render('rsvp/confirmed', { title: invitation.eventName, ...common });
+    if (stepParam === 0) {
+      const view = req.query.done === '1' ? 'rsvp/done' : 'rsvp/confirmed';
+      return res.render(view, { title: invitation.eventName, ...common });
     }
 
     const step = Math.min(3, Math.max(1, stepParam || 1));
@@ -184,7 +185,7 @@ export async function postRespond(req: Request, res: Response) {
       .set({ response: answer, respondedAt: new Date() })
       .where(eq(invitationsTable.id, invitation.id));
 
-    res.redirect(`/rsvp/${invitation.publicId}`);
+    res.redirect(`/rsvp/${invitation.publicId}?step=1`);
   } catch (err) {
     console.error(err);
     res.status(500).send('Server error');
@@ -297,7 +298,7 @@ export async function postUploadDetails(req: Request, res: Response) {
         .where(eq(contactsTable.userId, invitation.userId));
     }
 
-    res.redirect(`/rsvp/${invitation.publicId}`);
+    res.redirect(`/rsvp/${invitation.publicId}?done=1`);
   } catch (err) {
     console.error(err);
     res.status(500).send('Server error');
