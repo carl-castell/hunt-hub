@@ -46,7 +46,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 
 ```bash
 # 1. Clone and install
-git clone <repo-url>
+git clone https://github.com/carl-castell/hunt-hub_backend
 cd hunt-hub_backend
 npm install
 
