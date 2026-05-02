@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { verifyCsrfTokenMultipart } from '../middlewares/csrf';
 import { requireManager } from '../middlewares/requireRole';
+import { rsvpUploadLimiter } from '../middlewares/rateLimiter';
 import { getRsvp, postRespond, postUploadLicense, postUploadCertificate, postUploadDetails } from '../controllers/rsvp';
 import { getPreviewRsvp, postPreviewRespond, postPreviewUploadLicense, postPreviewUploadCertificate, postPreviewUploadDetails } from '../controllers/rsvp-preview';
 
@@ -28,16 +29,18 @@ rsvpRouter.get('/:publicId', getRsvp);
 rsvpRouter.post('/:publicId/respond', postRespond);
 rsvpRouter.post(
   '/:publicId/upload/license',
+  rsvpUploadLimiter,
   upload.fields([{ name: 'licenseFiles', maxCount: 4 }]),
   verifyCsrfTokenMultipart,
   postUploadLicense,
 );
 rsvpRouter.post(
   '/:publicId/upload/certificate',
+  rsvpUploadLimiter,
   upload.fields([{ name: 'certFiles', maxCount: 2 }]),
   verifyCsrfTokenMultipart,
   postUploadCertificate,
 );
-rsvpRouter.post('/:publicId/upload/details', postUploadDetails);
+rsvpRouter.post('/:publicId/upload/details', rsvpUploadLimiter, postUploadDetails);
 
 export default rsvpRouter;

@@ -19,3 +19,12 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   message: 'Too many login attempts, please try again later.',
 });
+
+export const rsvpUploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,  // 1 hour
+  max: isTest ? 0 : 10,
+  skip: () => isTest,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many uploads, please try again later.',
+});
