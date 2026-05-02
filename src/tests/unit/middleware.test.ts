@@ -5,6 +5,7 @@ vi.mock('@/db', () => ({
   db: {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     limit: vi.fn(),
   },
@@ -63,34 +64,53 @@ describe('requireAuth', () => {
 });
 
 describe('requireAdmin', () => {
-  it('calls next() if user is admin', () => {
+  beforeEach(() => {
+    mockLimit.mockReset();
+  });
+
+  it('calls next() if user is admin and active', async () => {
+    mockLimit.mockResolvedValueOnce([{ active: true }]);
+
     const req = mockReq({ session: { user: { id: 1, role: 'admin' } } as any });
     const res = mockRes();
     const next = mockNext();
 
-    requireAdmin(req as Request, res as Response, next);
+    await requireAdmin(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalled();
   });
 
-  it('returns 403 if user is not admin', () => {
+  it('redirects to /login if admin account is inactive', async () => {
+    mockLimit.mockResolvedValueOnce([{ active: false }]);
+
+    const req = mockReq({ session: { user: { id: 1, role: 'admin' } } as any });
+    const res = mockRes();
+    const next = mockNext();
+
+    await requireAdmin(req as Request, res as Response, next);
+
+    expect(res.redirect).toHaveBeenCalledWith('/login');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 if user is not admin', async () => {
     const req = mockReq({ session: { user: { id: 2, role: 'manager' } } as any });
     const res = mockRes();
     const next = mockNext();
 
-    requireAdmin(req as Request, res as Response, next);
+    await requireAdmin(req as Request, res as Response, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.send).toHaveBeenCalledWith('Forbidden');
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('redirects to /login if no session', () => {
+  it('redirects to /login if no session', async () => {
     const req = mockReq({ session: {} as any });
     const res = mockRes();
     const next = mockNext();
 
-    requireAdmin(req as Request, res as Response, next);
+    await requireAdmin(req as Request, res as Response, next);
 
     expect(res.redirect).toHaveBeenCalledWith('/login');
     expect(next).not.toHaveBeenCalled();
@@ -106,7 +126,7 @@ describe('requireManager', () => {
   });
 
   it('calls next() if user is manager', async () => {
-    mockLimit.mockResolvedValueOnce([{ id: 1, role: 'manager' }]);
+    mockLimit.mockResolvedValueOnce([{ role: 'manager', active: true }]);
 
     const req = mockReq({ session: { user: { id: 1, role: 'manager' } } as any });
     const res = mockRes();
@@ -119,7 +139,7 @@ describe('requireManager', () => {
   });
 
   it('returns 403 if user is not manager', async () => {
-    mockLimit.mockResolvedValueOnce([{ id: 2, role: 'admin' }]);
+    mockLimit.mockResolvedValueOnce([{ role: 'admin', active: true }]);
 
     const req = mockReq({ session: { user: { id: 2, role: 'admin' } } as any });
     const res = mockRes();
