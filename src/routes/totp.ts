@@ -55,26 +55,29 @@ async function completeAdminSession(req: Request, res: Response, userId: number)
   if (!row) return res.redirect('/login');
 
   const { accounts: account, users: user } = row;
-  req.session.pendingAdminId = undefined;
-  req.session.pendingTotpSecret = undefined;
-  req.session.pendingBackupCodes = undefined;
-  req.session.user = {
-    id:        user.id,
-    firstName: user.firstName,
-    lastName:  user.lastName,
-    email:     account.email,
-    role:      user.role,
-    active:    account.active,
-    estateId:  user.estateId ?? null,
-  };
 
-  req.session.save(async (err) => {
+  req.session.regenerate(async (err) => {
     if (err) {
-      console.error('[totp session save error]', err);
+      console.error('[totp session regenerate error]', err);
       return res.redirect('/login');
     }
-    await audit({ userId: user.id, event: 'login', ip: req.ip });
-    return res.redirect('/admin');
+    req.session.user = {
+      id:        user.id,
+      firstName: user.firstName,
+      lastName:  user.lastName,
+      email:     account.email,
+      role:      user.role,
+      active:    account.active,
+      estateId:  user.estateId ?? null,
+    };
+    req.session.save(async (saveErr) => {
+      if (saveErr) {
+        console.error('[totp session save error]', saveErr);
+        return res.redirect('/login');
+      }
+      await audit({ userId: user.id, event: 'login', ip: req.ip });
+      return res.redirect('/admin');
+    });
   });
 }
 

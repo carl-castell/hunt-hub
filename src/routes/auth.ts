@@ -83,33 +83,44 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
 
     // Admin accounts require TOTP as a second factor (skipped when SKIP_TOTP=true)
     if (user.role === 'admin' && process.env.SKIP_TOTP !== 'true') {
-      req.session.pendingAdminId = user.id;
-      return req.session.save((err) => {
+      return req.session.regenerate((err) => {
         if (err) {
-          console.error('[session save error]', err);
+          console.error('[session regenerate error]', err);
           return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
         }
-        return res.redirect(account.totpSecret ? '/totp' : '/totp/setup');
+        req.session.pendingAdminId = user.id;
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error('[session save error]', saveErr);
+            return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
+          }
+          return res.redirect(account.totpSecret ? '/totp' : '/totp/setup');
+        });
       });
     }
 
-    req.session.user = {
-      id:        user.id,
-      firstName: user.firstName,
-      lastName:  user.lastName,
-      email:     account.email,
-      role:      user.role,
-      active:    account.active,
-      estateId:  user.estateId ?? null,
-    };
-
-    req.session.save(async (err) => {
+    req.session.regenerate((err) => {
       if (err) {
-        console.error('[session save error]', err);
+        console.error('[session regenerate error]', err);
         return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
       }
-      await audit({ userId: user.id, event: 'login', ip: req.ip });
-      return redirectByRole(req, res);
+      req.session.user = {
+        id:        user.id,
+        firstName: user.firstName,
+        lastName:  user.lastName,
+        email:     account.email,
+        role:      user.role,
+        active:    account.active,
+        estateId:  user.estateId ?? null,
+      };
+      req.session.save(async (saveErr) => {
+        if (saveErr) {
+          console.error('[session save error]', saveErr);
+          return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
+        }
+        await audit({ userId: user.id, event: 'login', ip: req.ip });
+        return redirectByRole(req, res);
+      });
     });
 
   } catch (err) {
