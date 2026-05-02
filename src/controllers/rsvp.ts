@@ -16,6 +16,10 @@ import { uploadFile } from '../services/storage';
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 const ALLOWED_PDF_TYPE = 'application/pdf';
 
+function safeFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '_');
+}
+
 const licenseSchema = z.object({
   expiryDate: z.string().min(1).refine((v) => {
     const d = new Date(`${v}T00:00:00Z`);
@@ -209,7 +213,7 @@ export async function postUploadLicense(req: Request, res: Response) {
           .returning();
 
         for (const file of files) {
-          const key = `licenses/hunting/${license.id}/${file.originalname}`;
+          const key = `licenses/hunting/${license.id}/${safeFilename(file.originalname)}`;
           await uploadFile(key, file.buffer, file.mimetype);
           await tx.insert(huntingLicenseAttachmentsTable).values({
             licenseId: license.id,
@@ -252,7 +256,7 @@ export async function postUploadCertificate(req: Request, res: Response) {
           .returning();
 
         for (const file of files) {
-          const key = `certificates/${certificate.id}/${file.originalname}`;
+          const key = `certificates/${certificate.id}/${safeFilename(file.originalname)}`;
           await uploadFile(key, file.buffer, file.mimetype);
           await tx.insert(trainingCertificateAttachmentsTable).values({
             certId: certificate.id,

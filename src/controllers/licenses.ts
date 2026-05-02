@@ -16,6 +16,10 @@ import { z } from 'zod';
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 const ALLOWED_PDF_TYPE = 'application/pdf';
 
+function safeFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '_');
+}
+
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const licenseSchema = z.object({
@@ -171,7 +175,7 @@ export async function postCreateHuntingLicense(req: Request, res: Response) {
         .returning();
 
       for (const file of files) {
-        const key = `licenses/hunting/${created.id}/${file.originalname}`;
+        const key = `licenses/hunting/${created.id}/${safeFilename(file.originalname)}`;
         await uploadFile(key, file.buffer, file.mimetype);
         await tx.insert(huntingLicenseAttachmentsTable).values({
           licenseId: created.id,
@@ -386,7 +390,7 @@ export async function postCreateTrainingCertificate(req: Request, res: Response)
         .returning();
 
       for (const file of files) {
-        const key = `certificates/${created.id}/${file.originalname}`;
+        const key = `certificates/${created.id}/${safeFilename(file.originalname)}`;
         await uploadFile(key, file.buffer, file.mimetype);
         await tx.insert(trainingCertificateAttachmentsTable).values({
           certId: created.id,
