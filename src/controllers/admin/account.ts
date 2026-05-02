@@ -6,6 +6,7 @@ import { accountsTable } from '../../db/schema/accounts';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import { isPasswordPwned } from '@/services/hibp';
+import { audit } from '@/services/audit';
 
 const changePasswordSchema = z.object({
   oldPassword: z.string().min(1),
@@ -65,6 +66,7 @@ export async function postChangePassword(req: Request, res: Response) {
 
     await db.update(accountsTable).set({ password: await bcrypt.hash(newPassword, 10) }).where(eq(accountsTable.userId, user.id));
 
+    await audit({ userId: user.id, event: 'password_changed', ip: req.ip });
     await renderAccount(req, res, { error: null, success: 'Password changed successfully.' });
   } catch (err) {
     console.error(err);

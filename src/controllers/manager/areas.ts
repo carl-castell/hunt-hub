@@ -6,6 +6,7 @@ import { areasTable } from '@/db/schema/areas';
 import { standsTable } from '@/db/schema/stands';
 import { z } from 'zod';
 import { runWorker } from '@/utils/runWorker';
+import { audit } from '@/services/audit';
 
 const GEOFILE_WORKER = path.resolve(
   __dirname,
@@ -172,6 +173,7 @@ export async function postUploadGeofile(req: Request, res: Response) {
       .set({ geofile: sql`ST_GeomFromGeoJSON(${result.geometryCollection})` })
       .where(eq(areasTable.id, Number(id)));
 
+    await audit({ userId: user.id, event: 'geofile_uploaded', ip: req.ip, metadata: { areaId: Number(id) } });
     res.redirect(`/manager/areas/${id}`);
   } catch (err) {
     console.error(err);
@@ -203,6 +205,7 @@ export async function postDeleteGeofile(req: Request, res: Response) {
       .set({ geofile: null })
       .where(eq(areasTable.id, Number(id)));
 
+    await audit({ userId: user.id, event: 'geofile_deleted', ip: req.ip, metadata: { areaId: Number(id) } });
     res.redirect(`/manager/areas/${id}`);
   } catch (err) {
     console.error(err);

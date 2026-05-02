@@ -112,6 +112,7 @@ totpRouter.post('/totp', authLimiter, requirePending, async (req: Request, res: 
     if (!row?.totpSecret) return res.redirect('/login');
 
     if (!checkToken(token, row.totpSecret)) {
+      await audit({ userId, event: 'failed_totp', ip: req.ip });
       return res.render('totp/verify', {
         layout: false,
         title: 'Hunt-Hub | Two-Factor Authentication',
@@ -207,6 +208,7 @@ totpRouter.post('/totp/setup', authLimiter, requirePending, async (req: Request,
       codes.map((_, i) => ({ userId, codeHash: hashes[i] }))
     );
 
+    await audit({ userId, event: 'totp_setup', ip: req.ip });
     req.session.pendingBackupCodes = codes;
     req.session.save((err) => {
       if (err) {
@@ -314,10 +316,13 @@ totpRouter.post('/totp/backup', authLimiter, requirePending, async (req: Request
 
     if (!match) {
       const newCount = acct.failedAttempts + 1;
+      const locked = newCount >= 10;
       await db.update(accountsTable).set({
         failedAttempts: newCount,
-        lockedUntil: newCount >= 10 ? new Date(Date.now() + 15 * 60 * 1000) : null,
+        lockedUntil: locked ? new Date(Date.now() + 15 * 60 * 1000) : null,
       }).where(eq(accountsTable.userId, userId));
+      await audit({ userId, event: 'failed_backup_code', ip: req.ip });
+      if (locked) await audit({ userId, event: 'account_locked', ip: req.ip, metadata: { reason: 'backup_code' } });
       return res.render('totp/backup', {
         layout: false,
         title: 'Hunt-Hub | Use Backup Code',
@@ -328,6 +333,8 @@ totpRouter.post('/totp/backup', authLimiter, requirePending, async (req: Request
     await db.update(accountsTable)
       .set({ failedAttempts: 0, lockedUntil: null })
       .where(eq(accountsTable.userId, userId));
+
+    await audit({ userId, event: 'backup_code_used', ip: req.ip });
 
     await db.update(totpBackupCodesTable)
       .set({ usedAt: new Date() })

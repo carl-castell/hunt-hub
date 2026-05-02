@@ -69,11 +69,13 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
     const passwordMatch = await bcrypt.compare(password, account.password);
     if (!passwordMatch) {
       const newCount = account.failedAttempts + 1;
+      const locked = newCount >= 10;
       await db.update(accountsTable).set({
         failedAttempts: newCount,
-        lockedUntil: newCount >= 10 ? new Date(Date.now() + 15 * 60 * 1000) : null,
+        lockedUntil: locked ? new Date(Date.now() + 15 * 60 * 1000) : null,
       }).where(eq(accountsTable.userId, account.userId));
       await audit({ event: 'failed_login', ip: req.ip, metadata: { email } });
+      if (locked) await audit({ userId: account.userId, event: 'account_locked', ip: req.ip, metadata: { reason: 'password' } });
       return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Invalid email or password.' });
     }
 

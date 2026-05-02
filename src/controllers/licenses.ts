@@ -8,6 +8,7 @@ import {
   trainingCertificatesTable, trainingCertificateAttachmentsTable,
 } from '../db/schema/licenses';
 import { uploadFile, deleteFile } from '@/services/storage';
+import { audit } from '@/services/audit';
 import { z } from 'zod';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -185,6 +186,7 @@ export async function postCreateHuntingLicense(req: Request, res: Response) {
       return [created];
     });
 
+    await audit({ userId: user.id, event: 'license_uploaded', ip: req.ip, metadata: { guestId: id, licenseId: license.id } });
     res.redirect(`/manager/guests/${id}/hunting-license?licenseId=${license.id}`);
   } catch (err) {
     console.error(err);
@@ -260,6 +262,7 @@ export async function postDeleteHuntingLicense(req: Request, res: Response) {
 
     await deleteLicense(licenseId);
 
+    await audit({ userId: user.id, event: 'license_deleted', ip: req.ip, metadata: { guestId: id, licenseId } });
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {
     console.error(err);
@@ -398,6 +401,7 @@ export async function postCreateTrainingCertificate(req: Request, res: Response)
       return [created];
     });
 
+    await audit({ userId: user.id, event: 'certificate_uploaded', ip: req.ip, metadata: { guestId: id, certId: certificate.id } });
     res.redirect(`/manager/guests/${id}/training-certificate?certId=${certificate.id}`);
   } catch (err) {
     console.error(err);
@@ -472,6 +476,7 @@ export async function postDeleteTrainingCertificate(req: Request, res: Response)
 
     await deleteCertificate(certId);
 
+    await audit({ userId: user.id, event: 'certificate_deleted', ip: req.ip, metadata: { guestId: id, certId } });
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {
     console.error(err);

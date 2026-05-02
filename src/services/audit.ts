@@ -6,6 +6,7 @@ type AuditEvent =
   | 'failed_login'
   | 'logout'
   | 'account_activated'
+  | 'account_locked'
   | 'user_created'
   | 'user_deleted'
   | 'user_deactivated'
@@ -14,7 +15,18 @@ type AuditEvent =
   | 'estate_created'
   | 'estate_deleted'
   | 'invitation_email_sent'
-  | 'hibp_service_error';
+  | 'hibp_service_error'
+  | 'failed_totp'
+  | 'totp_setup'
+  | 'backup_code_used'
+  | 'failed_backup_code'
+  | 'password_changed'
+  | 'license_uploaded'
+  | 'license_deleted'
+  | 'certificate_uploaded'
+  | 'certificate_deleted'
+  | 'geofile_uploaded'
+  | 'geofile_deleted';
 
 interface AuditOptions {
   userId?: number | null;
