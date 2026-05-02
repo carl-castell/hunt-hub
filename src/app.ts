@@ -30,7 +30,7 @@ const app: Express = express();
 app.set('trust proxy', 1);
 const PgStore = connectPg(session);
 
-const sessionPool = new pg.Pool({
+export const sessionPool = new pg.Pool({
   connectionString: process.env.DB_PROVIDER === 'neon'
     ? process.env.NEON_DATABASE_URL
     : process.env.LOCAL_DATABASE_URL,
