@@ -17,7 +17,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 | Storage | AWS S3-compatible — MinIO locally, Cloudflare R2 in production |
 | Email | Nodemailer — Mailgun HTTP API in production, Mailpit locally |
 | Validation | Zod |
-| Security | Helmet, bcrypt, CSRF tokens, express-rate-limit, HIBP Pwned Passwords |
+| Security | Helmet, bcrypt, CSRF tokens, express-rate-limit, HIBP Pwned Passwords, per-account lockout, audit logging, session invalidation |
 | 2FA | TOTP via otpauth + qrcode (admin accounts) |
 | Testing | Vitest + Supertest |
 
@@ -79,9 +79,8 @@ npm run dev
 | `NODE_ENV` | Yes | Runtime environment | `development` |
 | `PORT` | No | HTTP port (default: 3000) | `3000` |
 | `SESSION_SECRET` | Yes | Random string for session signing | `change-me-32-chars-min` |
-| `DOMAIN` | Yes | Base URL used in activation email links | `http://localhost:3000` |
-| `APP_URL` | Yes | Base URL used in RSVP email links | `http://localhost:3000` |
-| `SKIP_TOTP` | No | Skip admin TOTP in the dev server (set automatically in test suites) | `true` |
+| `DOMAIN` | Yes | Base URL used in email links and RSVP URLs | `http://localhost:3000` |
+| `SKIP_TOTP` | No | Skip admin TOTP — dev/test only, **throws at startup if set in production** | `true` |
 
 ### Database
 
@@ -186,7 +185,7 @@ The schema is defined in `src/db/schema/` using Drizzle. Key tables:
 |---|---|
 | `estates` | Hunting estates — top-level tenant |
 | `users` | Staff accounts (admin / manager / staff) |
-| `accounts` | Login credentials (email + bcrypt password) |
+| `accounts` | Login credentials (email + bcrypt password), active flag, failed-attempt counter + lockout timestamp |
 | `contacts` | Extended guest info: email, phone, date of birth, rating |
 | `events` | Hunting events (name, date, time) scoped to an estate |
 | `drives` | Individual drives within an event (start/end time) |
@@ -308,6 +307,13 @@ src/
 │   ├── mail.ts                 # Nodemailer transport + template rendering
 │   ├── audit.ts                # Audit log helper
 │   └── hibp.ts                 # HaveIBeenPwned k-anonymity password check
+│
+├── workers/
+│   └── geofile.worker.ts       # Worker thread: parses GeoJSON/KML/GPX/SHP/GPKG off the event loop
+│
+├── utils/
+│   ├── runWorker.ts            # Promise wrapper for worker_threads
+│   └── url.ts                  # getBaseUrl() — DOMAIN in production, request host in dev
 │
 ├── schemas/                    # Shared Zod schemas
 ├── mail-views/                 # EJS email templates
