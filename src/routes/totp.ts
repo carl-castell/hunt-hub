@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import express, { Router, Request, Response, NextFunction } from 'express';
 import { TOTP, Secret } from 'otpauth';
 import QRCode from 'qrcode';
@@ -38,13 +39,9 @@ function checkToken(token: string, secret: string): boolean {
 
 function generateBackupCodes(): string[] {
   return Array.from({ length: 10 }, () => {
-    const hex = crypto.randomBytes(4).toString('hex').toUpperCase();
-    return `${hex.slice(0, 4)}-${hex.slice(4)}`;
+    const hex = crypto.randomBytes(6).toString('hex').toUpperCase();
+    return `${hex.slice(0, 4)}-${hex.slice(4, 8)}-${hex.slice(8)}`;
   });
-}
-
-function hashBackupCode(code: string): string {
-  return crypto.createHash('sha256').update(code.replace(/-/g, '')).digest('hex');
 }
 
 async function completeAdminSession(req: Request, res: Response, userId: number) {
@@ -197,8 +194,9 @@ totpRouter.post('/totp/setup', authLimiter, requirePending, async (req: Request,
       .where(eq(accountsTable.userId, userId));
 
     const codes = generateBackupCodes();
+    const hashes = await Promise.all(codes.map(c => bcrypt.hash(c.replace(/-/g, ''), 10)));
     await db.insert(totpBackupCodesTable).values(
-      codes.map(code => ({ userId, codeHash: hashBackupCode(code) }))
+      codes.map((_, i) => ({ userId, codeHash: hashes[i] }))
     );
 
     req.session.pendingBackupCodes = codes;
@@ -273,24 +271,55 @@ totpRouter.post('/totp/backup', authLimiter, requirePending, async (req: Request
   }
 
   try {
-    const hash = hashBackupCode(raw);
-    const [match] = await db
-      .select()
-      .from(totpBackupCodesTable)
-      .where(and(
-        eq(totpBackupCodesTable.userId, userId),
-        eq(totpBackupCodesTable.codeHash, hash),
-        isNull(totpBackupCodesTable.usedAt),
-      ))
+    const [acct] = await db
+      .select({ failedAttempts: accountsTable.failedAttempts, lockedUntil: accountsTable.lockedUntil })
+      .from(accountsTable)
+      .where(eq(accountsTable.userId, userId))
       .limit(1);
 
+    if (!acct) return res.redirect('/login');
+
+    if (acct.lockedUntil) {
+      if (acct.lockedUntil > new Date()) {
+        return res.render('totp/backup', {
+          layout: false,
+          title: 'Hunt-Hub | Use Backup Code',
+          error: 'Account temporarily locked. Please try again later.',
+        });
+      }
+      await db.update(accountsTable)
+        .set({ failedAttempts: 0, lockedUntil: null })
+        .where(eq(accountsTable.userId, userId));
+      acct.failedAttempts = 0;
+    }
+
+    const unusedCodes = await db
+      .select()
+      .from(totpBackupCodesTable)
+      .where(and(eq(totpBackupCodesTable.userId, userId), isNull(totpBackupCodesTable.usedAt)));
+
+    const normalized = raw.replace(/-/g, '');
+    let match: typeof unusedCodes[number] | undefined;
+    for (const row of unusedCodes) {
+      if (await bcrypt.compare(normalized, row.codeHash)) { match = row; break; }
+    }
+
     if (!match) {
+      const newCount = acct.failedAttempts + 1;
+      await db.update(accountsTable).set({
+        failedAttempts: newCount,
+        lockedUntil: newCount >= 10 ? new Date(Date.now() + 15 * 60 * 1000) : null,
+      }).where(eq(accountsTable.userId, userId));
       return res.render('totp/backup', {
         layout: false,
         title: 'Hunt-Hub | Use Backup Code',
         error: 'Invalid or already used backup code.',
       });
     }
+
+    await db.update(accountsTable)
+      .set({ failedAttempts: 0, lockedUntil: null })
+      .where(eq(accountsTable.userId, userId));
 
     await db.update(totpBackupCodesTable)
       .set({ usedAt: new Date() })

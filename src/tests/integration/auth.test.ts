@@ -137,4 +137,29 @@ describe('Auth Integration Tests', () => {
       expect(res.status).toBe(403);
     });
   });
+
+  describe('Account lockout', () => {
+    afterEach(async () => {
+      await db.update(accountsTable)
+        .set({ failedAttempts: 0, lockedUntil: null })
+        .where(eq(accountsTable.userId, testUserId));
+    });
+
+    it('locks the account after 10 failed attempts', async () => {
+      for (let i = 0; i < 10; i++) {
+        await request(app).post('/login').send({ email: testUser.email, password: 'WrongPassword!' });
+      }
+      const res = await request(app).post('/login').send({ email: testUser.email, password: testUser.password });
+      expect(res.text).toContain('Account temporarily locked');
+    });
+
+    it('resets the counter and allows login after the lock expires', async () => {
+      await db.update(accountsTable)
+        .set({ failedAttempts: 10, lockedUntil: new Date(Date.now() - 1000) })
+        .where(eq(accountsTable.userId, testUserId));
+      const res = await request(app).post('/login').send({ email: testUser.email, password: testUser.password });
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe('/manager');
+    });
+  });
 });

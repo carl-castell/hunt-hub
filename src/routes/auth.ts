@@ -58,10 +58,27 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
       return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Invalid email or password.' });
     }
 
+    if (account.lockedUntil) {
+      if (account.lockedUntil > new Date()) {
+        return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Account temporarily locked. Please try again later.' });
+      }
+      await db.update(accountsTable).set({ failedAttempts: 0, lockedUntil: null }).where(eq(accountsTable.userId, account.userId));
+      account.failedAttempts = 0;
+    }
+
     const passwordMatch = await bcrypt.compare(password, account.password);
     if (!passwordMatch) {
+      const newCount = account.failedAttempts + 1;
+      await db.update(accountsTable).set({
+        failedAttempts: newCount,
+        lockedUntil: newCount >= 10 ? new Date(Date.now() + 15 * 60 * 1000) : null,
+      }).where(eq(accountsTable.userId, account.userId));
       await audit({ event: 'failed_login', ip: req.ip, metadata: { email } });
       return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Invalid email or password.' });
+    }
+
+    if (account.failedAttempts > 0 || account.lockedUntil) {
+      await db.update(accountsTable).set({ failedAttempts: 0, lockedUntil: null }).where(eq(accountsTable.userId, account.userId));
     }
 
     // Admin accounts require TOTP as a second factor (skipped when SKIP_TOTP=true)

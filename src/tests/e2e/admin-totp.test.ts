@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { TOTP, Secret } from 'otpauth';
-import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import app from '@/app';
@@ -35,12 +34,9 @@ async function setTotpSecret(userId: number, secret: string) {
   await db.update(accountsTable).set({ totpSecret: secret }).where(eq(accountsTable.userId, userId));
 }
 
-function hashBackupCode(code: string): string {
-  return crypto.createHash('sha256').update(code.replace(/-/g, '')).digest('hex');
-}
-
 async function insertBackupCode(userId: number, code: string) {
-  await db.insert(totpBackupCodesTable).values({ userId, codeHash: hashBackupCode(code) });
+  const hash = await bcrypt.hash(code.replace(/-/g, ''), 10);
+  await db.insert(totpBackupCodesTable).values({ userId, codeHash: hash });
 }
 
 function extractSecret(html: string): string | null {
@@ -200,7 +196,7 @@ describe('Full TOTP setup flow', () => {
     // Step 4: GET /totp/backup-codes — shows 10 codes
     const codesPage = await agent.get('/totp/backup-codes');
     expect(codesPage.status).toBe(200);
-    const codeMatches = codesPage.text.match(/[A-F0-9]{4}-[A-F0-9]{4}/g) ?? [];
+    const codeMatches = codesPage.text.match(/[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}/g) ?? [];
     expect(codeMatches.length).toBeGreaterThanOrEqual(10);
 
     // Step 5: confirm → /admin
@@ -312,7 +308,7 @@ describe('Backup code recovery', () => {
     // Insert usedCode as already used
     const [row] = await db
       .insert(totpBackupCodesTable)
-      .values({ userId, codeHash: hashBackupCode(usedCode) })
+      .values({ userId, codeHash: await bcrypt.hash(usedCode.replace(/-/g, ''), 10) })
       .returning();
     await db
       .update(totpBackupCodesTable)
