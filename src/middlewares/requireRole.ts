@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../db';
 import { usersTable } from '../db/schema';
+import { accountsTable } from '../db/schema/accounts';
 import { eq } from 'drizzle-orm';
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -8,25 +9,39 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.session.user) return res.redirect('/login');
   if (req.session.user.role !== 'admin') return res.status(403).send('Forbidden');
-  next();
+
+  try {
+    const [account] = await db
+      .select({ active: accountsTable.active })
+      .from(accountsTable)
+      .where(eq(accountsTable.userId, req.session.user.id))
+      .limit(1);
+
+    if (!account?.active) return res.redirect('/login');
+    next();
+  } catch (err) {
+    console.error('[requireAdmin]', err);
+    res.status(500).send('Server error');
+  }
 }
 
 export async function requireManager(req: Request, res: Response, next: NextFunction) {
   if (!req.session.user) return res.redirect('/login');
 
   try {
-    const [freshUser] = await db
-      .select()
+    const [row] = await db
+      .select({ role: usersTable.role, active: accountsTable.active })
       .from(usersTable)
+      .innerJoin(accountsTable, eq(accountsTable.userId, usersTable.id))
       .where(eq(usersTable.id, req.session.user.id))
       .limit(1);
 
-    if (!freshUser || freshUser.role !== 'manager') return res.status(403).send('Forbidden');
+    if (!row || row.role !== 'manager' || !row.active) return res.status(403).send('Forbidden');
 
-    req.session.user.role = freshUser.role;
+    req.session.user.role = row.role;
     next();
   } catch (err) {
     console.error('[requireManager]', err);

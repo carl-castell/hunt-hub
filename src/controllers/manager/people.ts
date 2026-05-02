@@ -8,6 +8,7 @@ import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { getBaseUrl } from '@/utils/url';
+import { sessionPool } from '@/app';
 
 export async function getPeople(req: Request, res: Response) {
   try {
@@ -226,6 +227,7 @@ export async function postDeactivateUser(req: Request, res: Response) {
       .set({ active: false })
       .where(eq(accountsTable.userId, Number(id)));
 
+    await sessionPool.query(`DELETE FROM session WHERE sess->'user'->>'id' = $1`, [id]);
     res.redirect(`/manager/people/${id}`);
   } catch (err) {
     console.error(err);
