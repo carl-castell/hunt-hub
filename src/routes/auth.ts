@@ -89,6 +89,7 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
           return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
         }
         req.session.pendingAdminId = user.id;
+        req.session.pendingAdminExpires = Date.now() + 5 * 60 * 1000;
         req.session.save((saveErr) => {
           if (saveErr) {
             console.error('[session save error]', saveErr);

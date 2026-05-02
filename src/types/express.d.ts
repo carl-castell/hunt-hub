@@ -16,7 +16,8 @@ declare module 'express-session' {
   interface SessionData {
     user?: SessionUser;
     csrfToken?: string;
-    pendingAdminId?: number;
+    pendingAdminId?:      number;
+    pendingAdminExpires?: number;
     pendingTotpSecret?: string;
     pendingBackupCodes?: string[];
   }

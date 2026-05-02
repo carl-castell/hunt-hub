@@ -20,6 +20,11 @@ const totpRouter: Router = express.Router();
 function requirePending(req: Request, res: Response, next: NextFunction) {
   if (req.session.user) return res.redirect('/admin');
   if (!req.session.pendingAdminId) return res.redirect('/login');
+  if (req.session.pendingAdminExpires && Date.now() > req.session.pendingAdminExpires) {
+    req.session.pendingAdminId = undefined;
+    req.session.pendingAdminExpires = undefined;
+    return res.redirect('/login');
+  }
   next();
 }
 
