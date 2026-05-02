@@ -5,7 +5,7 @@ import { getUser, updateUser, deactivateUser, deleteUser, resendActivation, reac
 
 const router = express.Router();
 
-router.post('/managers', createManager);
+router.post('/managers', requireAuth, createManager);
 router.get('/:id', requireUserAccess, getUser);
 router.post('/:id/update', requireUserAccess, updateUser);
 router.post('/:id/deactivate', requireUserAccess, deactivateUser);

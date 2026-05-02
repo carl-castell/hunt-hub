@@ -5,6 +5,7 @@ import { db } from '../../db';
 import { usersTable, userAuthTokensTable } from '../../db/schema';
 import { accountsTable } from '../../db/schema/accounts';
 import { updateUserSchema } from '@/schemas';
+import { getBaseUrl } from '@/utils/url';
 import { audit } from '@/services/audit';
 
 export async function getUser(req: Request, res: Response) {
@@ -32,7 +33,7 @@ export async function getUser(req: Request, res: Response) {
       .where(eq(userAuthTokensTable.userId, user.id))
       .limit(1);
 
-    const domain = `${req.protocol}://${req.get('host')}`;
+    const domain = getBaseUrl(req);
 
     res.render('admin/user', {
       layout: false,

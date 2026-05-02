@@ -7,6 +7,7 @@ import { userAuthTokensTable } from '../../db/schema/user_auth_tokens';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { getBaseUrl } from '@/utils/url';
 
 export async function getPeople(req: Request, res: Response) {
   try {
@@ -118,7 +119,7 @@ export async function getUser(req: Request, res: Response) {
       .where(eq(accountsTable.userId, targetUser.id))
       .limit(1);
 
-    const domain = `${req.protocol}://${req.get('host')}`;
+    const domain = getBaseUrl(req);
 
     const breadcrumbs = [{ label: 'Estate', href: '/manager/estate' }, { label: `${targetUser.firstName} ${targetUser.lastName}` }];
     res.render('manager/user', {
@@ -163,7 +164,7 @@ export async function postUpdateUserRole(req: Request, res: Response) {
       .where(eq(accountsTable.userId, targetUser.id))
       .limit(1);
 
-    const domain = `${req.protocol}://${req.get('host')}`;
+    const domain = getBaseUrl(req);
 
     const result = updateRoleSchema.safeParse(req.body);
     if (!result.success) return res.status(400).send(result.error.issues[0].message);

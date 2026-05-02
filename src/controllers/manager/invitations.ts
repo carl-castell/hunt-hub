@@ -9,6 +9,7 @@ import { contactsTable } from '../../db/schema/contacts';
 import { guestGroupMembersTable, guestGroupsTable } from '../../db/schema/guest_groups';
 import { huntingLicensesTable, trainingCertificatesTable } from '../../db/schema/licenses';
 import { renderTemplate, sendMail } from '@/services/mail';
+import { getBaseUrl } from '@/utils/url';
 import { audit } from '@/services/audit';
 import crypto from 'crypto';
 
@@ -356,7 +357,7 @@ export async function getPreviewInvitation(req: Request, res: Response) {
       .replace(/\{\{firstName\}\}/g, 'Max')
       .replace(/\{\{lastName\}\}/g, 'Mustermann');
 
-    const baseUrl = process.env.APP_URL ?? `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getBaseUrl(req);
     const html = await renderTemplate('invitation', {
       message: personalised,
       eventName: event.eventName,
@@ -473,7 +474,7 @@ export async function postSendInvitations(req: Request, res: Response) {
         .replace(/\{\{lastName\}\}/g, row.lastName);
 
       try {
-        const baseUrl = process.env.APP_URL ?? `${req.protocol}://${req.get('host')}`;
+        const baseUrl = getBaseUrl(req);
         const rsvpUrl = `${baseUrl}/rsvp/${row.publicId}`;
         const html = await renderTemplate('invitation', {
           message: personalised,
