@@ -12,6 +12,7 @@ export async function isPasswordPwned(
   try {
     const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
       headers: { 'User-Agent': 'hunt-hub' },
+      signal: AbortSignal.timeout(3000),
     });
 
     if (!res.ok) {
