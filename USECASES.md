@@ -214,6 +214,7 @@
 | POST | `/manager/events/:eventId/invitations/send` | Send staged invitations |
 | GET | `/manager/events/:eventId/invitations/preview` | Preview the invitation email/page |
 | GET | `/manager/events/:eventId/invitations/:invitationId` | View a specific invitation |
+| POST | `/manager/events/:eventId/invitations/:invitationId/update` | Update invitation status or response |
 | POST | `/manager/events/:eventId/invitations/:invitationId/remove` | Cancel / remove an invitation |
 
 ---
