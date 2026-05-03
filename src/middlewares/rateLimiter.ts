@@ -22,9 +22,18 @@ export const authLimiter = rateLimit({
 
 export const rsvpUploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,  // 1 hour
-  max: isTest ? 0 : 10,
+  max: isTest ? 0 : 50,
   skip: () => isTest,
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many uploads, please try again later.',
+});
+
+export const rsvpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isTest ? 0 : 100,
+  skip: () => isTest,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests, please try again later.',
 });
