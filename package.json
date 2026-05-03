@@ -32,6 +32,7 @@
     "@neondatabase/serverless": "^0.10.1",
     "@tmcw/togeojson": "^7.1.2",
     "@xmldom/xmldom": "^0.9.10",
+    "adm-zip": "^0.5.17",
     "bcrypt": "^6.0.0",
     "connect-pg-simple": "^10.0.0",
     "dotenv": "^16.4.5",
@@ -53,6 +54,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/bcrypt": "^6.0.0",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/ejs": "^3.1.5",

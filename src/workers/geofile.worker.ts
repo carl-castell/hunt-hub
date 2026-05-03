@@ -1,8 +1,7 @@
 import { workerData, parentPort } from 'worker_threads';
 import toGeoJSON from '@tmcw/togeojson';
 import { DOMParser } from '@xmldom/xmldom';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import AdmZip from 'adm-zip';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -57,9 +56,7 @@ async function run(): Promise<void> {
 
   } else if (filename.endsWith('.zip')) {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'shp-'));
-    const zipPath = path.join(tmpDir, 'upload.zip');
-    await fs.writeFile(zipPath, buf);
-    await execAsync(`unzip -o "${zipPath}" -d "${tmpDir}"`);
+    new AdmZip(buf).extractAllTo(tmpDir, true);
 
     const files = await fs.readdir(tmpDir);
     const shpFile = files.find(f => f.endsWith('.shp'));
