@@ -17,7 +17,9 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/hei
 const ALLOWED_PDF_TYPE = 'application/pdf';
 
 function safeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '_');
+  let decoded: string;
+  try { decoded = decodeURIComponent(name); } catch { decoded = name; }
+  return decoded.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '_');
 }
 
 const licenseSchema = z.object({
