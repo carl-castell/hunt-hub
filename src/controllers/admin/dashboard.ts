@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { db } from '../../db';
 import { estatesTable } from '../../db/schema';
+import { logError } from '@/utils/logError';
 
 export async function getDashboard(req: Request, res: Response) {
   try {
@@ -14,7 +15,7 @@ export async function getDashboard(req: Request, res: Response) {
       estates
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

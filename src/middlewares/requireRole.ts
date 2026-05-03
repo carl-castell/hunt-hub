@@ -3,6 +3,7 @@ import { db } from '../db';
 import { usersTable } from '../db/schema';
 import { accountsTable } from '../db/schema/accounts';
 import { eq } from 'drizzle-orm';
+import { logError } from '@/utils/logError';
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.user) return res.redirect('/login');
@@ -23,7 +24,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     if (!account?.active) return res.redirect('/login');
     next();
   } catch (err) {
-    console.error('[requireAdmin]', err);
+    logError('[requireAdmin]', err);
     res.status(500).send('Server error');
   }
 }
@@ -44,7 +45,7 @@ export async function requireManager(req: Request, res: Response, next: NextFunc
     req.session.user.role = row.role;
     next();
   } catch (err) {
-    console.error('[requireManager]', err);
+    logError('[requireManager]', err);
     res.status(500).send('Server error');
   }
 }

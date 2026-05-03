@@ -7,6 +7,7 @@ import { accountsTable } from '../../db/schema/accounts';
 import { updateUserSchema } from '@/schemas';
 import { getBaseUrl } from '@/utils/url';
 import { audit } from '@/services/audit';
+import { logError } from '@/utils/logError';
 
 export async function getUser(req: Request, res: Response) {
   try {
@@ -43,7 +44,7 @@ export async function getUser(req: Request, res: Response) {
       activationToken: authToken?.token || null,
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -81,7 +82,7 @@ export async function updateUser(req: Request, res: Response) {
 
     res.redirect(`/users/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -113,7 +114,7 @@ export async function deactivateUser(req: Request, res: Response) {
 
     res.redirect(`/users/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -145,7 +146,7 @@ export async function reactivateUser(req: Request, res: Response) {
 
     res.redirect(`/users/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -182,7 +183,7 @@ export async function deleteUser(req: Request, res: Response) {
 
     res.redirect('/manager');
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -221,7 +222,7 @@ export async function resendActivation(req: Request, res: Response) {
 
     res.redirect(`/users/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

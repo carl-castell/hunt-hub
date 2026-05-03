@@ -8,6 +8,7 @@ import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import bcrypt from 'bcrypt';
 import * as readline from 'readline';
+import { logError } from '@/utils/logError';
 
 const SALT_ROUNDS = 10;
 
@@ -139,7 +140,7 @@ main()
     process.exit(0);
   })
   .catch(async (err) => {
-    console.error(err);
+    logError('[error]', err);
     if (pool) await pool.end();
     process.exit(1);
   });

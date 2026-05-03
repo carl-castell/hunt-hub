@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { eventsTable } from '../db/schema/events';
 import { drivesTable } from '../db/schema/drives';
+import { logError } from '@/utils/logError';
 
 export async function getPreviewRsvp(req: Request, res: Response) {
   try {
@@ -58,7 +59,7 @@ export async function getPreviewRsvp(req: Request, res: Response) {
     }
     return res.render('rsvp/respond', { title, ...base });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

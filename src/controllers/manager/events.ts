@@ -4,6 +4,7 @@ import { db } from '../../db';
 import { eventsTable } from '../../db/schema/events';
 import { drivesTable } from '../../db/schema/drives';
 import { z } from 'zod';
+import { logError } from '@/utils/logError';
 
 const eventSchema = z.object({
   eventName: z.string().min(1).max(255),
@@ -31,7 +32,7 @@ export async function getEvents(req: Request, res: Response) {
 
     res.render('manager/events/list', { title: 'Events', user, upcomingEvents, pastEvents, breadcrumbs: [{ label: 'Events' }] });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -56,7 +57,7 @@ export async function getEvent(req: Request, res: Response) {
 
     res.render('manager/events/show', { title: event.eventName, user, event, drives, breadcrumbs: [{ label: 'Events', href: '/manager/events' }, { label: event.eventName }] });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -80,7 +81,7 @@ export async function postCreateEvent(req: Request, res: Response) {
 
     res.redirect(`/manager/events/${event.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -112,7 +113,7 @@ export async function postUpdateEvent(req: Request, res: Response) {
 
     res.redirect(`/manager/events/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -134,7 +135,7 @@ export async function postDeleteEvent(req: Request, res: Response) {
 
     res.redirect('/manager/events');
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

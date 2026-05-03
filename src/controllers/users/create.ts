@@ -6,6 +6,7 @@ import { accountsTable } from '../../db/schema/accounts';
 import { createManagerSchema } from '@/schemas';
 import { renderTemplate, sendMail } from '@/services/mail';
 import { getBaseUrl } from '@/utils/url';
+import { logError } from '@/utils/logError';
 
 export async function createManager(req: Request, res: Response) {
   try {
@@ -56,7 +57,7 @@ export async function createManager(req: Request, res: Response) {
         html,
       });
     } catch (emailErr) {
-      console.error('[email error] Failed to send activation email:', emailErr);
+      logError('[email error] Failed to send activation email:', emailErr);
     }
 
     if (caller.role === 'manager') {
@@ -65,7 +66,7 @@ export async function createManager(req: Request, res: Response) {
 
     res.redirect(`/admin/estates/${estateId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

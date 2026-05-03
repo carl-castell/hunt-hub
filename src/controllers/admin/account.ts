@@ -8,6 +8,7 @@ import bcrypt from 'bcrypt';
 import { isPasswordPwned } from '@/services/hibp';
 import { audit } from '@/services/audit';
 import { sessionPool } from '@/app';
+import { logError } from '@/utils/logError';
 
 const changePasswordSchema = z.object({
   oldPassword: z.string().min(1),
@@ -33,7 +34,7 @@ export async function getAccount(req: Request, res: Response) {
   try {
     await renderAccount(req, res, { error: null, success: null });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -71,7 +72,7 @@ export async function postChangePassword(req: Request, res: Response) {
     await sessionPool.query(`DELETE FROM session WHERE sess->'user'->>'id' = $1`, [String(user.id)]);
     req.session.destroy(() => res.redirect('/login'));
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

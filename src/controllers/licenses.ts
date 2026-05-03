@@ -10,6 +10,7 @@ import {
 import { uploadFile, deleteFile } from '@/services/storage';
 import { audit } from '@/services/audit';
 import { z } from 'zod';
+import { logError } from '@/utils/logError';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -151,7 +152,7 @@ export async function getHuntingLicense(req: Request, res: Response) {
       breadcrumbs: [{ label: 'Guests', href: '/manager/guests' }, { label: `${guest.firstName} ${guest.lastName}`, href: `/manager/guests/${guest.id}` }, { label: 'Hunting License' }],
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -195,7 +196,7 @@ export async function postCreateHuntingLicense(req: Request, res: Response) {
     await audit({ userId: user.id, event: 'license_uploaded', ip: req.ip, metadata: { guestId: id, licenseId: license.id } });
     res.redirect(`/manager/guests/${id}/hunting-license?licenseId=${license.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -241,7 +242,7 @@ export async function postCheckHuntingLicense(req: Request, res: Response) {
 
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -271,7 +272,7 @@ export async function postDeleteHuntingLicense(req: Request, res: Response) {
     await audit({ userId: user.id, event: 'license_deleted', ip: req.ip, metadata: { guestId: id, licenseId } });
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -309,7 +310,7 @@ export async function postUpdateHuntingLicense(req: Request, res: Response) {
 
     res.redirect(`/manager/guests/${id}/hunting-license?licenseId=${licenseId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -366,7 +367,7 @@ export async function getTrainingCertificate(req: Request, res: Response) {
       breadcrumbs: [{ label: 'Guests', href: '/manager/guests' }, { label: `${guest.firstName} ${guest.lastName}`, href: `/manager/guests/${guest.id}` }, { label: 'Training Certificate' }],
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -410,7 +411,7 @@ export async function postCreateTrainingCertificate(req: Request, res: Response)
     await audit({ userId: user.id, event: 'certificate_uploaded', ip: req.ip, metadata: { guestId: id, certId: certificate.id } });
     res.redirect(`/manager/guests/${id}/training-certificate?certId=${certificate.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -455,7 +456,7 @@ export async function postCheckTrainingCertificate(req: Request, res: Response) 
 
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -485,7 +486,7 @@ export async function postDeleteTrainingCertificate(req: Request, res: Response)
     await audit({ userId: user.id, event: 'certificate_deleted', ip: req.ip, metadata: { guestId: id, certId } });
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -523,7 +524,7 @@ export async function postUpdateTrainingCertificate(req: Request, res: Response)
 
     res.redirect(`/manager/guests/${id}/training-certificate?certId=${certId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

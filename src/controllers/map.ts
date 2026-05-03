@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
+import { logError } from '@/utils/logError';
 
 // ── GET /map/layers ───────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export async function getAreaMapData(req: Request, res: Response) {
 
     res.json(JSON.parse(area.geofile));
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).json({ error: 'Server error' });
   }
 }

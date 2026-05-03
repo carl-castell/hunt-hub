@@ -7,6 +7,7 @@ import { standsTable } from '@/db/schema/stands';
 import { z } from 'zod';
 import { runWorker } from '@/utils/runWorker';
 import { audit } from '@/services/audit';
+import { logError } from '@/utils/logError';
 
 const GEOFILE_WORKER = path.resolve(
   __dirname,
@@ -47,7 +48,7 @@ export async function getArea(req: Request, res: Response) {
     ];
     res.render('manager/estate/area', { title: area.name, user, area, breadcrumbs });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -68,7 +69,7 @@ export async function postCreateArea(req: Request, res: Response) {
 
     res.redirect(`/manager/areas/${area.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -102,7 +103,7 @@ export async function postRenameArea(req: Request, res: Response) {
 
     res.redirect(`/manager/areas/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -143,7 +144,7 @@ export async function postDeleteArea(req: Request, res: Response) {
 
     res.redirect('/manager/estate');
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -183,7 +184,7 @@ export async function postUploadGeofile(req: Request, res: Response) {
     await audit({ userId: user.id, event: 'geofile_uploaded', ip: req.ip, metadata: { areaId: Number(id) } });
     res.redirect(`/manager/areas/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -215,7 +216,7 @@ export async function postDeleteGeofile(req: Request, res: Response) {
     await audit({ userId: user.id, event: 'geofile_deleted', ip: req.ip, metadata: { areaId: Number(id) } });
     res.redirect(`/manager/areas/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

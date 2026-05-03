@@ -4,6 +4,7 @@ import { db } from '../../db';
 import { drivesTable } from '../../db/schema/drives';
 import { eventsTable } from '../../db/schema/events';
 import { z } from 'zod';
+import { logError } from '@/utils/logError';
 
 const driveSchema = z.object({
   name:      z.string().min(1).max(255),
@@ -38,7 +39,7 @@ export async function postCreateDrive(req: Request, res: Response) {
 
     res.redirect(`/manager/events/${eventId}/drives/${drive.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -62,7 +63,7 @@ export async function getDrive(req: Request, res: Response) {
 
     res.render('manager/events/drive', { title: drive.name, user, event, drive, breadcrumbs: [{ label: 'Events', href: '/manager/events' }, { label: event.eventName, href: `/manager/events/${event.id}` }, { label: drive.name }] });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

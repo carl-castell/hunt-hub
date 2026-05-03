@@ -4,6 +4,7 @@ import { db } from '../../db';
 import { areasTable } from '../../db/schema/areas';
 import { eventsTable } from '../../db/schema/events';
 import { estatesTable } from '@/db/schema';
+import { logError } from '@/utils/logError';
 
 export async function getDashboard(req: Request, res: Response) {
   try {
@@ -35,7 +36,7 @@ export async function getDashboard(req: Request, res: Response) {
       futureEvents,
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

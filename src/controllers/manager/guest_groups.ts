@@ -4,6 +4,7 @@ import { db } from '../../db';
 import { guestGroupsTable, guestGroupMembersTable } from '../../db/schema/guest_groups';
 import { usersTable } from '../../db/schema/users';
 import { z } from 'zod';
+import { logError } from '@/utils/logError';
 
 const nameSchema = z.object({ name: z.string().min(1).max(255) });
 
@@ -36,7 +37,7 @@ export async function getGroups(req: Request, res: Response) {
 
     res.render('manager/guests/groups', { title: 'Guest Groups', user, groups, breadcrumbs: [{ label: 'Guests', href: '/manager/guests' }, { label: 'Guest Groups' }] });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -54,7 +55,7 @@ export async function postCreateGroup(req: Request, res: Response) {
 
     res.redirect(`/manager/guest-groups/${group.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -77,7 +78,7 @@ export async function getGroup(req: Request, res: Response) {
 
     res.render('manager/guests/group', { title: group.name, user, group, members: memberRows, breadcrumbs: [{ label: 'Guests', href: '/manager/guests' }, { label: 'Guest Groups', href: '/manager/guest-groups' }, { label: group.name }] });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -97,7 +98,7 @@ export async function postRenameGroup(req: Request, res: Response) {
     await db.update(guestGroupsTable).set({ name: result.data.name }).where(eq(guestGroupsTable.id, groupId));
     res.redirect(`/manager/guest-groups/${groupId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -114,7 +115,7 @@ export async function postDeleteGroup(req: Request, res: Response) {
     await db.delete(guestGroupsTable).where(eq(guestGroupsTable.id, groupId));
     res.redirect('/manager/guest-groups');
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -141,7 +142,7 @@ export async function postAddMember(req: Request, res: Response) {
     await db.insert(guestGroupMembersTable).values({ groupId, userId }).onConflictDoNothing();
     res.redirect(`/manager/guest-groups/${groupId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -163,7 +164,7 @@ export async function postRemoveMember(req: Request, res: Response) {
     );
     res.redirect(`/manager/guest-groups/${groupId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

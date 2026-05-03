@@ -4,6 +4,7 @@ import { estatesTable, usersTable } from '../../db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { createEstateSchema, renameEstateSchema } from '@/schemas';
 import { audit } from '@/services/audit';
+import { logError } from '@/utils/logError';
 
 export async function createEstate(req: Request, res: Response) {
   try {
@@ -26,7 +27,7 @@ export async function createEstate(req: Request, res: Response) {
 
     res.redirect(`/admin/estates/${newEstate.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -59,7 +60,7 @@ export async function getEstate(req: Request, res: Response) {
       managers,
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -80,7 +81,7 @@ export async function renameEstate(req: Request, res: Response) {
 
     res.redirect(`/admin/estates/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -104,7 +105,7 @@ export async function deleteEstate(req: Request, res: Response) {
 
     res.redirect('/admin');
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

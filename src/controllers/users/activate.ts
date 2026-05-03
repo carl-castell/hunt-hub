@@ -7,6 +7,7 @@ import { userAuthTokensTable } from '../../db/schema/user_auth_tokens';
 import { activateSchema } from '@/schemas';
 import { audit } from '@/services/audit';
 import { isPasswordPwned } from '@/services/hibp';
+import { logError } from '@/utils/logError';
 
 export async function getActivate(req: Request, res: Response) {
   try {
@@ -23,7 +24,7 @@ export async function getActivate(req: Request, res: Response) {
 
     res.render('activate', { layout: false, error: null, token });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -77,7 +78,7 @@ export async function postActivate(req: Request, res: Response) {
 
     res.redirect('/login');
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

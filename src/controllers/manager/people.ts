@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { getBaseUrl } from '@/utils/url';
 import { sessionPool } from '@/app';
 import { audit } from '@/services/audit';
+import { logError } from '@/utils/logError';
 
 export async function getPeople(req: Request, res: Response) {
   try {
@@ -33,7 +34,7 @@ export async function getPeople(req: Request, res: Response) {
       breadcrumbs: [{ label: 'People' }],
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -89,7 +90,7 @@ export async function postCreateUser(req: Request, res: Response) {
 
     res.redirect(`/manager/people/${newUser.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -134,7 +135,7 @@ export async function getUser(req: Request, res: Response) {
       breadcrumbs,
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -203,7 +204,7 @@ export async function postUpdateUserRole(req: Request, res: Response) {
 
     res.redirect(`/manager/people/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -231,7 +232,7 @@ export async function postDeactivateUser(req: Request, res: Response) {
     await sessionPool.query(`DELETE FROM session WHERE sess->'user'->>'id' = $1`, [id]);
     res.redirect(`/manager/people/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -258,7 +259,7 @@ export async function postReactivateUser(req: Request, res: Response) {
 
     res.redirect(`/manager/people/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -292,7 +293,7 @@ export async function postResendActivation(req: Request, res: Response) {
 
     res.redirect(`/manager/people/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -324,7 +325,7 @@ export async function postDeleteUser(req: Request, res: Response) {
 
     res.redirect('/manager/people');
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

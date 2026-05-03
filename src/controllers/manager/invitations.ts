@@ -12,6 +12,7 @@ import { renderTemplate, sendMail } from '@/services/mail';
 import { getBaseUrl } from '@/utils/url';
 import { audit } from '@/services/audit';
 import crypto from 'crypto';
+import { logError } from '@/utils/logError';
 
 const PICKER_LIMIT = 50;
 
@@ -84,7 +85,7 @@ export async function getInvitation(req: Request, res: Response) {
       ],
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -143,7 +144,7 @@ export async function getInvitationList(req: Request, res: Response) {
       ],
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -241,7 +242,7 @@ export async function getInvitationPicker(req: Request, res: Response) {
       ],
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -283,7 +284,7 @@ export async function postUpdateInvitation(req: Request, res: Response) {
 
     res.redirect(`/manager/events/${eventId}/invitations/${invitationId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -304,7 +305,7 @@ export async function postRemoveInvitation(req: Request, res: Response) {
 
     res.redirect(`/manager/events/${eventId}/invitations`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -338,7 +339,7 @@ export async function postStageInvitations(req: Request, res: Response) {
 
     res.redirect(`/manager/events/${eventId}/invitations`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -367,7 +368,7 @@ export async function getPreviewInvitation(req: Request, res: Response) {
 
     res.send(html);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -407,7 +408,7 @@ export async function getSendInvitations(req: Request, res: Response) {
       ],
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -527,7 +528,7 @@ export async function postSendInvitations(req: Request, res: Response) {
 
     res.redirect(`/manager/events/${eventId}/invitations?sent=${sent.length}&failed=${failed.length}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

@@ -10,6 +10,7 @@ import { usersTable } from '../db/schema/users';
 import { totpBackupCodesTable } from '../db/schema/totp_backup_codes';
 import { audit } from '@/services/audit';
 import { authLimiter, backupCodeLimiter } from '@/middlewares/rateLimiter';
+import { logError } from '@/utils/logError';
 
 const totpRouter: Router = express.Router();
 
@@ -63,7 +64,7 @@ async function completeAdminSession(req: Request, res: Response, userId: number)
 
   req.session.regenerate(async (err) => {
     if (err) {
-      console.error('[totp session regenerate error]', err);
+      logError('[totp session regenerate error]', err);
       return res.redirect('/login');
     }
     req.session.user = {
@@ -77,7 +78,7 @@ async function completeAdminSession(req: Request, res: Response, userId: number)
     };
     req.session.save(async (saveErr) => {
       if (saveErr) {
-        console.error('[totp session save error]', saveErr);
+        logError('[totp session save error]', saveErr);
         return res.redirect('/login');
       }
       await audit({ userId: user.id, event: 'login', ip: req.ip });
@@ -122,7 +123,7 @@ totpRouter.post('/totp', authLimiter, requirePending, async (req: Request, res: 
 
     await completeAdminSession(req, res, userId);
   } catch (err) {
-    console.error('[totp verify error]', err);
+    logError('[totp verify error]', err);
     res.render('totp/verify', {
       layout: false,
       title: 'Hunt-Hub | Two-Factor Authentication',
@@ -160,7 +161,7 @@ totpRouter.get('/totp/setup', requirePending, async (req: Request, res: Response
       error: null,
     });
   } catch (err) {
-    console.error('[totp setup GET error]', err);
+    logError('[totp setup GET error]', err);
     res.redirect('/login');
   }
 });
@@ -212,13 +213,13 @@ totpRouter.post('/totp/setup', authLimiter, requirePending, async (req: Request,
     req.session.pendingBackupCodes = codes;
     req.session.save((err) => {
       if (err) {
-        console.error('[totp setup session save error]', err);
+        logError('[totp setup session save error]', err);
         return res.redirect('/login');
       }
       res.redirect('/totp/backup-codes');
     });
   } catch (err) {
-    console.error('[totp setup POST error]', err);
+    logError('[totp setup POST error]', err);
     res.redirect('/login');
   }
 });
@@ -350,13 +351,13 @@ totpRouter.post('/totp/backup', backupCodeLimiter, requirePending, async (req: R
     req.session.pendingTotpSecret = undefined;
     req.session.save((err) => {
       if (err) {
-        console.error('[totp backup session save error]', err);
+        logError('[totp backup session save error]', err);
         return res.redirect('/login');
       }
       res.redirect('/totp/setup');
     });
   } catch (err) {
-    console.error('[totp backup error]', err);
+    logError('[totp backup error]', err);
     res.render('totp/backup', {
       layout: false,
       title: 'Hunt-Hub | Use Backup Code',

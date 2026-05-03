@@ -5,6 +5,7 @@ import { s3, BUCKET } from '@/services/storage';
 import { audit } from '@/services/audit';
 import { db } from '../db';
 import { huntingLicenseAttachmentsTable, huntingLicensesTable, trainingCertificateAttachmentsTable, trainingCertificatesTable } from '../db/schema/licenses';
+import { logError } from '@/utils/logError';
 
 export async function getFile(req: Request, res: Response) {
   try {
@@ -62,7 +63,7 @@ export async function getFile(req: Request, res: Response) {
     (object.Body as NodeJS.ReadableStream).pipe(res);
   } catch (err: any) {
     if (err?.name === 'NoSuchKey') return res.status(404).send('File not found');
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

@@ -7,6 +7,7 @@ import { accountsTable } from '../db/schema/accounts';
 import { loginSchema } from '../schemas';
 import { authLimiter } from '@/middlewares/rateLimiter';
 import { audit } from '@/services/audit';
+import { logError } from '@/utils/logError';
 
 const authRouter: Router = express.Router();
 
@@ -87,14 +88,14 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
     if (user.role === 'admin' && process.env.SKIP_TOTP !== 'true') {
       return req.session.regenerate((err) => {
         if (err) {
-          console.error('[session regenerate error]', err);
+          logError('[session regenerate error]', err);
           return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
         }
         req.session.pendingAdminId = user.id;
         req.session.pendingAdminExpires = Date.now() + 5 * 60 * 1000;
         req.session.save((saveErr) => {
           if (saveErr) {
-            console.error('[session save error]', saveErr);
+            logError('[session save error]', saveErr);
             return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
           }
           return res.redirect(account.totpSecret ? '/totp' : '/totp/setup');
@@ -104,7 +105,7 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
 
     req.session.regenerate((err) => {
       if (err) {
-        console.error('[session regenerate error]', err);
+        logError('[session regenerate error]', err);
         return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
       }
       req.session.user = {
@@ -118,7 +119,7 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
       };
       req.session.save(async (saveErr) => {
         if (saveErr) {
-          console.error('[session save error]', saveErr);
+          logError('[session save error]', saveErr);
           return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
         }
         await audit({ userId: user.id, event: 'login', ip: req.ip });
@@ -127,7 +128,7 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
     });
 
   } catch (err) {
-    console.error('[login error]', err);
+    logError('[login error]', err);
     return res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: 'Something went wrong. Please try again.' });
   }
 });

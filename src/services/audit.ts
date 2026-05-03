@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { auditLogsTable } from '@/db/schema';
+import { logError } from '@/utils/logError';
 
 type AuditEvent =
   | 'login'
@@ -26,7 +27,9 @@ type AuditEvent =
   | 'certificate_uploaded'
   | 'certificate_deleted'
   | 'geofile_uploaded'
-  | 'geofile_deleted';
+  | 'geofile_deleted'
+  | 'area_deleted'
+  | 'bucket_file_access';
 
 interface AuditOptions {
   userId?: number | null;
@@ -44,6 +47,6 @@ export async function audit({ userId, event, ip, metadata }: AuditOptions) {
       metadata: metadata ?? null,
     });
   } catch (err) {
-    console.error('[audit error]', err);
+    logError('[audit error]', err);
   }
 }

@@ -12,6 +12,7 @@ import {
   trainingCertificatesTable, trainingCertificateAttachmentsTable,
 } from '../db/schema/licenses';
 import { uploadFile } from '../services/storage';
+import { logError } from '@/utils/logError';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 const ALLOWED_PDF_TYPE = 'application/pdf';
@@ -163,7 +164,7 @@ export async function getRsvp(req: Request, res: Response) {
     const step = Math.min(3, Math.max(1, stepParam || 1));
     return res.render('rsvp/upload', { title: invitation.eventName, step, ...common });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -189,7 +190,7 @@ export async function postRespond(req: Request, res: Response) {
 
     res.redirect(`/rsvp/${invitation.publicId}?step=1`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -232,7 +233,7 @@ export async function postUploadLicense(req: Request, res: Response) {
 
     res.redirect(`/rsvp/${invitation.publicId}?step=2`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -275,7 +276,7 @@ export async function postUploadCertificate(req: Request, res: Response) {
 
     res.redirect(`/rsvp/${invitation.publicId}?step=3`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -302,7 +303,7 @@ export async function postUploadDetails(req: Request, res: Response) {
 
     res.redirect(`/rsvp/${invitation.publicId}?done=1`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }

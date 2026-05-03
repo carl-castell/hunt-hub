@@ -6,6 +6,7 @@ import { contactsTable } from '../../db/schema/contacts';
 import { huntingLicensesTable, trainingCertificatesTable } from '../../db/schema/licenses';
 import { guestGroupsTable, guestGroupMembersTable } from '../../db/schema/guest_groups';
 import { z } from 'zod';
+import { logError } from '@/utils/logError';
 
 const optionalString = z.string().transform(v => v === '' ? undefined : v).pipe(z.string().min(1).optional());
 
@@ -104,7 +105,7 @@ export async function getGuests(req: Request, res: Response) {
     }
     res.render('manager/guests/list', { title: 'Guests', ...viewData, breadcrumbs: [{ label: 'Guests' }] });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -141,7 +142,7 @@ export async function postCreateGuest(req: Request, res: Response) {
 
     res.redirect(`/manager/guests/${newUser.id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -194,7 +195,7 @@ export async function getGuest(req: Request, res: Response) {
       breadcrumbs: [{ label: 'Guests', href: '/manager/guests' }, { label: `${guest.firstName} ${guest.lastName}` }],
     });
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -219,7 +220,7 @@ export async function postGuestRemoveFromGroup(req: Request, res: Response) {
     );
     res.redirect(`/manager/guests/${guestId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -263,7 +264,7 @@ export async function postGuestAddToGroup(req: Request, res: Response) {
     await db.insert(guestGroupMembersTable).values({ groupId: targetGroupId, userId: guestId }).onConflictDoNothing();
     res.redirect(`/manager/guests/${guestId}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -294,7 +295,7 @@ export async function postUpdateGuest(req: Request, res: Response) {
 
     res.redirect(`/manager/guests/${id}`);
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
@@ -317,7 +318,7 @@ export async function postDeleteGuest(req: Request, res: Response) {
 
     res.redirect('/manager/guests');
   } catch (err) {
-    console.error(err);
+    logError('[error]', err);
     res.status(500).send('Server error');
   }
 }
