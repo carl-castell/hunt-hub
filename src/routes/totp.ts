@@ -9,7 +9,7 @@ import { accountsTable } from '../db/schema/accounts';
 import { usersTable } from '../db/schema/users';
 import { totpBackupCodesTable } from '../db/schema/totp_backup_codes';
 import { audit } from '@/services/audit';
-import { authLimiter } from '@/middlewares/rateLimiter';
+import { authLimiter, backupCodeLimiter } from '@/middlewares/rateLimiter';
 
 const totpRouter: Router = express.Router();
 
@@ -268,7 +268,7 @@ totpRouter.get('/totp/backup', requirePending, (_req: Request, res: Response) =>
   });
 });
 
-totpRouter.post('/totp/backup', authLimiter, requirePending, async (req: Request, res: Response) => {
+totpRouter.post('/totp/backup', backupCodeLimiter, requirePending, async (req: Request, res: Response) => {
   const userId = req.session.pendingAdminId!;
   const raw: string = (req.body.code ?? '').trim().toUpperCase();
 

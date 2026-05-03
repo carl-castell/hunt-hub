@@ -29,6 +29,15 @@ export const rsvpUploadLimiter = rateLimit({
   message: 'Too many uploads, please try again later.',
 });
 
+export const backupCodeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: isTest ? 0 : 10,
+  skip: () => isTest,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many backup code attempts, please try again later.',
+});
+
 export const rsvpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isTest ? 0 : 100,
