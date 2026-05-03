@@ -120,59 +120,7 @@
 
   </div>
 
-  <script>
-    // Edit user toggle
-    const editUserBtn = document.getElementById('editUserBtn');
-    const editUserForm = document.getElementById('editUserForm');
-    const cancelEditUserBtn = document.getElementById('cancelEditUserBtn');
-
-    editUserBtn.addEventListener('click', () => {
-      editUserForm.style.display = 'block';
-      editUserBtn.style.display = 'none';
-    });
-
-    cancelEditUserBtn.addEventListener('click', () => {
-      editUserForm.style.display = 'none';
-      editUserBtn.style.display = 'inline-block';
-    });
-
-    // Copy activation link
-    const copyLinkBtn = document.getElementById('copyLinkBtn');
-    if (copyLinkBtn) {
-      copyLinkBtn.addEventListener('click', () => {
-        const text = document.getElementById('activationLinkInput').textContent;
-        navigator.clipboard.writeText(text).then(() => {
-          copyLinkBtn.textContent = 'Copied!';
-          setTimeout(() => copyLinkBtn.textContent = 'Copy', 2000);
-        });
-      });
-    }
-
-    // Delete user confirmation
-    const deleteUserBtn = document.getElementById('deleteUserBtn');
-    if (deleteUserBtn) {
-      const deleteUserConfirm = document.getElementById('deleteUserConfirm');
-      const confirmDeleteUserBtn = document.getElementById('confirmDeleteUserBtn');
-      const cancelDeleteUserBtn = document.getElementById('cancelDeleteUserBtn');
-
-      deleteUserConfirm.style.display = 'none';
-      deleteUserBtn.style.display = 'inline-block';
-
-      deleteUserBtn.addEventListener('click', () => {
-        deleteUserBtn.style.display = 'none';
-        deleteUserConfirm.style.display = 'flex';
-      });
-
-      cancelDeleteUserBtn.addEventListener('click', () => {
-        deleteUserConfirm.style.display = 'none';
-        deleteUserBtn.style.display = 'inline-block';
-      });
-
-      confirmDeleteUserBtn.addEventListener('click', () => {
-        document.getElementById('deleteUserForm').submit();
-      });
-    }
-  </script>
+  <script src="/js/admin-user.js"></script>
 
 </body>
 </html>

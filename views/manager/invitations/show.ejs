@@ -62,16 +62,6 @@
       <button type="submit" class="outline" style="margin:0;">Save</button>
     </div>
   </form>
-  <script>
-    (function () {
-      var form = document.querySelector('.inv-grid').closest('form');
-      var save = document.getElementById('inv-save');
-      form.querySelectorAll('select').forEach(function (s) {
-        s.addEventListener('change', function () { save.style.display = 'block'; });
-      });
-    })();
-  </script>
-
   <hr style="margin: 1.25rem 0 1rem;" />
   <div class="inv-grid">
     <% if (invitation.emailSentAt) { %>
@@ -90,6 +80,8 @@
 <% if (guest) { %>
   <%- include('../guests/show', { hideGuestName: true }) %>
 <% } %>
+
+<script src="/js/invitations.js"></script>
 
 <!-- Remove dialog -->
 <dialog id="remove-inv-dialog">

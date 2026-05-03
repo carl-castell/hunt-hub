@@ -49,7 +49,7 @@
   </article>
 
   <div style="margin-top:1.5rem; text-align:center;">
-    <button type="button" class="outline secondary" id="btn-decline" style="font-size:0.9rem;">
+    <button type="button" class="outline secondary" data-dialog="dialog-decline" style="font-size:0.9rem;">
       Change my answer to No
     </button>
   </div>
@@ -59,12 +59,12 @@
 <dialog id="dialog-decline">
   <article>
     <header>
-      <button aria-label="Close" rel="prev" onclick="document.getElementById('dialog-decline').close()"></button>
+      <button aria-label="Close" rel="prev" data-close-dialog="dialog-decline"></button>
       <h3>Decline Invitation</h3>
     </header>
     <p>Are you sure you want to change your response to <strong>No</strong> for <em><%= invitation.eventName %></em>?</p>
     <footer>
-      <button type="button" class="outline" onclick="document.getElementById('dialog-decline').close()">Cancel</button>
+      <button type="button" class="outline" data-close-dialog="dialog-decline">Cancel</button>
       <form method="POST" action="/rsvp/<%= invitation.publicId %>/respond" style="display:inline;">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <input type="hidden" name="answer" value="no" />
@@ -74,8 +74,3 @@
   </article>
 </dialog>
 
-<script>
-  document.getElementById('btn-decline').addEventListener('click', function () {
-    document.getElementById('dialog-decline').showModal();
-  });
-</script>

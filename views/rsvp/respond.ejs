@@ -43,8 +43,8 @@
   </p>
 
   <div style="display:flex; gap:1rem; justify-content:center;">
-    <button type="button" id="btn-yes">Yes, I accept</button>
-    <button type="button" class="outline secondary" id="btn-no">No, I decline</button>
+    <button type="button" data-dialog="dialog-yes">Yes, I accept</button>
+    <button type="button" class="outline secondary" data-dialog="dialog-no">No, I decline</button>
   </div>
 </div>
 
@@ -52,12 +52,12 @@
 <dialog id="dialog-yes">
   <article>
     <header>
-      <button aria-label="Close" rel="prev" onclick="document.getElementById('dialog-yes').close()"></button>
+      <button aria-label="Close" rel="prev" data-close-dialog="dialog-yes"></button>
       <h3>Accept Invitation</h3>
     </header>
     <p>Are you sure you want to accept the invitation to <strong><%= invitation.eventName %></strong>?</p>
     <footer>
-      <button type="button" class="outline" onclick="document.getElementById('dialog-yes').close()">Cancel</button>
+      <button type="button" class="outline" data-close-dialog="dialog-yes">Cancel</button>
       <form method="POST" action="/rsvp/<%= invitation.publicId %>/respond" style="display:inline;">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <input type="hidden" name="answer" value="yes" />
@@ -71,12 +71,12 @@
 <dialog id="dialog-no">
   <article>
     <header>
-      <button aria-label="Close" rel="prev" onclick="document.getElementById('dialog-no').close()"></button>
+      <button aria-label="Close" rel="prev" data-close-dialog="dialog-no"></button>
       <h3>Decline Invitation</h3>
     </header>
     <p>Are you sure you want to decline the invitation to <strong><%= invitation.eventName %></strong>?</p>
     <footer>
-      <button type="button" class="outline" onclick="document.getElementById('dialog-no').close()">Cancel</button>
+      <button type="button" class="outline" data-close-dialog="dialog-no">Cancel</button>
       <form method="POST" action="/rsvp/<%= invitation.publicId %>/respond" style="display:inline;">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <input type="hidden" name="answer" value="no" />
@@ -86,11 +86,3 @@
   </article>
 </dialog>
 
-<script>
-  document.getElementById('btn-yes').addEventListener('click', function () {
-    document.getElementById('dialog-yes').showModal();
-  });
-  document.getElementById('btn-no').addEventListener('click', function () {
-    document.getElementById('dialog-no').showModal();
-  });
-</script>

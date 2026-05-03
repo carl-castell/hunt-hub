@@ -61,34 +61,4 @@
   <button id="stage-btn" disabled>Stage</button>
 </div>
 
-<script>
-  const selected = new Set();
-
-  document.getElementById('picker-table').addEventListener('change', e => {
-    if (!e.target.matches('input[type=checkbox]')) return;
-    const id = Number(e.target.value);
-    e.target.checked ? selected.add(id) : selected.delete(id);
-    document.getElementById('selected-count').textContent = selected.size;
-    document.getElementById('stage-btn').disabled = selected.size === 0;
-  });
-
-  document.body.addEventListener('htmx:afterSwap', e => {
-    if (e.detail.target.id !== 'picker-body') return;
-    e.detail.target.querySelectorAll('input[type=checkbox]').forEach(cb => {
-      if (selected.has(Number(cb.value))) cb.checked = true;
-    });
-  });
-
-  document.getElementById('stage-btn').addEventListener('click', () => {
-    const form = document.getElementById('stage-form');
-    form.querySelectorAll('input[name="guestIds"]').forEach(i => i.remove());
-    selected.forEach(id => {
-      const inp = document.createElement('input');
-      inp.type = 'hidden';
-      inp.name = 'guestIds';
-      inp.value = id;
-      form.appendChild(inp);
-    });
-    form.submit();
-  });
-</script>
+<script src="/js/invitations.js"></script>

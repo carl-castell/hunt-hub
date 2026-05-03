@@ -31,7 +31,7 @@
     <p style="color: var(--pico-color-green-500);"><%= success %></p>
   <% } %>
 
-  <button class="outline" onclick="document.getElementById('change-password-dialog').showModal()">
+  <button class="outline" data-dialog="change-password-dialog">
     Change Password
   </button>
 </article>
@@ -40,7 +40,7 @@
 <dialog id="change-password-dialog">
   <article>
     <header>
-      <button aria-label="Close" rel="prev" onclick="document.getElementById('change-password-dialog').close()"></button>
+      <button aria-label="Close" rel="prev" data-close-dialog="change-password-dialog"></button>
       <h3>Change Password</h3>
     </header>
     <form action="/manager/account/password" method="POST">
@@ -64,23 +64,11 @@
         <input type="password" name="confirmPassword" required minlength="8" />
       </label>
       <footer>
-        <button type="button" class="outline" onclick="document.getElementById('change-password-dialog').close()">Cancel</button>
+        <button type="button" class="outline" data-close-dialog="change-password-dialog">Cancel</button>
         <button type="submit">Save</button>
       </footer>
     </form>
   </article>
 </dialog>
 
-<script>
-  const pw = document.getElementById('new-password');
-  const hl = document.getElementById('hint-length');
-  const hu = document.getElementById('hint-upper');
-  const hn = document.getElementById('hint-number');
-  const hs = document.getElementById('hint-special');
-  pw.addEventListener('input', function () {
-    hl.style.color = pw.value.length >= 8            ? '#16a34a' : '#6b7280';
-    hu.style.color = /[A-Z]/.test(pw.value)          ? '#16a34a' : '#6b7280';
-    hn.style.color = /[0-9]/.test(pw.value)          ? '#16a34a' : '#6b7280';
-    hs.style.color = /[^a-zA-Z0-9]/.test(pw.value)  ? '#16a34a' : '#6b7280';
-  });
-</script>
+<script src="/js/password-validator.js"></script>

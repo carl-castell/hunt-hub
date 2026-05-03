@@ -76,19 +76,4 @@
   </article>
 </dialog>
 
-<script>
-  document.body.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-remove-action]');
-    if (!btn) return;
-    e.preventDefault();
-    document.getElementById('remove-inv-name').textContent = btn.getAttribute('data-remove-name');
-    document.getElementById('remove-inv-form').action = btn.getAttribute('data-remove-action');
-    document.getElementById('remove-inv-dialog').showModal();
-  });
-
-  document.getElementById('clear-filters').addEventListener('click', function () {
-    document.querySelector('select[name="status"]').value = '';
-    document.querySelector('select[name="response"]').value = '';
-    htmx.trigger(document.querySelector('select[name="status"]'), 'change');
-  });
-</script>
+<script src="/js/invitations.js"></script>

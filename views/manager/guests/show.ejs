@@ -123,22 +123,6 @@
     </form>
   </article>
 </dialog>
-<script>
-  (function () {
-    const sel = document.getElementById('atg-select');
-    const inp = document.getElementById('atg-new');
-    if (!sel || !inp) return;
-    sel.addEventListener('change', () => {
-      if (sel.value) { inp.value = ''; inp.disabled = true; }
-      else inp.disabled = false;
-    });
-    inp.addEventListener('input', () => {
-      if (inp.value.trim()) { sel.value = ''; sel.disabled = true; }
-      else sel.disabled = false;
-    });
-  })();
-</script>
-
 <!-- Licenses & Certificates -->
 <article style="margin-top: 1.5rem;">
   <div class="section-header">
@@ -251,41 +235,7 @@
   </article>
 </dialog>
 
-<script>
-  (function () {
-    var MAX_BYTES = 20 * 1024 * 1024;
-
-    function checkFileSizes(input) {
-      var files = Array.from(input.files);
-      var tooBig = files.filter(function (f) { return f.size > MAX_BYTES; });
-      if (tooBig.length) {
-        alert('The following file(s) exceed the 20 MB limit and cannot be uploaded:\n' +
-          tooBig.map(function (f) { return '• ' + f.name + ' (' + (f.size / 1024 / 1024).toFixed(1) + ' MB)'; }).join('\n'));
-        input.value = '';
-        return false;
-      }
-      return true;
-    }
-
-    function bindUploadLoading(formId, uploadBtnId, cancelBtnId) {
-      var form = document.getElementById(formId);
-      if (!form) return;
-      var fileInput = form.querySelector('input[type="file"]');
-      if (fileInput) {
-        fileInput.addEventListener('change', function () { checkFileSizes(fileInput); });
-      }
-      form.addEventListener('submit', function (e) {
-        if (fileInput && !checkFileSizes(fileInput)) { e.preventDefault(); return; }
-        var btn = document.getElementById(uploadBtnId);
-        var cancel = document.getElementById(cancelBtnId);
-        if (btn) btn.setAttribute('aria-busy', 'true');
-        if (cancel) cancel.disabled = true;
-      });
-    }
-    bindUploadLoading('license-upload-form', 'license-upload-btn', 'license-cancel-btn');
-    bindUploadLoading('certificate-upload-form', 'certificate-upload-btn', 'certificate-cancel-btn');
-  })();
-</script>
+<script src="/js/guests.js"></script>
 
 <!-- Edit Guest dialog -->
 <dialog id="edit-guest-dialog">

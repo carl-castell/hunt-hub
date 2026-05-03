@@ -77,27 +77,7 @@
       <% } %>
     <% }) %>
     <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-    <script>
-      (function () {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-        async function renderPdf(container) {
-          const pdf = await pdfjsLib.getDocument(container.dataset.pdfSrc).promise;
-          const w = container.clientWidth || 800;
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const base = page.getViewport({ scale: 1 });
-            const vp = page.getViewport({ scale: w / base.width });
-            const canvas = document.createElement('canvas');
-            canvas.width = vp.width;
-            canvas.height = vp.height;
-            canvas.style.cssText = 'width:100%;display:block;margin-bottom:0.5rem;';
-            container.appendChild(canvas);
-            await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-          }
-        }
-        document.querySelectorAll('.pdf-viewer').forEach(renderPdf);
-      })();
-    </script>
+    <script src="/js/pdf-renderer.js"></script>
   </article>
 
   <dialog id="edit-certificate-dialog">

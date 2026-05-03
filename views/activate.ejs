@@ -42,18 +42,6 @@
     </div>
   </div>
 
-<script>
-  const pw = document.getElementById('password');
-  const hl = document.getElementById('hint-length');
-  const hu = document.getElementById('hint-upper');
-  const hn = document.getElementById('hint-number');
-  const hs = document.getElementById('hint-special');
-  pw.addEventListener('input', function () {
-    hl.style.color = pw.value.length >= 8            ? '#16a34a' : '#6b7280';
-    hu.style.color = /[A-Z]/.test(pw.value)          ? '#16a34a' : '#6b7280';
-    hn.style.color = /[0-9]/.test(pw.value)          ? '#16a34a' : '#6b7280';
-    hs.style.color = /[^a-zA-Z0-9]/.test(pw.value)  ? '#16a34a' : '#6b7280';
-  });
-</script>
+<script src="/js/password-validator.js"></script>
 </body>
 </html>
