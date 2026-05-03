@@ -5,6 +5,11 @@ if (process.env.NODE_ENV === 'production' && process.env.SKIP_TOTP === 'true') {
   throw new Error('SKIP_TOTP=true is not allowed in production');
 }
 
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret || sessionSecret.length < 32) {
+  throw new Error('SESSION_SECRET must be at least 32 characters');
+}
+
 import app from './app';
 
 const port = process.env.PORT || 3000;
