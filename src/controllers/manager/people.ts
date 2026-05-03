@@ -9,6 +9,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { getBaseUrl } from '@/utils/url';
 import { sessionPool } from '@/app';
+import { audit } from '@/services/audit';
 
 export async function getPeople(req: Request, res: Response) {
   try {
@@ -313,6 +314,13 @@ export async function postDeleteUser(req: Request, res: Response) {
 
     // Cascades to accounts and auth tokens
     await db.delete(usersTable).where(eq(usersTable.id, Number(id)));
+
+    await audit({
+      event: 'user_deleted',
+      userId: user.id,
+      ip: req.ip,
+      metadata: { targetUserId: Number(id) },
+    });
 
     res.redirect('/manager/people');
   } catch (err) {

@@ -7,8 +7,6 @@ import path from 'path';
 import os from 'os';
 import * as shapefile from 'shapefile';
 
-const execAsync = promisify(exec);
-
 type WorkerInput  = { buffer: Buffer; filename: string };
 type WorkerResult = { ok: true; geometryCollection: string } | { ok: false; status: number; message: string };
 

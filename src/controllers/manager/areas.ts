@@ -134,6 +134,13 @@ export async function postDeleteArea(req: Request, res: Response) {
     await db.delete(standsTable).where(eq(standsTable.areaId, Number(id)));
     await db.delete(areasTable).where(eq(areasTable.id, Number(id)));
 
+    await audit({
+      event: 'area_deleted',
+      userId: user.id,
+      ip: req.ip,
+      metadata: { areaId: area.id, name: area.name, estateId: area.estateId },
+    });
+
     res.redirect('/manager/estate');
   } catch (err) {
     console.error(err);

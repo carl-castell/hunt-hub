@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { eq, or } from 'drizzle-orm';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { s3, BUCKET } from '@/services/storage';
+import { audit } from '@/services/audit';
 import { db } from '../db';
 import { huntingLicenseAttachmentsTable, huntingLicensesTable, trainingCertificateAttachmentsTable, trainingCertificatesTable } from '../db/schema/licenses';
 
@@ -50,6 +51,13 @@ export async function getFile(req: Request, res: Response) {
     res.setHeader('Content-Type', attachment.contentType);
     res.setHeader('Content-Disposition', 'inline');
     if (object.ContentLength) res.setHeader('Content-Length', object.ContentLength);
+
+    await audit({
+      event: 'bucket_file_access',
+      userId: user.id,
+      ip: req.ip,
+      metadata: { key },
+    });
 
     (object.Body as NodeJS.ReadableStream).pipe(res);
   } catch (err: any) {
