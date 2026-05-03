@@ -436,6 +436,7 @@ export async function postSendInvitations(req: Request, res: Response) {
     const { message, respondBy, invitationIds } = parsed.data;
 
     if (invitationIds.length === 0) return res.status(400).send('Select at least one guest.');
+    if (invitationIds.length > 300) return res.status(400).send('Cannot send to more than 300 guests at once.');
 
     const respondByDate: Date | null = (() => {
       if (!respondBy) return null;
