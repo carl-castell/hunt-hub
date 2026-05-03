@@ -2,6 +2,8 @@ import { workerData, parentPort } from 'worker_threads';
 import toGeoJSON from '@tmcw/togeojson';
 import { DOMParser } from '@xmldom/xmldom';
 import AdmZip from 'adm-zip';
+import initSqlJs from 'sql.js';
+import { Geometry as WkxGeometry } from 'wkx';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
@@ -75,32 +77,46 @@ async function run(): Promise<void> {
     await fs.rm(tmpDir, { recursive: true });
 
   } else if (filename.endsWith('.gpkg')) {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'gpkg-'));
-    const gpkgPath = path.join(tmpDir, 'upload.gpkg');
-    await fs.writeFile(gpkgPath, buf);
+    const SQL = await initSqlJs();
+    const db = new SQL.Database(new Uint8Array(buf));
 
-    let gdal: any;
-    try {
-      gdal = (await import('gdal-async')).default;
-    } catch {
-      await fs.rm(tmpDir, { recursive: true });
-      const result: WorkerResult = { ok: false, status: 400, message: 'GeoPackage (.gpkg) is not supported on this server. Use .geojson, .kml, .gpx, or .zip instead.' };
+    const gcResult = db.exec('SELECT table_name, column_name FROM gpkg_geometry_columns');
+    if (!gcResult.length || !gcResult[0].values.length) {
+      db.close();
+      const result: WorkerResult = { ok: false, status: 400, message: 'No geometry layers found in GeoPackage' };
       parentPort!.postMessage(result);
       return;
     }
 
-    const ds = await gdal.openAsync(gpkgPath);
     const features: any[] = [];
-    for (const layer of ds.layers) {
-      for (const feature of layer.features) {
-        const geom = feature.getGeometry();
-        if (!geom) continue;
-        features.push({ type: 'Feature', geometry: JSON.parse(geom.toJSON()), properties: feature.fields.toObject() });
+    for (const [tableName, columnName] of gcResult[0].values as [string, string][]) {
+      const rows = db.exec(`SELECT * FROM "${tableName}"`);
+      if (!rows.length) continue;
+
+      const cols = rows[0].columns;
+      const geomIdx = cols.indexOf(columnName);
+
+      for (const row of rows[0].values) {
+        const blob = row[geomIdx];
+        if (!blob || !(blob instanceof Uint8Array)) continue;
+
+        // GPKG geometry blob: 2-byte magic + version + flags + 4-byte srsId + optional envelope + WKB
+        const flags = blob[3];
+        const envelopeType = (flags >> 2) & 0x07;
+        const envelopeBytes = ([0, 32, 48, 48, 64] as const)[envelopeType] ?? 0;
+        const wkbStart = 8 + envelopeBytes;
+
+        try {
+          const geom = WkxGeometry.parse(Buffer.from(blob.subarray(wkbStart)));
+          const properties: Record<string, unknown> = {};
+          cols.forEach((col, i) => { if (i !== geomIdx) properties[col] = row[i]; });
+          features.push({ type: 'Feature', geometry: geom.toGeoJSON(), properties });
+        } catch { /* skip unparseable geometry */ }
       }
     }
+
+    db.close();
     geojson = JSON.stringify({ type: 'FeatureCollection', features });
-    ds.close();
-    await fs.rm(tmpDir, { recursive: true });
 
   } else {
     const result: WorkerResult = { ok: false, status: 400, message: 'Unsupported file type. Use .geojson, .kml, .gpx, .zip (shapefile), or .gpkg' };

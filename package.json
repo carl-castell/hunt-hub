@@ -42,7 +42,6 @@
     "express-ejs-layouts": "^2.5.1",
     "express-rate-limit": "^8.3.2",
     "express-session": "^1.19.0",
-    "gdal-async": "^3.12.3",
     "helmet": "^8.1.0",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.5",
@@ -51,6 +50,8 @@
     "pg": "^8.16.3",
     "qrcode": "^1.5.4",
     "shapefile": "^0.6.6",
+    "sql.js": "^1.14.1",
+    "wkx": "^0.5.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -66,6 +67,7 @@
     "@types/nodemailer": "^6.4.16",
     "@types/nodemailer-mailgun-transport": "^1.4.6",
     "@types/qrcode": "^1.5.6",
+    "@types/sql.js": "^1.4.11",
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^4.1.4",
     "drizzle-kit": "^0.31.10",
