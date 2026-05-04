@@ -10,6 +10,7 @@ export const accountsTable = pgTable("accounts", {
   totpSecret:     varchar('totp_secret', { length: 64 }),
   failedAttempts: integer('failed_attempts').notNull().default(0),
   lockedUntil:    timestamp('locked_until'),
+  wfsToken:       varchar('wfs_token', { length: 64 }).unique(),
 }, (table) => ({
   activeRequiresPassword: check(
     'active_requires_password',

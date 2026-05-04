@@ -64,6 +64,20 @@
       "when": 1777752675411,
       "tag": "0008_noisy_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777906976624,
+      "tag": "0009_romantic_zaladane",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777906977000,
+      "tag": "0010_geofile_multipolygon",
+      "breakpoints": true
     }
   ]
 }

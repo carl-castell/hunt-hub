@@ -5,7 +5,7 @@ import { standsTable } from "./stands";
 
 const geometry = customType<{ data: string; driverData: string }>({
   dataType() {
-    return 'geometry(GeometryCollection, 4326)';
+    return 'geometry(MultiPolygon, 4326)';
   },
 });
 

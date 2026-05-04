@@ -1,5 +1,9 @@
 import { relations } from "drizzle-orm";
-import { index, integer, pgTable, point, varchar } from "drizzle-orm/pg-core";
+import { customType, index, integer, pgTable, varchar } from "drizzle-orm/pg-core";
+
+const geometryPoint4326 = customType<{ data: string; driverData: string }>({
+  dataType() { return 'geometry(Point, 4326)'; },
+});
 import { areasTable } from "./areas";
 import { templateStandAssignmentsTable } from "./template_stand_assignments";
 import { driveStandAssignmentsTable } from "./drive_stand_assignments";
@@ -8,7 +12,7 @@ export const standsTable = pgTable("stands", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   number: varchar().notNull(),
   areaId: integer("area_id").notNull().references(() => areasTable.id, { onDelete: "cascade" }),
-  location: point(),
+  location: geometryPoint4326('location'),
 }, (t) => [
   index('idx_stands_area_id').on(t.areaId),
 ]);

@@ -12,6 +12,7 @@ import { generalLimiter } from "./middlewares/rateLimiter";
 import { generateCsrfToken, verifyCsrfToken } from './middlewares/csrf';
 
 import homeRouter from "./routes/home";
+import wfsRouter from "./routes/wfs";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
 import managerRouter from "./routes/manager";
@@ -92,6 +93,7 @@ app.use(
 
 app.use(logger);
 app.use(generalLimiter);
+app.use('/wfs', wfsRouter);
 app.use(generateCsrfToken);
 app.use(verifyCsrfToken);
 app.use(express.static(path.join(process.cwd(), "public"), { maxAge: "7d" }));

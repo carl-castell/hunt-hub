@@ -29,6 +29,13 @@ type AuditEvent =
   | 'geofile_uploaded'
   | 'geofile_deleted'
   | 'area_deleted'
+  | 'area_created'
+  | 'area_updated'
+  | 'stand_created'
+  | 'stand_updated'
+  | 'stand_deleted'
+  | 'wfs_token_generated'
+  | 'wfs_token_deleted'
   | 'bucket_file_access';
 
 interface AuditOptions {

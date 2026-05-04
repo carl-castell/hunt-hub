@@ -10,7 +10,7 @@ import {
   getPeople, postCreateUser,
   getUser, postUpdateUserRole, postDeleteUser, postDeactivateUser, postResendActivation, postReactivateUser,
 } from '../controllers/manager/people';
-import { getAccount, postChangePassword } from '../controllers/manager/account';
+import { getAccount, postChangePassword, postGenerateWfsToken, postDeleteWfsToken } from '../controllers/manager/account';
 import { getGroups, postCreateGroup, getGroup, postRenameGroup, postDeleteGroup, postAddMember, postRemoveMember } from '../controllers/manager/guest_groups';
 import {
   getHuntingLicense, postCreateHuntingLicense, postCheckHuntingLicense, postDeleteHuntingLicense, postUpdateHuntingLicense,
@@ -112,5 +112,7 @@ managerRouter.post('/guest-groups/:id/members/:userId/remove',      postRemoveMe
 // Account
 managerRouter.get('/account',                         getAccount);
 managerRouter.post('/account/password',               postChangePassword);
+managerRouter.post('/account/wfs-token/generate',     postGenerateWfsToken);
+managerRouter.post('/account/wfs-token/delete',       postDeleteWfsToken);
 
 export default managerRouter;

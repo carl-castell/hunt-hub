@@ -72,3 +72,54 @@
 </dialog>
 
 <script src="/js/password-validator.js"></script>
+
+<!-- ── QGIS Connection ────────────────────────────────────────────────────── -->
+<article>
+  <header><strong>QGIS Connection</strong></header>
+
+  <% if (newWfsToken) { %>
+    <p style="color: var(--pico-color-green-500); font-weight: 600;">
+      Token generated. Copy it now — it will not be shown again in full.
+    </p>
+    <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1rem;">
+      <input id="wfs-token-field" type="text" value="<%= newWfsToken %>" readonly
+        style="flex:1; font-family:monospace; font-size:0.85rem;" />
+      <button type="button" class="outline" onclick="copyWfsToken()">Copy</button>
+    </div>
+    <p style="font-size:0.85rem; color: var(--pico-color-slate-500);">
+      In QGIS: Layer → Add WFS Layer → New → URL:
+      <code><%= wfsBaseUrl %>?token=<%= newWfsToken %></code>
+    </p>
+  <% } else if (wfsToken) { %>
+    <p>A token is active for this account.</p>
+    <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1rem;">
+      <input id="wfs-token-field" type="password" value="<%= wfsToken %>" readonly
+        style="flex:1; font-family:monospace; font-size:0.85rem;" />
+      <button type="button" class="outline" id="wfs-toggle-btn" onclick="toggleWfsToken()">Show</button>
+      <button type="button" class="outline" onclick="copyWfsToken()">Copy</button>
+    </div>
+  <% } else { %>
+    <p>No token active. Generate one to connect QGIS to this estate.</p>
+  <% } %>
+
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <% if (!wfsToken) { %>
+      <form method="POST" action="/manager/account/wfs-token/generate">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit">Generate token</button>
+      </form>
+    <% } else { %>
+      <form method="POST" action="/manager/account/wfs-token/generate">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="outline">Regenerate token</button>
+      </form>
+      <form method="POST" action="/manager/account/wfs-token/delete"
+        onsubmit="return confirm('Delete the QGIS token? QGIS will lose access immediately.')">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button type="submit" class="outline" style="color:var(--pico-color-red-500);">Delete token</button>
+      </form>
+    <% } %>
+  </div>
+</article>
+
+<script src="/js/wfs-token.js"></script>
