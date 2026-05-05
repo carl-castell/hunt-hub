@@ -206,6 +206,7 @@ export async function getCapabilities(req: Request, res: Response) {
       <DefaultSRS>EPSG:4326</DefaultSRS>
       <Operations>
         <Operation>Query</Operation>
+        <Operation>Insert</Operation>
         <Operation>Update</Operation>
       </Operations>
     </FeatureType>
@@ -273,7 +274,6 @@ export function describeFeatureType(req: Request, res: Response) {
     <xs:complexContent>
       <xs:extension base="gml:AbstractFeatureType">
         <xs:sequence>
-          <xs:element name="name"    type="xs:string"/>
           <xs:element name="geofile" type="gml:MultiSurfacePropertyType" minOccurs="0"/>
         </xs:sequence>
       </xs:extension>
@@ -344,13 +344,14 @@ export async function getFeature(req: Request, res: Response) {
         return sendXml(res, e.status, e.body);
       }
 
-      members = `
+      if (row.gml) {
+        members = `
   <gml:featureMember>
     <ms:${escapeXml(typeNames)} gml:id="${escapeXml(typeNames)}.${row.id}" xmlns:ms="http://mapserver.gis.umn.edu/mapserver">
-      <ms:name>${escapeXml(row.name)}</ms:name>
-      ${row.gml ? `<ms:geofile>${row.gml}</ms:geofile>` : ''}
+      <ms:geofile>${row.gml}</ms:geofile>
     </ms:${escapeXml(typeNames)}>
   </gml:featureMember>`;
+      }
     } else {
       const areaId = parseAreaId(typeNames);
       if (areaId === null) {
@@ -502,8 +503,35 @@ async function handleInsert(op: Element, estateId: number, userId: number, ip: s
     if (featureEl.nodeType !== 1) continue;
     const typeName = featureEl.localName;
 
-    if (parseAreaPolygonId(typeName) !== null) {
-      throw new WfsException('OperationNotSupported', 'Creating areas via WFS-T is not supported. Use the web interface.');
+    const areaPolygonId = parseAreaPolygonId(typeName);
+    if (areaPolygonId !== null) {
+      const [area] = await db
+        .select({ id: areasTable.id, hasGeofile: sql<boolean>`geofile IS NOT NULL` })
+        .from(areasTable)
+        .where(and(eq(areasTable.id, areaPolygonId), eq(areasTable.estateId, estateId)))
+        .limit(1);
+
+      if (!area) throw new WfsException('InvalidParameter', 'Area not found.');
+      if (area.hasGeofile) throw new WfsException('OperationNotSupported', 'Area boundary already exists. Use the editing tools to modify it.');
+
+      const geofileEl = getChildElement(featureEl, 'geofile');
+      const geomEl = geofileEl
+        ? (getChildElement(geofileEl, 'MultiSurface') ?? getChildElement(geofileEl, 'MultiPolygon') ?? getChildElement(geofileEl, 'GeometryCollection') ?? getChildElement(geofileEl, 'Polygon'))
+        : null;
+
+      if (!geomEl) throw new WfsException('MissingParameter', 'Geometry is required.');
+
+      const wkt = gmlPolygonToWkt(geomEl);
+      if (!wkt) throw new WfsException('InvalidParameter', 'Could not parse geometry.');
+
+      await db
+        .update(areasTable)
+        .set({ geofile: sql`ST_GeomFromText(${wkt}, 4326)` })
+        .where(eq(areasTable.id, areaPolygonId));
+
+      await audit({ userId, event: 'area_updated', ip, metadata: { areaId: areaPolygonId, source: 'wfs' } });
+      features.push({ typeName, id: area.id });
+      count++;
     } else {
       const areaId = parseAreaId(typeName);
       if (areaId === null) throw new WfsException('InvalidParameter', `Unknown feature type: ${typeName}`);
