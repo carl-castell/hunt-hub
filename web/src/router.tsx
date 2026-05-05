@@ -5,6 +5,7 @@ import { TotpPage } from '@/pages/totp/TotpPage'
 import { TotpSetupPage } from '@/pages/totp/TotpSetupPage'
 import { TotpBackupCodesPage } from '@/pages/totp/TotpBackupCodesPage'
 import { TotpBackupPage } from '@/pages/totp/TotpBackupPage'
+import { AdminRouter } from '@/pages/admin/AdminRouter'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
@@ -35,7 +36,7 @@ export function AppRouter() {
           <Route path="/totp/backup-codes" element={<TotpBackupCodesPage />} />
           <Route path="/totp/backup" element={<TotpBackupPage />} />
           <Route path="/" element={<RootRedirect />} />
-          <Route path="/admin/*" element={<ProtectedRoute><div>Admin dashboard coming soon</div></ProtectedRoute>} />
+          <Route path="/admin/*" element={<ProtectedRoute><AdminRouter /></ProtectedRoute>} />
           <Route path="/manager/*" element={<ProtectedRoute><div>Manager dashboard coming soon</div></ProtectedRoute>} />
         </Routes>
       </AuthProvider>
