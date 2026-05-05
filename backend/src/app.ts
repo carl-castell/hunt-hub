@@ -22,6 +22,10 @@ import mapRouter from "./routes/map";
 import rsvpRouter from './routes/rsvp';
 import totpRouter from './routes/totp';
 
+import { createExpressMiddleware } from '@trpc/server/adapters/express';
+import { appRouter } from './trpc/router';
+import { createContext } from './trpc/context';
+
 import { estatesTable } from './db/schema/estates';
 import { db } from './db';
 import { eq } from 'drizzle-orm';
@@ -94,6 +98,7 @@ app.use(
 app.use(logger);
 app.use(generalLimiter);
 app.use('/wfs', wfsRouter);
+app.use('/api/trpc', createExpressMiddleware({ router: appRouter, createContext }));
 app.use(generateCsrfToken);
 app.use(verifyCsrfToken);
 app.use(express.static(path.join(process.cwd(), "public"), { maxAge: "7d" }));
