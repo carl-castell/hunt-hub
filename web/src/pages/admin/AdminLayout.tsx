@@ -26,7 +26,8 @@ export function AdminLayout() {
           <NavLink to="/admin/account" className={navClass}>Account</NavLink>
         </nav>
 
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border space-y-1">
+          <p className="px-3 text-xs text-muted-foreground truncate">{user?.firstName} {user?.lastName}</p>
           <button
             onClick={logout}
             className="w-full px-3 py-2 text-sm text-left text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
