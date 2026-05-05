@@ -16,7 +16,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "paths": { "@/*": ["./src/*", "../backend/src/*"] }
   },
-  "include": ["src"]
+  "include": ["src", "../backend/src/types/express.d.ts"]
 }
