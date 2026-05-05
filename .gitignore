@@ -1,7 +1,4 @@
-node_modules
-.DS_Store
-.env
-dist/
-.idea/
-coverage/
+node_modules/
+**/.env
+**/.env.*
 .claudeignore
