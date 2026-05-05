@@ -1,5 +1,7 @@
 # Hunt Hub — Backend
 
+> **Monorepo note:** This is the `backend/` workspace in the [hunt-hub](https://github.com/carl-castell/hunt-hub) monorepo. The repo was recently restructured from a standalone backend (`hunt-hub_backend`) into a monorepo with `web/` (React) and `mobile/` workspaces. Only `backend/` is production-ready — the other workspaces are early-stage.
+
 Hunting estate management platform. Managers organise events, build guest lists, assign hunting groups to drives and stands, send email invitations with magic-link RSVPs, and track guest documents (hunting licences and training certificates). A separate admin surface manages estates and staff accounts.
 
 ---
@@ -16,6 +18,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 | Auth | Session-based (express-session + connect-pg-simple) |
 | Storage | AWS S3-compatible — MinIO locally, Cloudflare R2 in production |
 | Email | Nodemailer — Mailgun HTTP API in production, Mailpit locally |
+| API layer | tRPC v11 (mounted on Express at `/api/v1/trpc`) |
 | Validation | Zod |
 | Security | Helmet (CSP, HSTS, etc.), bcrypt, CSRF tokens, express-rate-limit, HIBP Pwned Passwords, per-account lockout, audit logging, session invalidation |
 | 2FA | TOTP via otpauth + qrcode (admin accounts) |
@@ -30,7 +33,8 @@ Hunting estate management platform. Managers organise events, build guest lists,
 |---|---|---|
 | Public RSVP | `/rsvp/:publicId` | Guests (no login required) |
 | Manager dashboard | `/manager` | Managers and staff |
-| Admin dashboard | `/admin` | Admins |
+| Admin dashboard | `/admin` | Admins (EJS) |
+| tRPC API | `/api/v1/trpc` | React web client (admin, future manager) |
 | RSVP Preview | `/rsvp/preview/:eventId` | Managers (testing the RSVP flow) |
 | WFS endpoint | `/wfs` | QGIS / QField (token-authenticated, OGC WFS-T 1.1.0) |
 
@@ -48,24 +52,27 @@ Hunting estate management platform. Managers organise events, build guest lists,
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/carl-castell/hunt-hub_backend
-cd hunt-hub_backend
-npm install
+git clone https://github.com/carl-castell/hunt-hub
+cd hunt-hub
+npm install          # installs all workspace dependencies from root
 
-# 2. Configure environment
+# 2. Move into the backend workspace
+cd backend
+
+# 3. Configure environment
 cp .env.example .env
 # edit .env — see Environment Variables below
 
-# 3. Start Docker services (Postgres + MinIO)
+# 4. Start Docker services (Postgres + MinIO)
 docker compose up -d
 
-# 4. Enable extensions, run migrations, and create indexes
+# 5. Enable extensions, run migrations, and create indexes
 npm run db:migrate
 
-# 5. Seed the database (creates admin account + optional mock data)
+# 6. Seed the database (creates admin account + optional mock data)
 npm run db:seed
 
-# 6. Start the development server
+# 7. Start the development server
 npm run dev
 # → http://localhost:3000
 ```
@@ -309,6 +316,20 @@ src/
 │       ├── activate.ts
 │       ├── create.ts
 │       └── users.ts
+│
+├── trpc/
+│   ├── context.ts              # Builds tRPC context from Express req/res (session + user)
+│   ├── trpc.ts                 # Base procedures: publicProcedure, protectedProcedure, adminProcedure
+│   ├── router.ts               # Root router — combines all sub-routers
+│   └── routers/
+│       ├── auth.ts             # login, logout, me, totp setup/verify/backup
+│       └── admin/
+│           ├── index.ts        # Admin router (requires role=admin)
+│           ├── account.ts      # Admin account info + change password
+│           ├── estates.ts      # Estate CRUD + add manager
+│           ├── managers.ts     # Manager deactivate / activation link / delete
+│           ├── audit.ts        # Audit log queries (paginated)
+│           └── settings.ts     # List admins + create admin
 │
 ├── services/
 │   ├── storage.ts              # S3-compatible upload/delete (MinIO or R2)

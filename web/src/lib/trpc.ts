@@ -8,7 +8,7 @@ export function makeTrpcClient() {
   return trpc.createClient({
     links: [
       httpBatchLink({
-        url: '/api/trpc',
+        url: '/api/v1/trpc',
       }),
     ],
   })

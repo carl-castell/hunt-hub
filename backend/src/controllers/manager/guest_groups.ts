@@ -3,10 +3,8 @@ import { and, count, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { guestGroupsTable, guestGroupMembersTable } from '../../db/schema/guest_groups';
 import { usersTable } from '../../db/schema/users';
-import { z } from 'zod';
 import { logError } from '@/utils/logError';
-
-const nameSchema = z.object({ name: z.string().min(1).max(255) });
+import { areaNameSchema as nameSchema } from '@/schemas';
 
 function resolveGroup(req: Request, res: Response) {
   const user = req.session.user!;
