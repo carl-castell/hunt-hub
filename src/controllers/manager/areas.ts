@@ -178,7 +178,7 @@ export async function postUploadGeofile(req: Request, res: Response) {
 
     await db
       .update(areasTable)
-      .set({ geofile: sql`ST_GeomFromGeoJSON(${result.geometryCollection})` })
+      .set({ geofile: sql`ST_Multi(ST_CollectionExtract(ST_GeomFromGeoJSON(${result.geometryCollection}), 3))` })
       .where(eq(areasTable.id, Number(id)));
 
     await audit({ userId: user.id, event: 'geofile_uploaded', ip: req.ip, metadata: { areaId: Number(id) } });

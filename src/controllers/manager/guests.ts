@@ -8,7 +8,7 @@ import { guestGroupsTable, guestGroupMembersTable } from '../../db/schema/guest_
 import { z } from 'zod';
 import { logError } from '@/utils/logError';
 
-const optionalString = z.string().transform(v => v === '' ? undefined : v).pipe(z.string().min(1).optional());
+const optionalString = z.string().optional().transform(v => v === '' ? undefined : v).pipe(z.string().min(1).optional());
 
 const createGuestSchema = z.object({
   firstName: z.string().min(1),
