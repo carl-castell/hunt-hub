@@ -14,6 +14,7 @@ type AuditEvent =
   | 'user_reactivated'
   | 'user_resend_activation'
   | 'estate_created'
+  | 'estate_renamed'
   | 'estate_deleted'
   | 'invitation_email_sent'
   | 'hibp_service_error'

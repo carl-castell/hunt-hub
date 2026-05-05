@@ -21,6 +21,8 @@ export function AdminLayout() {
 
         <nav className="flex-1 p-3 space-y-0.5">
           <NavLink to="/admin" end className={navClass}>Dashboard</NavLink>
+          <NavLink to="/admin/audit" className={navClass}>Audit</NavLink>
+          <NavLink to="/admin/settings" className={navClass}>Settings</NavLink>
           <NavLink to="/admin/account" className={navClass}>Account</NavLink>
         </nav>
 
