@@ -1,27 +1,14 @@
 import bcrypt from 'bcrypt'
 import { TRPCError } from '@trpc/server'
 import { eq } from 'drizzle-orm'
-import { z } from 'zod'
 import { db } from '@/db'
 import { usersTable } from '@/db/schema/users'
 import { accountsTable } from '@/db/schema/accounts'
 import { isPasswordPwned } from '@/services/hibp'
 import { audit } from '@/services/audit'
 import { sessionPool } from '@/app'
+import { changePasswordSchema } from '@/schemas'
 import { adminProcedure, router } from '../../trpc'
-
-const changePasswordSchema = z.object({
-  oldPassword: z.string().min(1),
-  newPassword: z.string()
-    .min(8, 'Password must be at least 8 characters.')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
-    .regex(/[0-9]/, 'Password must contain at least one number.')
-    .regex(/[^a-zA-Z0-9]/, 'Password must contain at least one special character.'),
-  confirmPassword: z.string().min(1),
-}).refine(d => d.newPassword === d.confirmPassword, {
-  message: 'Passwords do not match.',
-  path: ['confirmPassword'],
-})
 
 export const adminAccountRouter = router({
   get: adminProcedure.query(async ({ ctx }) => {

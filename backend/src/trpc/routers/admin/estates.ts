@@ -7,7 +7,7 @@ import { estatesTable } from '@/db/schema/estates'
 import { usersTable } from '@/db/schema/users'
 import { accountsTable } from '@/db/schema/accounts'
 import { userAuthTokensTable } from '@/db/schema'
-import { createEstateSchema } from '@/schemas'
+import { createEstateSchema, addManagerSchema } from '@/schemas'
 import { audit } from '@/services/audit'
 import { renderTemplate, sendMail } from '@/services/mail'
 import { getBaseUrl } from '@/utils/url'
@@ -68,12 +68,7 @@ export const adminEstatesRouter = router({
     }),
 
   addManager: adminProcedure
-    .input(z.object({
-      estateId:  z.number(),
-      firstName: z.string().min(1, 'First name is required.').max(255),
-      lastName:  z.string().min(1, 'Last name is required.').max(255),
-      email:     z.string().email('Please enter a valid email address.'),
-    }))
+    .input(addManagerSchema)
     .mutation(async ({ input, ctx }) => {
       const token = crypto.randomUUID()
       const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 48)

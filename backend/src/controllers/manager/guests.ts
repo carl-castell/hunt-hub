@@ -5,21 +5,11 @@ import { usersTable } from '../../db/schema/users';
 import { contactsTable } from '../../db/schema/contacts';
 import { huntingLicensesTable, trainingCertificatesTable } from '../../db/schema/licenses';
 import { guestGroupsTable, guestGroupMembersTable } from '../../db/schema/guest_groups';
-import { z } from 'zod';
 import { logError } from '@/utils/logError';
+import { guestSchema } from '@/schemas';
 
-const optionalString = z.string().optional().transform(v => v === '' ? undefined : v).pipe(z.string().min(1).optional());
-
-const createGuestSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  email: z.email(),
-  phone: optionalString,
-  dateOfBirth: optionalString,
-  rating: z.coerce.number().int().min(1).max(5).optional(),
-});
-
-const updateGuestSchema = createGuestSchema;
+const createGuestSchema = guestSchema;
+const updateGuestSchema = guestSchema;
 
 const GUESTS_LIMIT = 50;
 

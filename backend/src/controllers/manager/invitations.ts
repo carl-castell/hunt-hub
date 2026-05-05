@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { and, asc, count, desc, eq, ilike, inArray, notInArray, or } from 'drizzle-orm';
-import { z } from 'zod';
+import { updateInvitationSchema, sendInvitationSchema } from '@/schemas';
 import { db } from '../../db';
 import { invitationsTable } from '../../db/schema/invitations';
 import { eventsTable } from '../../db/schema/events';
@@ -247,11 +247,6 @@ export async function getInvitationPicker(req: Request, res: Response) {
   }
 }
 
-const updateInvitationSchema = z.object({
-  status:   z.enum(['staged', 'sent_email', 'sent_manually', 'waitlist', 'archived']),
-  response: z.enum(['open', 'yes', 'no']),
-});
-
 export async function postUpdateInvitation(req: Request, res: Response) {
   try {
     const user = req.session.user!;
@@ -413,14 +408,7 @@ export async function getSendInvitations(req: Request, res: Response) {
   }
 }
 
-const sendSchema = z.object({
-  message: z.string().min(1, 'Message is required').max(5000),
-  respondBy: z.string().optional(),
-  invitationIds: z.preprocess(
-    (val) => (Array.isArray(val) ? val : val != null && val !== '' ? [val] : []),
-    z.array(z.coerce.number().int().positive())
-  ),
-});
+const sendSchema = sendInvitationSchema;
 
 export async function postSendInvitations(req: Request, res: Response) {
   try {

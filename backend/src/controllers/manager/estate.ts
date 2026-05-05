@@ -4,12 +4,8 @@ import { db } from '../../db';
 import { estatesTable } from '../../db/schema/estates';
 import { areasTable } from '../../db/schema/areas';
 import { usersTable } from '../../db/schema/users';
-import { z } from 'zod';
 import { logError } from '@/utils/logError';
-
-const renameEstateSchema = z.object({
-  name: z.string().min(1).max(256),
-});
+import { renameEstateSchema } from '@/schemas';
 
 export async function getEstate(req: Request, res: Response) {
   try {

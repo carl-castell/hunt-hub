@@ -4,23 +4,15 @@ import path from 'path';
 import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
 import { standsTable } from '@/db/schema/stands';
-import { z } from 'zod';
 import { runWorker } from '@/utils/runWorker';
 import { audit } from '@/services/audit';
 import { logError } from '@/utils/logError';
+import { areaNameSchema, deleteConfirmSchema } from '@/schemas';
 
 const GEOFILE_WORKER = path.resolve(
   __dirname,
   __filename.endsWith('.ts') ? '../../workers/geofile.worker.ts' : '../../workers/geofile.worker.js'
 );
-
-const areaNameSchema = z.object({
-  name: z.string().min(1).max(255),
-});
-
-const deleteConfirmSchema = z.object({
-  confirm: z.string(),
-});
 
 // ── Get Area ─────────────────────────────────────────────────────────────────
 

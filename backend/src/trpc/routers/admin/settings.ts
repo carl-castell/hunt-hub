@@ -1,10 +1,11 @@
 import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
-import { z } from 'zod'
 import { db } from '@/db'
+
 import { usersTable, userAuthTokensTable } from '@/db/schema'
 import { accountsTable } from '@/db/schema/accounts'
 import { audit } from '@/services/audit'
+import { createAdminSchema } from '@/schemas'
 import { adminProcedure, router } from '../../trpc'
 
 export const adminSettingsRouter = router({
@@ -24,11 +25,7 @@ export const adminSettingsRouter = router({
   }),
 
   createAdmin: adminProcedure
-    .input(z.object({
-      firstName: z.string().min(1, 'First name is required.').max(255),
-      lastName:  z.string().min(1, 'Last name is required.').max(255),
-      email:     z.string().email('Please enter a valid email address.'),
-    }))
+    .input(createAdminSchema)
     .mutation(async ({ input, ctx }) => {
       const token = crypto.randomUUID()
       const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 48)

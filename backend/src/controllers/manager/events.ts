@@ -3,14 +3,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { eventsTable } from '../../db/schema/events';
 import { drivesTable } from '../../db/schema/drives';
-import { z } from 'zod';
 import { logError } from '@/utils/logError';
-
-const eventSchema = z.object({
-  eventName: z.string().min(1).max(255),
-  date:      z.string().min(1),
-  time:      z.string().min(1),
-});
+import { eventSchema } from '@/schemas';
 
 export async function getEvents(req: Request, res: Response) {
   try {

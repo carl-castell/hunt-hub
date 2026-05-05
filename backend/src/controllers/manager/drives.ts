@@ -3,14 +3,8 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { drivesTable } from '../../db/schema/drives';
 import { eventsTable } from '../../db/schema/events';
-import { z } from 'zod';
 import { logError } from '@/utils/logError';
-
-const driveSchema = z.object({
-  name:      z.string().min(1).max(255),
-  startTime: z.string().min(1),
-  endTime:   z.string().min(1),
-});
+import { driveSchema } from '@/schemas';
 
 async function resolveEvent(eventId: number, estateId: number) {
   const [event] = await db

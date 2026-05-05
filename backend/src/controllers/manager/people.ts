@@ -4,13 +4,13 @@ import { db } from '../../db';
 import { usersTable } from '../../db/schema/users';
 import { accountsTable } from '../../db/schema/accounts';
 import { userAuthTokensTable } from '../../db/schema/user_auth_tokens';
-import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { getBaseUrl } from '@/utils/url';
 import { sessionPool } from '@/app';
 import { audit } from '@/services/audit';
 import { logError } from '@/utils/logError';
+import { createPersonSchema, updateRoleSchema } from '@/schemas';
 
 export async function getPeople(req: Request, res: Response) {
   try {
@@ -39,16 +39,7 @@ export async function getPeople(req: Request, res: Response) {
   }
 }
 
-const createUserSchema = z.object({
-  firstName: z.string().min(1).max(255),
-  lastName:  z.string().min(1).max(255),
-  email:     z.email(),
-  role:      z.enum(['manager', 'staff']),
-});
-
-const updateRoleSchema = z.object({
-  role: z.enum(['manager', 'staff']),
-});
+const createUserSchema = createPersonSchema;
 
 export async function postCreateUser(req: Request, res: Response) {
   try {
