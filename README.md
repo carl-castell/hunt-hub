@@ -2,14 +2,6 @@
 
 A platform for managing hunting estates, events, and guests.
 
-## Monorepo Structure
-
-| Workspace | Description |
-|-----------|-------------|
-| [`backend/`](backend/README.md) | Express API + server-rendered web app |
-| `web/` | React web app *(coming soon)* |
-| `mobile/` | React Native iOS/Android app *(coming soon)* |
-
 ## Getting Started
 
 Install all workspace dependencies from the repo root:
@@ -18,9 +10,26 @@ Install all workspace dependencies from the repo root:
 npm install
 ```
 
-Then work within a workspace:
+---
 
-```bash
-cd backend
-npm run dev
-```
+## Backend
+
+Express API and server-rendered web app.
+
+For detailed installation and setup instructions see [backend/README.md](backend/README.md).
+
+---
+
+## Web
+
+React web app — coming soon.
+
+For detailed installation and setup instructions see `web/README.md`.
+
+---
+
+## Mobile
+
+React Native iOS and Android app — coming soon.
+
+For detailed installation and setup instructions see `mobile/README.md`.
