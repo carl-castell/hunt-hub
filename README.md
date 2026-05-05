@@ -19,6 +19,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 | Validation | Zod |
 | Security | Helmet (CSP, HSTS, etc.), bcrypt, CSRF tokens, express-rate-limit, HIBP Pwned Passwords, per-account lockout, audit logging, session invalidation |
 | 2FA | TOTP via otpauth + qrcode (admin accounts) |
+| GIS | OGC WFS-T 1.1.0 — QGIS and QField compatible |
 | Testing | Vitest + Supertest |
 
 ---
@@ -31,6 +32,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 | Manager dashboard | `/manager` | Managers and staff |
 | Admin dashboard | `/admin` | Admins |
 | RSVP Preview | `/rsvp/preview/:eventId` | Managers (testing the RSVP flow) |
+| WFS endpoint | `/wfs` | QGIS / QField (token-authenticated, OGC WFS-T 1.1.0) |
 
 ---
 
@@ -57,8 +59,8 @@ cp .env.example .env
 # 3. Start Docker services (Postgres + MinIO)
 docker compose up -d
 
-# 4. Apply the database schema
-npm run db:push
+# 4. Enable extensions, run migrations, and create indexes
+npm run db:migrate
 
 # 5. Seed the database (creates admin account + optional mock data)
 npm run db:seed
@@ -145,13 +147,16 @@ npm run dev
 
 | Script | Description |
 |---|---|
-| `npm run db:push` | Apply schema to local database |
-| `npm run db:push:neon` | Apply schema to Neon database |
+| `npm run db:migrate` | Enable PostGIS/pg_trgm, run pending migrations, create indexes — safe for production |
+| `npm run db:migrate:neon` | Same as above against Neon |
 | `npm run db:gen` | Generate a new migration file from schema changes |
-| `npm run db:seed` | Seed admin account and optional mock data (prompts for confirmation) |
-| `npm run db:seed:neon` | Full Neon setup: drop schema, enable extensions, run all migrations, seed admin account |
-| `npm run db:reset` | Full local reset: restart Docker volumes, push schema, seed |
-| `npm run db:reset:test` | Reset the test database (port 5434) |
+| `npm run db:seed` | Insert admin account and optional mock data (prompts for confirmation) |
+| `npm run db:seed:neon` | Seed admin account on Neon (mock data disabled) |
+| `npm run db:reset` | **Destructive.** Drop all tables → migrate → seed. Dev only, prompts for confirmation |
+| `npm run db:reset:neon` | Same as above against Neon |
+| `npm run db:docker-reset` | Wipe Docker volumes, restart containers, migrate, and seed |
+| `npm run db:reset:test` | Wipe and re-migrate the test database (port 5434) |
+| `npm run db:push` | Apply schema directly via drizzle-kit (bypasses migration files — dev only) |
 | `npm run studio` | Open Drizzle Studio (database GUI) |
 
 ### Testing
@@ -257,8 +262,10 @@ src/
 │
 ├── db/
 │   ├── index.ts                # Database client (pg or neon)
-│   ├── seed.ts                 # Database seeder
-│   ├── enable-extensions.ts    # Enables PostGIS on first run
+│   ├── migrate.ts              # Enable extensions + run migrations + create indexes (safe for prod)
+│   ├── reset.ts                # Drop all tables → migrate → seed (dev only)
+│   ├── seed.ts                 # Insert admin account and optional mock data
+│   ├── seed.mock.ts            # Fake estates/events/guests for local development
 │   └── schema/                 # Drizzle table definitions (one file per table)
 │
 ├── middlewares/
@@ -297,6 +304,7 @@ src/
 │   ├── rsvp-preview.ts         # Manager RSVP preview flow
 │   ├── licenses.ts             # Hunting licence + certificate management
 │   ├── files.ts                # Serve uploaded files (estate-scoped)
+│   ├── wfs.ts                  # OGC WFS-T 1.1.0 — GetCapabilities / GetFeature / Transaction
 │   └── users/
 │       ├── activate.ts
 │       ├── create.ts
@@ -355,7 +363,7 @@ A full list of all routes, grouped by feature area and access level, is in [USEC
 2. Set `STORAGE_PROVIDER=r2` and provide R2 credentials.
 3. Configure Mailgun HTTP API credentials (`MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, and `MAILGUN_HOST` for EU domains).
 4. Set `NODE_ENV=production` — this enables secure cookies (requires HTTPS) and activates rate limiting.
-5. Run `npm run db:push:neon` to apply the schema to the production database.
+5. Run `npm run db:migrate:neon` to enable extensions, run all migrations, and create indexes on the production database.
 6. Build and start: `npm run build && npm start`.
 
 > Secure cookies require the app to be served over HTTPS. Set `trust proxy` accordingly if deployed behind a reverse proxy (already configured in `app.ts`).

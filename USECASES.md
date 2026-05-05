@@ -32,6 +32,7 @@
 - ✅ Manage staff / people — [Manager – Staff & People](#manager--staff--people)
 - ✅ Preview RSVP form — [RSVP – Manager Preview](#rsvp--manager-preview)
 - ✅ View interactive map — [Interactive Map](#interactive-map)
+- ✅ Edit areas and stands in QGIS / QField — [WFS – GIS Integration](#wfs--gis-integration)
 - ✅ Manage manager account & password — [Manager – Account Settings](#manager--account-settings)
 
 ---
@@ -294,3 +295,42 @@
 |--------|------|-------------|
 | GET | `/map/layers` | Get map layer configuration |
 | GET | `/map/area/:id` | Get geospatial data for a specific area |
+
+---
+
+## WFS – GIS Integration
+
+> Token-authenticated (`?token=`). OGC WFS-T 1.1.0 endpoint for QGIS and QField. The token is scoped to a user and estate and is managed via the manager dashboard.
+>
+> All requests go to `/wfs` — the `REQUEST` query parameter selects the operation.
+
+### Feature types
+
+Each area exposes two feature types:
+
+| Type name | Operations | Description |
+|-----------|-----------|-------------|
+| `area_<id>` | Query, Update | The area boundary polygon (MultiPolygon) |
+| `stands_<id>` | Query, Insert, Update, Delete | Stand points within that area |
+
+### GET operations
+
+| Method | Path | REQUEST param | Description |
+|--------|------|---------------|-------------|
+| GET | `/wfs` | `GetCapabilities` | List all feature types for the estate |
+| GET | `/wfs` | `DescribeFeatureType` | Return XSD schema for a given type name |
+| GET | `/wfs` | `GetFeature` | Return features for a given type name |
+
+### Transactions (POST)
+
+| Method | Path | Operation | Description |
+|--------|------|-----------|-------------|
+| POST | `/wfs` | `Insert` | Create a new stand (point geometry + number required) |
+| POST | `/wfs` | `Update` | Update an area boundary or stand position / number |
+| POST | `/wfs` | `Delete` | Delete a stand |
+
+**Notes:**
+- Creating or deleting areas via WFS-T is blocked — use the web interface.
+- Inserting a stand outside the area boundary is rejected unless `force_outside_area` is set to `1`.
+- Stand numbers must be unique within an area.
+- The server returns `<wfs:InsertResults>` after Insert so QGIS/QField shows the new stand immediately without a manual layer refresh.

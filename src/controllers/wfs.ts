@@ -451,11 +451,12 @@ export async function wfsTransaction(req: Request, res: Response) {
   }
 
   let inserted = 0, updated = 0, deleted = 0;
+  const insertedFeatures: { typeName: string; id: number }[] = [];
 
   try {
     for (const op of children) {
       switch (op.localName) {
-        case 'Insert':  { const d = await handleInsert(op, estateId, userId, req.ip); inserted += d; break; }
+        case 'Insert':  { const d = await handleInsert(op, estateId, userId, req.ip); inserted += d.count; insertedFeatures.push(...d.features); break; }
         case 'Update':  { const d = await handleUpdate(op, estateId, userId, req.ip); updated  += d; break; }
         case 'Delete':  { const d = await handleDelete(op, estateId, userId, req.ip); deleted  += d; break; }
         default: break;
@@ -471,13 +472,17 @@ export async function wfsTransaction(req: Request, res: Response) {
     return sendXml(res, e.status, e.body);
   }
 
+  const insertResults = insertedFeatures.length > 0
+    ? `\n  <wfs:InsertResults>\n${insertedFeatures.map(f => `    <wfs:Feature><ogc:FeatureId fid="${escapeXml(f.typeName)}.${f.id}"/></wfs:Feature>`).join('\n')}\n  </wfs:InsertResults>`
+    : '';
+
   const body = `<?xml version="1.0" encoding="UTF-8"?>
-<wfs:TransactionResponse xmlns:wfs="${WFS_NS}" version="1.1.0">
+<wfs:TransactionResponse xmlns:wfs="${WFS_NS}" xmlns:ogc="http://www.opengis.net/ogc" version="1.1.0">
   <wfs:TransactionSummary>
     <wfs:totalInserted>${inserted}</wfs:totalInserted>
     <wfs:totalUpdated>${updated}</wfs:totalUpdated>
     <wfs:totalDeleted>${deleted}</wfs:totalDeleted>
-  </wfs:TransactionSummary>
+  </wfs:TransactionSummary>${insertResults}
 </wfs:TransactionResponse>`;
 
   sendXml(res, 200, body);
@@ -489,8 +494,9 @@ class WfsException extends Error {
 
 // ── Insert ────────────────────────────────────────────────────────────────────
 
-async function handleInsert(op: Element, estateId: number, userId: number, ip: string | undefined): Promise<number> {
+async function handleInsert(op: Element, estateId: number, userId: number, ip: string | undefined): Promise<{ count: number; features: { typeName: string; id: number }[] }> {
   let count = 0;
+  const features: { typeName: string; id: number }[] = [];
   for (let i = 0; i < op.childNodes.length; i++) {
     const featureEl = op.childNodes[i] as Element;
     if (featureEl.nodeType !== 1) continue;
@@ -544,10 +550,11 @@ async function handleInsert(op: Element, estateId: number, userId: number, ip: s
         .returning({ id: standsTable.id });
 
       await audit({ userId, event: 'stand_created', ip, metadata: { standId: stand.id, areaId, source: 'wfs' } });
+      features.push({ typeName, id: stand.id });
       count++;
     }
   }
-  return count;
+  return { count, features };
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
