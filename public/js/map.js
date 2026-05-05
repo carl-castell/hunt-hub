@@ -113,48 +113,58 @@ function renderGeoJSON(map, geojson) {
     };
   }
 
-  // 2) Build "holes" (inner rings) for the world mask from all polygon outer rings
-  // Leaflet mask trick: Polygon with [worldRing, hole1, hole2, ...]
-  function collectOuterRings(geom) {
-    if (!geom) return [];
+  // 2) Build world mask: dark overlay with area outer rings punched out.
+  // Inner rings (holes in the area polygon) are re-shaded by adding them
+  // back as solid dark polygons in the same MultiPolygon.
+  function collectRings(geom) {
+    if (!geom) return { outer: [], inner: [] };
 
     if (geom.type === 'Polygon') {
-      // coordinates: [outerRing, hole1, hole2, ...]
-      return geom.coordinates && geom.coordinates[0] ? [geom.coordinates[0]] : [];
+      var coords = geom.coordinates || [];
+      return { outer: coords[0] ? [coords[0]] : [], inner: coords.slice(1) };
     }
 
     if (geom.type === 'MultiPolygon') {
-      // coordinates: [ [outerRing,...], [outerRing,...], ... ]
-      return (geom.coordinates || [])
-        .map(function (polyCoords) { return polyCoords && polyCoords[0]; })
-        .filter(Boolean);
+      var outer = [], inner = [];
+      (geom.coordinates || []).forEach(function (polyCoords) {
+        if (polyCoords && polyCoords[0]) outer.push(polyCoords[0]);
+        (polyCoords || []).slice(1).forEach(function (ring) { inner.push(ring); });
+      });
+      return { outer: outer, inner: inner };
     }
 
     if (geom.type === 'GeometryCollection') {
-      return (geom.geometries || []).flatMap(collectOuterRings);
+      var result = { outer: [], inner: [] };
+      (geom.geometries || []).forEach(function (g) {
+        var rings = collectRings(g);
+        result.outer = result.outer.concat(rings.outer);
+        result.inner = result.inner.concat(rings.inner);
+      });
+      return result;
     }
 
-    // not an area geometry (Point/LineString/etc.)
-    return [];
+    return { outer: [], inner: [] };
   }
 
-  const holeRings = featureCollection.features.flatMap(function (f) {
-    return collectOuterRings(f.geometry);
+  var allOuter = [], allInner = [];
+  featureCollection.features.forEach(function (f) {
+    var rings = collectRings(f.geometry);
+    allOuter = allOuter.concat(rings.outer);
+    allInner = allInner.concat(rings.inner);
   });
 
-  if (holeRings.length) {
-    const worldRing = [
-      [-180, -90],
-      [180, -90],
-      [180, 90],
-      [-180, 90],
-      [-180, -90],
-    ];
+  if (allOuter.length) {
+    var worldRing = [[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]];
+
+    // First polygon: world with area outer rings as holes (area becomes bright).
+    // Additional polygons: one per inner ring, solid dark (re-shades each hole).
+    var maskPolygons = [[worldRing].concat(allOuter)];
+    allInner.forEach(function (ring) { maskPolygons.push([ring]); });
 
     L.geoJSON(
       {
         type: 'Feature',
-        geometry: { type: 'Polygon', coordinates: [worldRing].concat(holeRings) },
+        geometry: { type: 'MultiPolygon', coordinates: maskPolygons },
         properties: {},
       },
       { style: { color: 'transparent', fillColor: '#000', fillOpacity: 0.3 } }

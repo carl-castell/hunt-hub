@@ -191,7 +191,7 @@ function gmlPolygonToWkt(geomEl: Element): string | null {
 export async function getCapabilities(req: Request, res: Response) {
   const estateId = req.wfsUser!.estateId;
   const token = req.query.token as string ?? '';
-  const baseUrl = `${req.protocol}://${req.get('host')}/wfs?token=${encodeURIComponent(token)}`;
+  const baseUrl = `${req.protocol || 'http'}://${req.get('host')}/wfs?token=${encodeURIComponent(token)}`;
 
   try {
     const areas = await db
@@ -274,6 +274,7 @@ export function describeFeatureType(req: Request, res: Response) {
     <xs:complexContent>
       <xs:extension base="gml:AbstractFeatureType">
         <xs:sequence>
+          <xs:element name="name"    type="xs:string" minOccurs="0"/>
           <xs:element name="geofile" type="gml:MultiSurfacePropertyType" minOccurs="0"/>
         </xs:sequence>
       </xs:extension>
@@ -348,6 +349,7 @@ export async function getFeature(req: Request, res: Response) {
         members = `
   <gml:featureMember>
     <ms:${escapeXml(typeNames)} gml:id="${escapeXml(typeNames)}.${row.id}" xmlns:ms="http://mapserver.gis.umn.edu/mapserver">
+      <ms:name>${escapeXml(row.name)}</ms:name>
       <ms:geofile>${row.gml}</ms:geofile>
     </ms:${escapeXml(typeNames)}>
   </gml:featureMember>`;
