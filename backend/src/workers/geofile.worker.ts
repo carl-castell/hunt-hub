@@ -10,71 +10,87 @@ import * as shapefile from 'shapefile';
 type WorkerInput  = { buffer: Buffer; filename: string };
 type WorkerResult = { ok: true; geometryCollection: string } | { ok: false; status: number; message: string };
 
-function toGeometryCollection(geojson: string): string {
-  const parsed = JSON.parse(geojson);
-
-  if (parsed.type === 'FeatureCollection') {
-    return JSON.stringify({
-      type: 'GeometryCollection',
-      geometries: parsed.features.map((f: any) => f.geometry).filter(Boolean),
-    });
+class ParseError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
   }
-
-  if (parsed.type === 'Feature') {
-    return JSON.stringify({
-      type: 'GeometryCollection',
-      geometries: [parsed.geometry].filter(Boolean),
-    });
-  }
-
-  if (parsed.type !== 'GeometryCollection') {
-    return JSON.stringify({ type: 'GeometryCollection', geometries: [parsed] });
-  }
-
-  return geojson;
 }
 
-async function run(): Promise<void> {
-  const { buffer, filename }: WorkerInput = workerData;
-  const buf = Buffer.from(buffer);
-  const content = buf.toString('utf-8');
-  let geojson: string;
+abstract class GeoFileParser {
+  abstract parse(buf: Buffer): Promise<string>;
 
-  if (filename.endsWith('.geojson') || filename.endsWith('.json')) {
+  protected toGeometryCollection(geojson: string): string {
+    const parsed = JSON.parse(geojson);
+
+    if (parsed.type === 'FeatureCollection') {
+      return JSON.stringify({
+        type: 'GeometryCollection',
+        geometries: parsed.features.map((f: any) => f.geometry).filter(Boolean),
+      });
+    }
+
+    if (parsed.type === 'Feature') {
+      return JSON.stringify({
+        type: 'GeometryCollection',
+        geometries: [parsed.geometry].filter(Boolean),
+      });
+    }
+
+    if (parsed.type !== 'GeometryCollection') {
+      return JSON.stringify({ type: 'GeometryCollection', geometries: [parsed] });
+    }
+
+    return geojson;
+  }
+}
+
+class GeoJsonParser extends GeoFileParser {
+  override async parse(buf: Buffer): Promise<string> {
+    const content = buf.toString('utf-8');
     JSON.parse(content);
-    geojson = content;
+    return this.toGeometryCollection(content);
+  }
+}
 
-  } else if (filename.endsWith('.kml')) {
+class KmlParser extends GeoFileParser {
+  override async parse(buf: Buffer): Promise<string> {
+    const content = buf.toString('utf-8');
     const dom = new DOMParser().parseFromString(content, 'text/xml' as any);
-    geojson = JSON.stringify(toGeoJSON.kml(dom));
+    return this.toGeometryCollection(JSON.stringify(toGeoJSON.kml(dom)));
+  }
+}
 
-  } else if (filename.endsWith('.gpx')) {
+class GpxParser extends GeoFileParser {
+  override async parse(buf: Buffer): Promise<string> {
+    const content = buf.toString('utf-8');
     const dom = new DOMParser().parseFromString(content, 'text/xml' as any);
-    geojson = JSON.stringify(toGeoJSON.gpx(dom));
+    return this.toGeometryCollection(JSON.stringify(toGeoJSON.gpx(dom)));
+  }
+}
 
-  } else if (filename.endsWith('.zip')) {
+class ShapefileParser extends GeoFileParser {
+  override async parse(buf: Buffer): Promise<string> {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'shp-'));
     new AdmZip(buf).extractAllTo(tmpDir, true);
-
     const files = await fs.readdir(tmpDir);
     const shpFile = files.find(f => f.endsWith('.shp'));
     if (!shpFile) {
       await fs.rm(tmpDir, { recursive: true });
-      const result: WorkerResult = { ok: false, status: 400, message: 'ZIP does not contain a .shp file' };
-      parentPort!.postMessage(result);
-      return;
+      throw new ParseError(400, 'ZIP does not contain a .shp file');
     }
-
     const shpPath = path.join(tmpDir, shpFile);
     const dbfPath = shpPath.replace('.shp', '.dbf');
     const features: any[] = [];
     const source = await shapefile.open(shpPath, dbfPath);
     let next = await source.read();
     while (!next.done) { features.push(next.value); next = await source.read(); }
-    geojson = JSON.stringify({ type: 'FeatureCollection', features });
     await fs.rm(tmpDir, { recursive: true });
+    return this.toGeometryCollection(JSON.stringify({ type: 'FeatureCollection', features }));
+  }
+}
 
-  } else if (filename.endsWith('.gpkg')) {
+class GeoPackageParser extends GeoFileParser {
+  override async parse(buf: Buffer): Promise<string> {
     // Dynamic import + asm.js build avoids WASM file resolution issues in worker threads
     const initSqlJs = (await import('sql.js/dist/sql-asm.js' as any)).default as () => Promise<any>;
     const { Geometry: WkxGeometry } = await import('wkx');
@@ -84,9 +100,7 @@ async function run(): Promise<void> {
     const gcResult = db.exec('SELECT table_name, column_name FROM gpkg_geometry_columns');
     if (!gcResult.length || !gcResult[0].values.length) {
       db.close();
-      const result: WorkerResult = { ok: false, status: 400, message: 'No geometry layers found in GeoPackage' };
-      parentPort!.postMessage(result);
-      return;
+      throw new ParseError(400, 'No geometry layers found in GeoPackage');
     }
 
     const features: any[] = [];
@@ -118,16 +132,36 @@ async function run(): Promise<void> {
     }
 
     db.close();
-    geojson = JSON.stringify({ type: 'FeatureCollection', features });
-
-  } else {
-    const result: WorkerResult = { ok: false, status: 400, message: 'Unsupported file type. Use .geojson, .kml, .gpx, .zip (shapefile), or .gpkg' };
-    parentPort!.postMessage(result);
-    return;
+    return this.toGeometryCollection(JSON.stringify({ type: 'FeatureCollection', features }));
   }
+}
 
-  const result: WorkerResult = { ok: true, geometryCollection: toGeometryCollection(geojson) };
-  parentPort!.postMessage(result);
+function createParser(filename: string): GeoFileParser {
+  if (filename.endsWith('.geojson') || filename.endsWith('.json')) return new GeoJsonParser();
+  if (filename.endsWith('.kml'))  return new KmlParser();
+  if (filename.endsWith('.gpx'))  return new GpxParser();
+  if (filename.endsWith('.zip'))  return new ShapefileParser();
+  if (filename.endsWith('.gpkg')) return new GeoPackageParser();
+  throw new ParseError(400, 'Unsupported file type. Use .geojson, .kml, .gpx, .zip (shapefile), or .gpkg');
+}
+
+async function run(): Promise<void> {
+  const { buffer, filename }: WorkerInput = workerData;
+  const buf = Buffer.from(buffer);
+
+  try {
+    const parser = createParser(filename);
+    const geometryCollection = await parser.parse(buf);
+    const result: WorkerResult = { ok: true, geometryCollection };
+    parentPort!.postMessage(result);
+  } catch (err) {
+    if (err instanceof ParseError) {
+      const result: WorkerResult = { ok: false, status: err.status, message: err.message };
+      parentPort!.postMessage(result);
+    } else {
+      throw err;
+    }
+  }
 }
 
 run().catch(err => { throw err; });
