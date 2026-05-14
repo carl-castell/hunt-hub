@@ -1,4 +1,4 @@
-import toGeoJSON from '@tmcw/togeojson';
+import * as toGeoJSON from '@tmcw/togeojson';
 import { DOMParser } from '@xmldom/xmldom';
 import AdmZip from 'adm-zip';
 import fs from 'fs/promises';

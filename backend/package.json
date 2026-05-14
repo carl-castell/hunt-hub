@@ -9,6 +9,7 @@
     "test:unit": "vitest run src/tests/unit",
     "test:integration": "vitest run src/tests/integration",
     "test:e2e": "vitest run --project e2e",
+    "test:workers": "vitest run --project workers",
     "test:all": "vitest run",
     "test:coverage": "vitest run --coverage",
     "studio": "DRIZZLE_DRIVER=pg drizzle-kit studio",

@@ -87,7 +87,7 @@ export const eventSchema = z.object({
   time:      z.string().min(1),
 });
 
-export const optionalString = z.string().optional().transform(v => v === '' ? undefined : v).pipe(z.string().min(1).optional());
+const optionalString = z.string().optional().transform(v => v === '' ? undefined : v).pipe(z.string().min(1).optional());
 
 export const guestSchema = z.object({
   firstName:   z.string().min(1),

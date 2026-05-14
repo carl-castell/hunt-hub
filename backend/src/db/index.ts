@@ -16,4 +16,3 @@ const db = drizzle(pool, { schema });
 
 export { db, pool };
 export type Db = typeof db;
-export default db;

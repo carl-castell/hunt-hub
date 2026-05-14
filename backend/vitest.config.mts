@@ -12,7 +12,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['src/**/*.ts'],
-      exclude: ['src/tests/**', 'src/db/**', 'src/controllers/wfs.ts'],
+      exclude: ['src/tests/**', 'src/db/**', 'src/types/**', 'src/workers/**', 'src/controllers/wfs.ts', 'src/index.ts'],
     },
     projects: [
       {
@@ -60,6 +60,19 @@ export default defineConfig({
           env: {
             DB_PROVIDER: 'local',
             LOCAL_DATABASE_URL: 'postgresql://app:app@localhost:5434/appdb_test',
+          },
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
+          name: 'workers',
+          globals: true,
+          environment: 'node',
+          include: ['src/tests/workers/**/*.test.ts'],
+          testTimeout: 15000,
+          env: {
+            NODE_ENV: 'test',
           },
         },
       },
