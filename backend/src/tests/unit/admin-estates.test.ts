@@ -154,4 +154,38 @@ describe('deleteEstate', () => {
     expect(mockTx.delete).toHaveBeenCalledTimes(2);
     expect(res.redirect).toHaveBeenCalledWith('/admin');
   });
+
+  it('returns 500 when the DB throws', async () => {
+    mockDb.transaction.mockRejectedValueOnce(new Error('DB error'));
+    const req = mockReq({ params: { id: '3' } });
+    const res = mockRes();
+
+    await deleteEstate(req as Request, res as Response);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+describe('getEstate (error path)', () => {
+  it('returns 500 when the DB throws', async () => {
+    mockDb.limit.mockRejectedValueOnce(new Error('DB error'));
+    const req = mockReq({ params: { id: '3' } });
+    const res = mockRes();
+
+    await getEstate(req as Request, res as Response);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+describe('renameEstate (error path)', () => {
+  it('returns 500 when the DB throws', async () => {
+    mockDb.where.mockRejectedValueOnce(new Error('DB error'));
+    const req = mockReq({ params: { id: '3' }, body: { name: 'Valid Name' } });
+    const res = mockRes();
+
+    await renameEstate(req as Request, res as Response);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
 });

@@ -36,6 +36,7 @@ vi.mock('@/services/mail', () => ({
   sendMail: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/utils/url', () => ({ getBaseUrl: vi.fn().mockReturnValue('https://example.com') }));
+vi.mock('@/utils/logError', () => ({ logError: vi.fn() }));
 
 import { appRouter } from '@/trpc/router';
 import type { Context } from '@/trpc/context';
@@ -193,6 +194,44 @@ describe('admin.estates.delete', () => {
 
     expect(mockDb.transaction).toHaveBeenCalled();
     expect(mockTx.delete).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ ok: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// admin.estates.addManager
+// ---------------------------------------------------------------------------
+
+describe('admin.estates.addManager', () => {
+  it('runs the transaction, sends the activation email and returns ok', async () => {
+    mockTx.returning.mockResolvedValueOnce([{ id: 42 }]);
+    const caller = createCaller(mockCtx());
+
+    const result = await caller.admin.estates.addManager({
+      estateId: 5,
+      firstName: 'Jane',
+      lastName: 'Smith',
+      email: 'jane@example.com',
+    });
+
+    expect(mockDb.transaction).toHaveBeenCalled();
+    expect(mockTx.insert).toHaveBeenCalledTimes(3);
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('still returns ok when the activation email fails to send', async () => {
+    const { sendMail } = await import('@/services/mail');
+    vi.mocked(sendMail).mockRejectedValueOnce(new Error('SMTP error'));
+    mockTx.returning.mockResolvedValueOnce([{ id: 42 }]);
+    const caller = createCaller(mockCtx());
+
+    const result = await caller.admin.estates.addManager({
+      estateId: 5,
+      firstName: 'Jane',
+      lastName: 'Smith',
+      email: 'jane@example.com',
+    });
+
     expect(result).toEqual({ ok: true });
   });
 });
