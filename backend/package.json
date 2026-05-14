@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc && tsc-alias",
     "start": "node dist/src/index.js",
-    "dev": "nodemon --exec tsx src/index.ts",
+    "dev": "nodemon",
     "test:unit": "vitest run src/tests/unit",
     "test:integration": "vitest run src/tests/integration",
     "test:e2e": "vitest run --project e2e",
