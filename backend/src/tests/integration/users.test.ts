@@ -4,7 +4,7 @@ import app from '@/app';
 import { db } from '@/db';
 import { usersTable, userAuthTokensTable, estatesTable } from '@/db/schema';
 import { accountsTable } from '@/db/schema/accounts';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 
@@ -58,9 +58,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // cascade from usersTable handles accountsTable rows automatically,
-  // but delete tokens first to avoid FK issues
-  await db.delete(userAuthTokensTable);
+  // delete tokens before users to avoid FK violation (userAuthTokens → usersTable)
+  await db.delete(userAuthTokensTable).where(
+    inArray(userAuthTokensTable.userId, [adminId, managerId, staffId]),
+  );
   await db.delete(usersTable).where(eq(usersTable.id, adminId));
   await db.delete(usersTable).where(eq(usersTable.id, managerId));
   await db.delete(usersTable).where(eq(usersTable.id, staffId));
