@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { usersTable } from '@/db/schema/users';
 import { contactsTable } from '@/db/schema/contacts';
 import { estatesTable } from '@/db/schema/estates';
+import { guestGroupsTable, guestGroupMembersTable } from '@/db/schema/guest_groups';
 import { eq } from 'drizzle-orm';
 import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
@@ -44,6 +45,11 @@ afterAll(async () => {
 describe('GET /manager/guests', () => {
   it('returns 200 for authenticated manager', async () => {
     const res = await setup.agent.get('/manager/guests');
+    expect(res.status).toBe(200);
+  });
+
+  it('returns partial HTML when hx-request header is present', async () => {
+    const res = await setup.agent.get('/manager/guests').set('hx-request', 'true');
     expect(res.status).toBe(200);
   });
 
@@ -134,5 +140,79 @@ describe('POST /manager/guests/:id/delete', () => {
     const res = await setup.agent.post(`/manager/guests/${guest.id}/delete`);
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/manager/guests');
+  });
+});
+
+describe('POST /manager/guests/:id/add-to-group', () => {
+  let groupId: number;
+
+  beforeAll(async () => {
+    const [group] = await db
+      .insert(guestGroupsTable)
+      .values({ name: 'Group Test', estateId: setup.estateId })
+      .returning();
+    groupId = group.id;
+  });
+
+  afterAll(async () => {
+    await db.delete(guestGroupsTable).where(eq(guestGroupsTable.id, groupId));
+  });
+
+  it('adds guest to an existing group by groupId and redirects', async () => {
+    const res = await setup.agent
+      .post(`/manager/guests/${guestId}/add-to-group`)
+      .send({ groupId: String(groupId) });
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/manager/guests/${guestId}`);
+  });
+
+  it('creates a new group by name and redirects', async () => {
+    const res = await setup.agent
+      .post(`/manager/guests/${guestId}/add-to-group`)
+      .send({ newGroupName: 'Brand New Group' });
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/manager/guests/${guestId}`);
+  });
+
+  it('returns 400 when neither groupId nor newGroupName is provided', async () => {
+    const res = await setup.agent
+      .post(`/manager/guests/${guestId}/add-to-group`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 for a guest in another estate', async () => {
+    const res = await setup.agent
+      .post(`/manager/guests/${otherGuestId}/add-to-group`)
+      .send({ groupId: String(groupId) });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /manager/guests/:id/remove-from-group/:groupId', () => {
+  let groupId: number;
+
+  beforeAll(async () => {
+    const [group] = await db
+      .insert(guestGroupsTable)
+      .values({ name: 'Remove Test Group', estateId: setup.estateId })
+      .returning();
+    groupId = group.id;
+    await db.insert(guestGroupMembersTable).values({ groupId: group.id, userId: guestId });
+  });
+
+  afterAll(async () => {
+    await db.delete(guestGroupsTable).where(eq(guestGroupsTable.id, groupId));
+  });
+
+  it('removes guest from group and redirects', async () => {
+    const res = await setup.agent.post(`/manager/guests/${guestId}/remove-from-group/${groupId}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/manager/guests/${guestId}`);
+  });
+
+  it('returns 404 for a group in another estate', async () => {
+    const res = await setup.agent.post(`/manager/guests/${guestId}/remove-from-group/999999`);
+    expect(res.status).toBe(404);
   });
 });

@@ -94,6 +94,19 @@ describe('POST /manager/areas/:id/rename', () => {
   });
 });
 
+describe('POST /manager/areas/:id/geofile/delete', () => {
+  it('clears the geofile and redirects to the area page', async () => {
+    const res = await setup.agent.post(`/manager/areas/${existingAreaId}/geofile/delete`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/manager/areas/${existingAreaId}`);
+  });
+
+  it('returns 404 for an area in another estate', async () => {
+    const res = await setup.agent.post(`/manager/areas/${otherAreaId}/geofile/delete`);
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('POST /manager/areas/:id/delete', () => {
   it('returns 400 when confirmation name does not match', async () => {
     const [area] = await db

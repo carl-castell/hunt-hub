@@ -115,6 +115,16 @@ describe('POST /manager/people/:id/role', () => {
       .send({ role: 'admin' });
     expect(res.status).toBe(400);
   });
+
+  it('returns 200 with error when only one manager remains in the estate', async () => {
+    // After the demotion tests above, staffId is back to staff.
+    // setup.managerId is the sole manager — demoting them must be blocked.
+    const res = await setup.agent
+      .post(`/manager/people/${setup.managerId}/role`)
+      .send({ role: 'staff' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('At least one manager must exist');
+  });
 });
 
 describe('POST /manager/people/:id/deactivate', () => {
