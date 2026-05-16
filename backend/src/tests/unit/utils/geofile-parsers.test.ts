@@ -14,10 +14,6 @@ import {
 
 const FIXTURES_DIR = path.resolve('src/tests/fixtures');
 
-// ---------------------------------------------------------------------------
-// toGeometryCollection
-// ---------------------------------------------------------------------------
-
 describe('toGeometryCollection()', () => {
   it('wraps a FeatureCollection into a GeometryCollection', () => {
     const input = JSON.stringify({
@@ -71,10 +67,6 @@ describe('toGeometryCollection()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// createParser — type dispatch
-// ---------------------------------------------------------------------------
-
 describe('createParser()', () => {
   it('returns a GeoJsonParser for .geojson files', () => {
     expect(createParser('map.geojson')).toBeInstanceOf(GeoJsonParser);
@@ -111,10 +103,6 @@ describe('createParser()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// createParser — fixture-based parsing (real files)
-// ---------------------------------------------------------------------------
-
 const validFixtures = [
   ['sample.geojson'],
   ['sample.kml'],
@@ -134,10 +122,6 @@ describe('createParser() with fixture files', () => {
     expect(Array.isArray(gc.geometries)).toBe(true);
   }, 10000);
 });
-
-// ---------------------------------------------------------------------------
-// GeoJsonParser.parse()
-// ---------------------------------------------------------------------------
 
 describe('GeoJsonParser.parse()', () => {
   it('parses valid GeoJSON and returns a GeometryCollection string', async () => {

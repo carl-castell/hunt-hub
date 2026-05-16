@@ -85,10 +85,6 @@ beforeEach(() => {
   mockTx.delete.mockReturnThis();
 });
 
-// ---------------------------------------------------------------------------
-// admin.estates.list
-// ---------------------------------------------------------------------------
-
 describe('admin.estates.list', () => {
   it('returns the list of estates', async () => {
     mockDb.orderBy.mockResolvedValueOnce([fakeEstate]);
@@ -116,10 +112,6 @@ describe('admin.estates.list', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// admin.estates.get
-// ---------------------------------------------------------------------------
-
 describe('admin.estates.get', () => {
   it('returns the estate and its managers when found', async () => {
     mockDb.limit.mockResolvedValueOnce([fakeEstate]);
@@ -140,10 +132,6 @@ describe('admin.estates.get', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// admin.estates.create
-// ---------------------------------------------------------------------------
-
 describe('admin.estates.create', () => {
   it('inserts the estate and returns it', async () => {
     mockDb.returning.mockResolvedValueOnce([fakeEstate]);
@@ -155,10 +143,6 @@ describe('admin.estates.create', () => {
     expect(result).toEqual(fakeEstate);
   });
 });
-
-// ---------------------------------------------------------------------------
-// admin.estates.rename
-// ---------------------------------------------------------------------------
 
 describe('admin.estates.rename', () => {
   it('updates the name and returns the estate', async () => {
@@ -182,10 +166,6 @@ describe('admin.estates.rename', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// admin.estates.delete
-// ---------------------------------------------------------------------------
-
 describe('admin.estates.delete', () => {
   it('runs a transaction deleting users then the estate and returns ok', async () => {
     const caller = createCaller(mockCtx());
@@ -197,10 +177,6 @@ describe('admin.estates.delete', () => {
     expect(result).toEqual({ ok: true });
   });
 });
-
-// ---------------------------------------------------------------------------
-// admin.estates.addManager
-// ---------------------------------------------------------------------------
 
 describe('admin.estates.addManager', () => {
   it('runs the transaction, sends the activation email and returns ok', async () => {

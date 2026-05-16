@@ -61,10 +61,6 @@ beforeEach(() => {
   mockIsPasswordPwned.mockResolvedValue(false);
 });
 
-// ---------------------------------------------------------------------------
-// getAccount
-// ---------------------------------------------------------------------------
-
 describe('getAccount', () => {
   it('renders the account page when the user is found', async () => {
     mockDb.limit.mockResolvedValueOnce([fakeFullUser]);
@@ -96,10 +92,6 @@ describe('getAccount', () => {
     expect(res.status).toHaveBeenCalledWith(500);
   });
 });
-
-// ---------------------------------------------------------------------------
-// postChangePassword
-// ---------------------------------------------------------------------------
 
 describe('postChangePassword', () => {
   it('renders with a validation error when the body is invalid', async () => {

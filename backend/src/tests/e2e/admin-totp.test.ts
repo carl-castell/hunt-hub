@@ -209,14 +209,6 @@ describe('Full TOTP setup flow', () => {
     expect(adminRes.status).toBe(200);
   });
 
-  it('shows error for invalid TOTP code during setup', async () => {
-    const agent = request.agent(app);
-    await agent.post('/login').send({ email, password: ADMIN_PASSWORD });
-
-    // The secret was saved in the previous test — admin now has totpSecret, goes to /totp
-    // Reset by logging in fresh (agent is new, so no pending session)
-    // Admin already enrolled — this test needs a fresh unenrolled admin
-  });
 });
 
 // ---------------------------------------------------------------------------

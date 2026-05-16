@@ -6,9 +6,6 @@ import { guestGroupMembersTable } from '@/db/schema/guest_groups';
 import { and, count, eq } from 'drizzle-orm';
 import { setupManager, teardown } from '@/tests/helpers/manager';
 
-// ---------------------------------------------------------------------------
-// Shared state — populated in beforeAll, read by all nested describes
-// ---------------------------------------------------------------------------
 
 let estateId: number;
 let agent: ReturnType<typeof request.agent>;
@@ -36,9 +33,6 @@ afterAll(async () => {
   await teardown(estateId);
 });
 
-// ---------------------------------------------------------------------------
-// Create group
-// ---------------------------------------------------------------------------
 
 describe('creating a group', () => {
   it('POST /manager/guest-groups creates the group and redirects', async () => {
@@ -72,9 +66,6 @@ describe('creating a group', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Add members
-// ---------------------------------------------------------------------------
 
 describe('adding members', () => {
   it('adds Alice to the group and redirects', async () => {
@@ -137,9 +128,6 @@ describe('adding members', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Remove members
-// ---------------------------------------------------------------------------
 
 describe('removing a member', () => {
   it('removes Carol from the group and redirects', async () => {
@@ -168,9 +156,6 @@ describe('removing a member', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Rename group
-// ---------------------------------------------------------------------------
 
 describe('renaming the group', () => {
   it('renames the group and redirects', async () => {
@@ -202,9 +187,6 @@ describe('renaming the group', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Delete group
-// ---------------------------------------------------------------------------
 
 describe('deleting the group', () => {
   it('deletes the group and redirects to the groups list', async () => {

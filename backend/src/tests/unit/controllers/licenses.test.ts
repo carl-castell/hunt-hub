@@ -50,8 +50,6 @@ import {
   postUpdateTrainingCertificate,
 } from '@/controllers/licenses';
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
-
 const sessionUser = { id: 1, role: 'manager' as const, estateId: 1, firstName: 'Jane', lastName: 'Smith', email: 'jane@test.com', active: true };
 
 function makeReq(overrides: any = {}): Request {
@@ -126,8 +124,6 @@ beforeEach(() => {
   mockTx.set.mockReturnThis();
 });
 
-// ── getHuntingLicense ─────────────────────────────────────────────────────────
-
 describe('getHuntingLicense', () => {
   it('renders the license view with the latest license when no licenseId query param', async () => {
     // Queries: getGuestRow (limit), fallback license (orderBy→limit), attachments (orderBy terminal)
@@ -192,8 +188,6 @@ describe('getHuntingLicense', () => {
   });
 });
 
-// ── postCreateHuntingLicense ──────────────────────────────────────────────────
-
 describe('postCreateHuntingLicense', () => {
   it('creates a license, uploads the file and redirects', async () => {
     mockDb.limit.mockResolvedValueOnce([fakeGuestDbRow]);
@@ -257,8 +251,6 @@ describe('postCreateHuntingLicense', () => {
     expect(res.status).toHaveBeenCalledWith(500);
   });
 });
-
-// ── postCheckHuntingLicense ───────────────────────────────────────────────────
 
 describe('postCheckHuntingLicense', () => {
   it('marks the license as checked and redirects (no old licenses to delete)', async () => {
@@ -333,8 +325,6 @@ describe('postCheckHuntingLicense', () => {
   });
 });
 
-// ── postDeleteHuntingLicense ──────────────────────────────────────────────────
-
 describe('postDeleteHuntingLicense', () => {
   it('deletes the license and redirects to the guest page', async () => {
     // where calls: getGuestRow (non-terminal), license fetch (non-terminal),
@@ -386,8 +376,6 @@ describe('postDeleteHuntingLicense', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });
-
-// ── postUpdateHuntingLicense ──────────────────────────────────────────────────
 
 describe('postUpdateHuntingLicense', () => {
   it('updates the expiry date and redirects to the license view', async () => {
@@ -446,8 +434,6 @@ describe('postUpdateHuntingLicense', () => {
   });
 });
 
-// ── getTrainingCertificate ────────────────────────────────────────────────────
-
 describe('getTrainingCertificate', () => {
   it('renders the certificate view with the latest cert', async () => {
     mockDb.limit
@@ -483,8 +469,6 @@ describe('getTrainingCertificate', () => {
     expect(res.redirect).toHaveBeenCalledWith('/manager/guests/5');
   });
 });
-
-// ── postCreateTrainingCertificate ─────────────────────────────────────────────
 
 describe('postCreateTrainingCertificate', () => {
   it('creates a certificate, uploads the file and redirects', async () => {
@@ -530,8 +514,6 @@ describe('postCreateTrainingCertificate', () => {
   });
 });
 
-// ── postCheckTrainingCertificate ──────────────────────────────────────────────
-
 describe('postCheckTrainingCertificate', () => {
   it('marks the certificate as checked and redirects', async () => {
     mockDb.where
@@ -569,8 +551,6 @@ describe('postCheckTrainingCertificate', () => {
   });
 });
 
-// ── postDeleteTrainingCertificate ─────────────────────────────────────────────
-
 describe('postDeleteTrainingCertificate', () => {
   it('deletes the certificate and redirects to the guest page', async () => {
     mockDb.where
@@ -606,8 +586,6 @@ describe('postDeleteTrainingCertificate', () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 });
-
-// ── postUpdateTrainingCertificate ─────────────────────────────────────────────
 
 describe('postUpdateTrainingCertificate', () => {
   it('updates the issue date and redirects to the certificate view', async () => {

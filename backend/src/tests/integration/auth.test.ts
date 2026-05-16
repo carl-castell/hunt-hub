@@ -7,6 +7,29 @@ import { accountsTable } from '@/db/schema/accounts';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 
+describe('GET /login', () => {
+  it('returns 200', async () => {
+    const res = await request(app).get('/login');
+    expect(res.status).toBe(200);
+  });
+
+  it('renders email and password fields', async () => {
+    const res = await request(app).get('/login');
+    expect(res.text).toContain('name="email"');
+    expect(res.text).toContain('name="password"');
+  });
+
+  it('includes a CSRF token field', async () => {
+    const res = await request(app).get('/login');
+    expect(res.text).toContain('name="_csrf"');
+  });
+
+  it('shows no error message by default', async () => {
+    const res = await request(app).get('/login');
+    expect(res.text).not.toContain('alert-error');
+  });
+});
+
 describe('Auth Integration Tests', () => {
   const testUser = {
     email: 'auth-test@example.com',
@@ -59,11 +82,12 @@ describe('Auth Integration Tests', () => {
       expect(res.headers.location).toBe('/manager');
     });
 
-    it('should re-render login page on wrong password', async () => {
+    it('should re-render login page on wrong password with error message', async () => {
       const res = await request(app)
         .post('/login')
         .send({ email: testUser.email, password: 'WrongPassword!' });
       expect(res.status).toBe(200);
+      expect(res.text).toContain('Invalid email or password');
     });
 
     it('should re-render login page for unknown email', async () => {
