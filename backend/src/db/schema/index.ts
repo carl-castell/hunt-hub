@@ -17,3 +17,5 @@ export * from './drive_groups';
 export * from './drive_stand_assignments';
 export * from './guest_groups';
 export * from './totp_backup_codes';
+export * from './mobile_sessions';
+export * from './sync';

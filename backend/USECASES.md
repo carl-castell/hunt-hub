@@ -298,6 +298,23 @@
 
 ---
 
+## Mobile App API (tRPC)
+
+> Used by the iOS app in `mobile/`. Mounted under `/api/v1/trpc`. Authenticates with `Authorization: Bearer <access token>` from a mobile session (not the session cookie). Only `manager` and `staff` can use it; data is scoped to the user's estate.
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `mobile.auth.login` | mutation | Email + password → access token (1 h) and refresh token (60 days, extended on use). Same lockout rules and rate limit as the web login |
+| `mobile.auth.refresh` | mutation | Rotates the token pair. The previous refresh token stays valid until the new pair is used, so a lost response doesn't log the user out |
+| `mobile.auth.me` | query | Current user |
+| `mobile.auth.logout` | mutation | Revokes the mobile session |
+| `mobile.sync.pull` | query | Without `cursor`: all areas (GeoJSON) and stands. With `cursor`: rows changed since then plus deletions (`sync_tombstones`). Returns the next cursor |
+| `mobile.sync.push` | mutation | Applies queued offline changes in order. Each has a client UUID, so retries are applied only once. Handlers live in `backend/src/sync/handlers/` (none yet) |
+
+`areas.updated_at` / `stands.updated_at` are maintained by database triggers, and deletes are recorded by triggers too (migration `0011_mobile_sync`), so changes made through the manager UI or WFS-T reach the app automatically.
+
+---
+
 ## WFS – GIS Integration
 
 > Token-authenticated (`?token=`). OGC WFS-T 1.1.0 endpoint for QGIS and QField. The token is scoped to a user and estate and is managed via the manager dashboard.

@@ -8,7 +8,7 @@ import pg from 'pg';
 
 import { logger } from "./middlewares/logger";
 import { requireAdmin, requireManager, requireAuth } from './middlewares/requireRole';
-import { generalLimiter } from "./middlewares/rateLimiter";
+import { authLimiter, generalLimiter } from "./middlewares/rateLimiter";
 import { generateCsrfToken, verifyCsrfToken } from './middlewares/csrf';
 
 import homeRouter from "./routes/home";
@@ -98,6 +98,9 @@ app.use(
 app.use(logger);
 app.use(generalLimiter);
 app.use('/wfs', wfsRouter);
+// Same brute-force protection for the mobile login as for the web login form.
+app.use('/api/v1/trpc', (req, res, next) =>
+  req.path.includes('mobile.auth.login') ? authLimiter(req, res, next) : next());
 app.use('/api/v1/trpc', createExpressMiddleware({ router: appRouter, createContext }));
 app.use(generateCsrfToken);
 app.use(verifyCsrfToken);
