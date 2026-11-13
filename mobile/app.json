@@ -8,7 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.hunthub.app",
+      "bundleIdentifier": "com.carlcastellhunthub",
       "supportsTablet": true,
       "infoPlist": {
         "NSAppTransportSecurity": {
