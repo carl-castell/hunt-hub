@@ -1,5 +1,7 @@
 # Hunt Hub
 
+[![CI](https://github.com/carl-castell/hunt-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/carl-castell/hunt-hub/actions/workflows/ci.yml)
+
 > **Note for assessors:** This repository was recently refactored into a monorepo with `backend/`, `web/`, and `mobile/` workspaces. Only the `backend/` folder is relevant for assessment — the `web/` and `mobile/` folders are early-stage and not part of the submission.
 
 > **Work in progress.** Hunt Hub is currently under active development.

@@ -24,6 +24,7 @@ export default defineConfig({
           include: ['src/tests/unit/**/*.test.ts'],
           setupFiles: ['src/tests/setup.unit.ts'],
           env: {
+            MAIL_PROVIDER: 'local',
             NODE_ENV: 'test',
             DB_PROVIDER: 'local',
             LOCAL_DATABASE_URL: 'postgresql://app:app@localhost:5434/appdb_test',
@@ -40,6 +41,7 @@ export default defineConfig({
           globalSetup: ['src/tests/global-setup.integration.ts'],
           fileParallelism: false,
           env: {
+            MAIL_PROVIDER: 'local',
             DB_PROVIDER: 'local',
             LOCAL_DATABASE_URL: 'postgresql://app:app@localhost:5434/appdb_test',
             SKIP_TOTP: 'true',
@@ -56,6 +58,7 @@ export default defineConfig({
           globalSetup: ['src/tests/global-setup.integration.ts'],
           fileParallelism: false,
           env: {
+            MAIL_PROVIDER: 'local',
             DB_PROVIDER: 'local',
             LOCAL_DATABASE_URL: 'postgresql://app:app@localhost:5434/appdb_test',
           },
@@ -70,6 +73,7 @@ export default defineConfig({
           include: ['src/tests/workers/**/*.test.ts'],
           testTimeout: 15000,
           env: {
+            MAIL_PROVIDER: 'local',
             NODE_ENV: 'test',
           },
         },
