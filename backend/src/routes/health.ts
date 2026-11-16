@@ -7,14 +7,17 @@ export type DatabasePing = () => Promise<unknown>;
 const DATABASE_TIMEOUT_MS = 2000;
 
 async function databaseIsReachable(ping: DatabasePing): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('database timeout')), DATABASE_TIMEOUT_MS).unref();
+    timer = setTimeout(() => reject(new Error('database timeout')), DATABASE_TIMEOUT_MS);
   });
   try {
     await Promise.race([ping(), timeout]);
     return true;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
