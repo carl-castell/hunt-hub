@@ -377,7 +377,7 @@ public/                         # Static assets
 
 ## Routes Reference
 
-A full list of all routes, grouped by feature area and access level, is in [USECASES.md](./USECASES.md).
+A full list of all routes, grouped by feature area and access level, is in [docs/USECASES.md](../docs/USECASES.md).
 
 ---
 
