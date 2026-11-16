@@ -25,6 +25,14 @@ describe('GET /health', () => {
     expect(res.body).toMatchObject({ status: 'error', checks: { database: 'unreachable' } });
   });
 
+  it('reports the deployed commit (shortened) when Render provides it', async () => {
+    vi.stubEnv('RENDER_GIT_COMMIT', '3bb1768abcdef0123456789');
+    const res = await request(appWith(vi.fn().mockResolvedValue({}))).get('/health');
+    vi.unstubAllEnvs();
+
+    expect(res.body.commit).toBe('3bb1768');
+  });
+
   it('does not leak error details', async () => {
     const res = await request(appWith(vi.fn().mockRejectedValue(new Error('password authentication failed')))).get('/health');
     expect(JSON.stringify(res.body)).not.toContain('password');
