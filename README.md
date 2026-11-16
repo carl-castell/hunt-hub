@@ -6,7 +6,18 @@
 
 A platform for managing hunting estates, events, and guests.
 
-Hunt Hub started as a server-rendered web application and is being expanded with a React frontend and React Native mobile app.
+## What Hunt Hub does
+
+- **Estate managers** plan hunting events, invite guests by email, check their hunting licences and training certificates, and manage hunting areas and stands, with satellite maps in the web app and full GIS editing in QGIS / QField.
+- **Guests** answer invitations through a personal link and upload their documents, without an account.
+- **Managers and staff in the field** see their estate's areas and stands on the iPhone app, also without mobile signal.
+- **Admins** create estates and their managers.
+
+All use cases, who uses them and where they live (React app, server-rendered pages, iPhone app, QGIS), plus every route and API: **[docs/USECASES.md](docs/USECASES.md)**.
+
+Hunt Hub started as a server-rendered web application. New and reworked screens are built in the React app, step by step, next to the existing pages; the iPhone app is an offline-first Expo app.
+
+Production: **https://hunt-hub-docker.onrender.com** (`/health` shows the deployed commit).
 
 ## Getting Started
 
@@ -64,6 +75,6 @@ For detailed installation and setup instructions see [web/README.md](web/README.
 
 ## Mobile
 
-React Native (Expo) iOS app — in development. Managers and staff log in, see their estate's areas on a map, import offline basemaps (.mbtiles), and keep working without internet.
+React Native (Expo) iOS app. Managers and staff log in, see their estate's areas on a map, import offline basemaps (.mbtiles), and keep working without internet.
 
-For detailed installation and setup instructions see `mobile/README.md`.
+For detailed installation and setup instructions see [mobile/README.md](mobile/README.md).

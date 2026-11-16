@@ -1,6 +1,6 @@
 # Hunt Hub — Backend
 
-> **Monorepo note:** This is the `backend/` workspace in the [hunt-hub](https://github.com/carl-castell/hunt-hub) monorepo. The repo was recently restructured from a standalone backend (`hunt-hub_backend`) into a monorepo with `web/` (React) and `mobile/` workspaces. Only `backend/` is production-ready — the other workspaces are early-stage.
+> This is the `backend/` workspace of the [hunt-hub](https://github.com/carl-castell/hunt-hub) monorepo (with `web/`, the React app, and `mobile/`, the iPhone app). The backend serves the server-rendered pages, the APIs, and the built React app under `/app`. Use cases and all routes: [docs/USECASES.md](../docs/USECASES.md).
 
 Hunting estate management platform. Managers organise events, build guest lists, assign hunting groups to drives and stands, send email invitations with magic-link RSVPs, and track guest documents (hunting licences and training certificates). A separate admin surface manages estates and staff accounts.
 
@@ -10,39 +10,46 @@ Hunting estate management platform. Managers organise events, build guest lists,
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js 20.19+ with TypeScript |
+| Runtime | Node.js 22 with TypeScript (see `.node-version`) |
 | Framework | Express.js |
 | Database | PostgreSQL 16 + PostGIS (Docker locally, Neon in production) |
 | ORM | Drizzle ORM |
-| Templating | EJS with express-ejs-layouts |
+| Web pages | Server-rendered EJS pages, plus the React app (`web/`) served under `/app`; both share one session and one menu |
 | Auth | Session-based (express-session + connect-pg-simple) |
 | Storage | AWS S3-compatible — RustFS locally (MinIO-compatible), Cloudflare R2 in production |
 | Email | Nodemailer — Mailgun HTTP API in production, Mailpit locally |
-| API layer | tRPC v11 (mounted on Express at `/api/v1/trpc`) |
+| API layer | tRPC v11 at `/api/v1/trpc`: auth, admin and manager APIs for the React app (session cookie), mobile API for the iPhone app (bearer tokens) |
 | Validation | Zod |
 | Security | Helmet (CSP, HSTS, etc.), bcrypt, CSRF tokens, express-rate-limit, HIBP Pwned Passwords, per-account lockout, audit logging, session invalidation |
 | 2FA | TOTP via otpauth + qrcode (admin accounts) |
 | GIS | OGC WFS-T 1.1.0 — QGIS and QField compatible |
-| Testing | Vitest + Supertest |
+| Logging | pino: one JSON line per request (request id, user, status, duration); secrets and personal data redacted |
+| Deployment | Docker image (multi-stage, non-root), GitHub Actions CI/CD, Render (Docker runtime), Neon, Cloudflare R2, Mailgun (EU) |
+| Testing | Vitest + Supertest (unit, integration, e2e, workers) |
 
 ---
 
 ## User Surfaces
 
-| Surface | URL prefix | Who uses it |
+| Surface | URL | Who uses it |
 |---|---|---|
-| Public RSVP | `/rsvp/:publicId` | Guests (no login required) |
-| Manager dashboard | `/manager` | Managers and staff |
-| Admin dashboard | `/admin` | Admins (EJS) |
-| tRPC API | `/api/v1/trpc` | React web client (admin, future manager) |
-| RSVP Preview | `/rsvp/preview/:eventId` | Managers (testing the RSVP flow) |
-| WFS endpoint | `/wfs` | QGIS / QField (token-authenticated, OGC WFS-T 1.1.0) |
+| Login | `/app/login` (`/` and `/login` redirect there) | Everyone |
+| React app: admin area | `/app/admin` | Admins |
+| React app: manager pages (Areas so far) | `/app/manager/...` | Managers |
+| Server-rendered manager pages | `/manager` | Managers |
+| Public RSVP | `/rsvp/:publicId` | Guests (magic link, no login) |
+| RSVP preview | `/rsvp/preview/:eventId` | Managers |
+| tRPC API | `/api/v1/trpc` | React app (cookie) and iPhone app (bearer token) |
+| WFS endpoint | `/wfs` | QGIS / QField (token, OGC WFS-T 1.1.0) |
+| Health check | `/health` | Render, Docker, CI |
+
+Staff use the iPhone app only. The old server-rendered admin and login pages still exist but are no longer linked (HUN-51).
 
 ---
 
 ## Prerequisites
 
-- Node.js 20.19+
+- Node.js 22 (`.node-version`; Vite 8 needs 22.12 or newer)
 - Docker and Docker Compose (for local Postgres, file storage and Mailpit)
 - A Mailgun account for production email, or Mailpit for local development
 
@@ -72,9 +79,13 @@ npm run db:migrate
 # 6. Seed the database (creates admin account + optional mock data)
 npm run db:seed
 
-# 7. Start the development server
+# 7. Start the development server (readable log lines via LOG_PRETTY)
 npm run dev
-# → http://localhost:3000
+# → http://localhost:3000 (server-rendered pages + API)
+
+# 8. In a second terminal: the React app with hot reload
+cd ../web && npm run dev
+# → http://localhost:5173/app/ (Vite forwards everything outside /app to :3000)
 ```
 
 ---
@@ -99,11 +110,15 @@ docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrat
 
 | Variable | Required | Description | Example |
 |---|---|---|---|
-| `NODE_ENV` | Yes | Runtime environment | `development` |
+| `NODE_ENV` | Yes | Runtime environment (the Docker image sets `production`) | `development` |
 | `PORT` | No | HTTP port (default: 3000) | `3000` |
 | `SESSION_SECRET` | Yes | Random string for session signing | `change-me-32-chars-min` |
 | `DOMAIN` | Yes | Base URL used in email links and RSVP URLs | `http://localhost:3000` |
 | `SKIP_TOTP` | No | Skip admin TOTP — dev/test only, **throws at startup if set in production** | `true` |
+| `WEB_DIST_DIR` | No | Where the built React app is (default `../web/dist`) | `/app/web/dist` |
+| `LOG_LEVEL` | No | `trace` … `fatal`, or `silent` (default `info`; silent in tests) | `info` |
+| `LOG_PRETTY` | No | `true` prints readable lines instead of JSON (`npm run dev` sets it) | `true` |
+| `GIT_COMMIT` | No | Shown in `/health` and logs when not on Render (Render sets `RENDER_GIT_COMMIT`) | `9047a27` |
 
 ### Database
 
@@ -117,22 +132,23 @@ docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrat
 
 | Variable | Required | Description | Example |
 |---|---|---|---|
-| `MAIL_PROVIDER` | Yes | `local` (Mailpit) or `mailgun` | `local` |
+| `MAIL_PROVIDER` | No | `local` (Mailpit) or `mailgun` (default). The app refuses to start without `MAILGUN_API_KEY` and `MAILGUN_DOMAIN` unless it is `local` | `local` |
+| `MAIL_HOST` | No | SMTP host for `local` (default `localhost`; `mailpit` inside docker compose) | `localhost` |
 | `MAIL_FROM` | Yes | Sender address | `noreply@example.com` |
-| `MAILGUN_API_KEY` | If mailgun | Mailgun Private API key | `key-...` |
+| `MAILGUN_API_KEY` | If mailgun | Mailgun domain sending key | `...` |
 | `MAILGUN_DOMAIN` | If mailgun | Mailgun sending domain | `mg.example.com` |
 | `MAILGUN_HOST` | If mailgun (EU) | Mailgun API host — set for EU domains | `api.eu.mailgun.net` |
 
 **Local development:** set `MAIL_PROVIDER=local` — Mailpit is included in `docker-compose.yml` and requires no credentials. All outgoing emails are intercepted and visible at `http://localhost:8025` regardless of the recipient address.
 
-**Production:** uses the Mailgun HTTP API (not SMTP) via `nodemailer-mailgun-transport`. If your Mailgun domain is EU-hosted, set `MAILGUN_HOST=api.eu.mailgun.net`.
+**Production:** uses the Mailgun HTTP API (not SMTP) via `nodemailer-mailgun-transport`, with the sending domain `mg.hunt-hub.de` (EU region, `MAILGUN_HOST=api.eu.mailgun.net`). The sender `noreply@hunt-hub.de` passes SPF, DKIM and DMARC through the subdomain (relaxed alignment).
 
 ### File Storage
 
 | Variable | Required | Description | Example |
 |---|---|---|---|
 | `STORAGE_PROVIDER` | Yes | `minio` or `r2` | `minio` |
-| `MINIO_ENDPOINT` | If minio | MinIO server URL | `http://localhost:9000` |
+| `MINIO_ENDPOINT` | If minio | S3 endpoint of the local storage (RustFS in docker compose; the `MINIO_*` names are kept because the API is the same) | `http://localhost:9000` |
 | `MINIO_ACCESS_KEY` | If minio | MinIO access key | `minioadmin` |
 | `MINIO_SECRET_KEY` | If minio | MinIO secret key | `minioadmin` |
 | `MINIO_BUCKET` | If minio | Bucket name | `hunt-hub` |
@@ -174,7 +190,7 @@ docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrat
 | `npm run db:seed` | Insert admin account and optional mock data (prompts for confirmation) |
 | `npm run db:seed:neon` | Seed admin account on Neon (mock data disabled) |
 | `npm run db:reset` | **Destructive.** Drop all tables → migrate → seed. Dev only, prompts for confirmation |
-| `npm run db:reset:neon` | Same as above against Neon |
+| `npm run db:reset:neon` | **Don't use for now:** the table list in `reset.ts` is outdated since migration 0011 and would leave the database half deleted (HUN-53) |
 | `npm run db:docker-reset` | Wipe Docker volumes, restart containers, migrate, and seed |
 | `npm run db:reset:test` | Wipe and re-migrate the test database (port 5434) |
 | `npm run db:push` | Apply schema directly via drizzle-kit (bypasses migration files — dev only) |
@@ -187,6 +203,7 @@ docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrat
 | `npm run test:unit` | Run unit tests |
 | `npm run test:integration` | Run integration tests against test database |
 | `npm run test:e2e` | Run end-to-end tests |
+| `npm run test:workers` | Run the worker-thread tests (geo file parsing) |
 | `npm run test:all` | Run all tests |
 | `npm run test:coverage` | Run all tests with v8 coverage report |
 
@@ -229,6 +246,9 @@ The schema is defined in `src/db/schema/` using Drizzle. Key tables:
 | `user_auth_tokens` | Activation and password reset tokens (with expiry) |
 | `totp_backup_codes` | One-time backup codes for admin 2FA recovery (tracked as used/unused) |
 | `audit_logs` | Immutable event log (login, logout, invitations, etc.) |
+| `mobile_sessions` | iPhone app logins (hashed access and refresh tokens, expiry, revocation) |
+| `sync_mutations` | Offline changes received from the app (applied exactly once) |
+| `sync_tombstones` | Deleted areas and stands, so the app can remove them (written by triggers) |
 
 PostGIS is required for geospatial area data. The Docker Compose file uses the `postgis/postgis:16-3.4` image.
 
@@ -236,41 +256,21 @@ PostGIS is required for geospatial area data. The Docker Compose file uses the `
 
 ## Testing
 
-Tests use **Vitest** and are split into three suites. Integration tests run against a separate test database on port **5434** (defined in `docker-compose.yml` as the `db_test` service). A global setup file runs Drizzle migrations before any tests execute, so the schema is always in sync. E2E tests spin up the full server against the same test database.
+Tests use **Vitest** (with Supertest for HTTP) in four suites, all in `src/tests/`:
+
+| Suite | Folder | What it covers | Needs |
+|---|---|---|---|
+| Unit | `unit/` | controllers, middlewares, services, tRPC procedures, utils (database mocked) | nothing |
+| Integration | `integration/` | routes and tRPC against a real PostGIS test database | `db_test` (port 5434) |
+| E2E | `e2e/` | full flows through the app (onboarding, TOTP, invitations, RSVP) | `db_test` |
+| Workers | `workers/` | geo file parsing in the worker thread (fixtures in `fixtures/`) | nothing |
 
 ```bash
-# Ensure the test database container is running
-docker compose up -d db_test
-
-# Run integration tests
-npm run test:integration
+docker compose up -d db_test   # test database; migrations run automatically before the suites
+npm run test:all
 ```
 
-Test files live in `src/tests/`:
-
-```
-src/tests/
-├── global-setup.integration.ts   # Runs migrations before integration suite
-├── setup.integration.ts          # Per-test DB cleanup and seeding
-├── unit/
-│   ├── schemas.test.ts
-│   └── middleware.test.ts
-├── integration/
-│   ├── auth.test.ts
-│   ├── activate.test.ts
-│   ├── users.test.ts
-│   └── manager/
-│       ├── estates.test.ts
-│       ├── people.test.ts
-│       ├── guests.test.ts
-│       ├── events.test.ts
-│       ├── areas.test.ts
-│       └── licenses.test.ts
-└── e2e/
-    ├── login.test.ts
-    ├── admin-totp.test.ts
-    └── manager-dashboard.test.ts
-```
+The tests don't depend on a local `.env` (CI has none). CI (`.github/workflows/ci.yml`) also runs the web and mobile tests and builds and smoke-tests the Docker image.
 
 ---
 
@@ -278,106 +278,40 @@ src/tests/
 
 ```
 src/
-├── index.ts                    # Entry point — binds Express app to port
-├── app.ts                      # Middleware stack + route mounting
-│
-├── db/
-│   ├── index.ts                # Database client (pg or neon)
-│   ├── migrate.ts              # Enable extensions + run migrations + create indexes (safe for prod)
-│   ├── reset.ts                # Drop all tables → migrate → seed (dev only)
-│   ├── seed.ts                 # Insert admin account and optional mock data
-│   ├── seed.mock.ts            # Fake estates/events/guests for local development
-│   └── schema/                 # Drizzle table definitions (one file per table)
-│
-├── middlewares/
-│   ├── csrf.ts                 # CSRF token generation and verification
-│   ├── requireRole.ts          # Auth guards (requireAdmin, requireManager, requireAuth)
-│   ├── rateLimiter.ts          # General + auth-specific rate limits
-│   └── logger.ts               # Request logger
-│
-├── routes/
-│   ├── home.ts
-│   ├── auth.ts                 # Login / logout
-│   ├── activate.ts             # Account activation via token
-│   ├── totp.ts                 # TOTP 2FA setup and verification
-│   ├── rsvp.ts                 # Public RSVP flow (no auth)
-│   ├── admin.ts
-│   ├── manager.ts
-│   ├── users.ts
-│   └── map.ts
-│
-├── controllers/
-│   ├── admin/
-│   │   ├── dashboard.ts
-│   │   └── estates.ts
-│   ├── manager/
-│   │   ├── dashboard.ts
-│   │   ├── estate.ts
-│   │   ├── events.ts
-│   │   ├── invitations.ts      # Staging, sending, RSVP list
-│   │   ├── drives.ts
-│   │   ├── guests.ts
-│   │   ├── guest_groups.ts
-│   │   ├── people.ts           # Staff user management
-│   │   ├── areas.ts            # GIS area management
-│   │   └── account.ts
-│   ├── rsvp.ts                 # Public RSVP + document upload
-│   ├── rsvp-preview.ts         # Manager RSVP preview flow
-│   ├── licenses.ts             # Hunting licence + certificate management
-│   ├── files.ts                # Serve uploaded files (estate-scoped)
-│   ├── wfs.ts                  # OGC WFS-T 1.1.0 — GetCapabilities / GetFeature / Transaction
-│   └── users/
-│       ├── activate.ts
-│       ├── create.ts
-│       └── users.ts
-│
+├── index.ts                 # Startup checks (env), listen, graceful shutdown
+├── app.ts                   # Middleware stack + route mounting
+├── db/                      # Drizzle client, schema (one file per table), migrate, seed, reset
+├── routes/                  # Express routers (auth, manager, admin, rsvp, wfs, health, …)
+├── controllers/             # Server-rendered pages and form handlers (manager/, admin/, users/, rsvp, wfs, licenses, files, map)
+├── services/                # Business logic shared by pages and APIs
+│   ├── areas.ts             #   areas: list, get, create, rename, delete, boundary upload (estate-scoped, typed errors)
+│   ├── credentials.ts       #   email/password check with lockout (web and mobile login)
+│   ├── userAccess.ts        #   current role/estate/active flag from the database
+│   ├── mobileSessions.ts    #   iPhone app tokens (issue, rotate, revoke)
+│   ├── storage.ts, mail.ts, audit.ts, hibp.ts
 ├── trpc/
-│   ├── context.ts              # Builds tRPC context from Express req/res (session + user)
-│   ├── trpc.ts                 # Base procedures: publicProcedure, protectedProcedure, adminProcedure
-│   ├── router.ts               # Root router — combines all sub-routers
-│   └── routers/
-│       ├── auth.ts             # login, logout, me, totp setup/verify/backup
-│       └── admin/
-│           ├── index.ts        # Admin router (requires role=admin)
-│           ├── account.ts      # Admin account info + change password
-│           ├── estates.ts      # Estate CRUD + add manager
-│           ├── managers.ts     # Manager deactivate / activation link / delete
-│           ├── audit.ts        # Audit log queries (paginated)
-│           └── settings.ts     # List admins + create admin
-│
-├── services/
-│   ├── storage.ts              # S3-compatible upload/delete (MinIO or R2)
-│   ├── mail.ts                 # Nodemailer transport + template rendering
-│   ├── audit.ts                # Audit log helper
-│   └── hibp.ts                 # HaveIBeenPwned k-anonymity password check
-│
-├── workers/
-│   └── geofile.worker.ts       # Worker thread: parses GeoJSON/KML/GPX/SHP/GPKG off the event loop
-│
-├── utils/
-│   ├── runWorker.ts            # Promise wrapper for worker_threads
-│   ├── url.ts                  # getBaseUrl() — DOMAIN in production, request host in dev
-│   └── logError.ts             # Safe error logger — never leaks raw error objects to console
-│
-├── schemas/                    # Shared Zod schemas
-├── mail-views/                 # EJS email templates
+│   ├── trpc.ts              # Procedures: public, protected, admin, manager (estate-scoped), field (mobile)
+│   ├── router.ts            # auth, admin, manager, mobile
+│   └── routers/             # One file per area (e.g. manager/areas.ts)
+├── sync/                    # Mobile sync: pull (changes since cursor) and push (offline changes)
+├── shared/managerNav.ts     # The manager menu, used by the EJS layout and the React app
+├── middlewares/             # csrf, requireRole, rateLimiter, serveWebApp (/app), trpcAuthLimits, trpcMultipart, requireWfsAuth
+├── utils/                   # logger (pino), logError, gracefulShutdown, redirectByRole, runWorker, geofile-parsers, url
+├── workers/                 # geofile.worker.ts: parses GeoJSON/KML/GPX/SHP/GPKG off the event loop
+├── schemas/                 # Shared Zod schemas
+├── mail-views/              # EJS email templates
 └── tests/
 
-views/                          # EJS page templates
-├── layout.ejs                  # Root layout
-├── admin/
-├── manager/
-└── rsvp/                       # Public RSVP pages (own layout, no sidebar)
-
-drizzle/                        # Migration SQL files (generated by drizzle-kit)
-public/                         # Static assets
+views/                       # EJS page templates (manager/, admin/, rsvp/, totp/)
+drizzle/                     # Migration SQL files (generated by drizzle-kit)
+public/                      # Static assets of the server-rendered pages
 ```
 
 ---
 
 ## Routes Reference
 
-A full list of all routes, grouped by feature area and access level, is in [USECASES.md](./USECASES.md).
+A full list of all routes, grouped by feature area and access level, is in [docs/USECASES.md](../docs/USECASES.md).
 
 ---
 
@@ -385,20 +319,21 @@ A full list of all routes, grouped by feature area and access level, is in [USEC
 
 | Role | How created | Access |
 |---|---|---|
-| `admin` | Seeded via `npm run db:seed` or created by another admin | Full access — create/delete estates, manage any user |
-| `manager` | Created by admin via `/admin` dashboard | Estate-scoped — full control over their estate's events, guests, documents, and staff |
-| `staff` | Created by manager via `/manager/people` | Estate-scoped — limited operational access |
-| Guest | Added to guest list by manager | No account — accesses RSVP page via magic link in invitation email |
+| `admin` | Seeded via `npm run db:seed` or created by another admin | React admin area: estates, managers, admins, audit log. Two-factor login required |
+| `manager` | Created by an admin (React admin area) | Their own estate only: areas (React), guests, events, invitations, documents, staff (server-rendered), iPhone app, QGIS |
+| `staff` | Created by a manager under `/manager/people` | iPhone app only (no web area) |
+| Guest | Added to the guest list by a manager | No account: RSVP page via the magic link in the invitation email |
+
+Every manager request re-checks the role and active flag in the database, so a demoted or deactivated user loses access immediately.
 
 ---
 
 ## Production Deployment
 
-1. Set `DB_PROVIDER=neon` and provide `NEON_DATABASE_URL`.
-2. Set `STORAGE_PROVIDER=r2` and provide R2 credentials.
-3. Configure Mailgun HTTP API credentials (`MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, and `MAILGUN_HOST` for EU domains).
-4. Set `NODE_ENV=production` — this enables secure cookies (requires HTTPS) and activates rate limiting.
-5. Run `npm run db:migrate:neon` to enable extensions, run all migrations, and create indexes on the production database.
-6. Build and start: `npm run build && npm start`.
+Production runs as the Docker image on Render (service `hunt-hub-docker`), with Neon (database), Cloudflare R2 (files) and Mailgun (email). Deployment is automatic; see the root [README](../README.md#build-and-deploy):
 
-> Secure cookies require the app to be served over HTTPS. Set `trust proxy` accordingly if deployed behind a reverse proxy (already configured in `app.ts`).
+1. Every pull request runs CI: type checks, all test suites, Docker image build + `/health` + graceful shutdown.
+2. A merge to `main` publishes the tested image to `ghcr.io/carl-castell/hunt-hub` and **runs the migrations against Neon with that image** (GitHub environment `production`, secret `NEON_DATABASE_URL`).
+3. Render deploys only after all checks passed and switches to the new version once `GET /health` returns 200.
+
+Production configuration lives in Render's environment variables (`NODE_ENV=production` is set by the image; it enables secure cookies, which need HTTPS; `trust proxy` is configured in `app.ts`).

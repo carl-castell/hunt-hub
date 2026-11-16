@@ -1,59 +1,84 @@
 # Use Cases
 
-**Status legend:** ✅ Implemented &nbsp;&nbsp; 🚧 Not implemented
+What Hunt Hub does, for whom, and where each use case lives. Hunt Hub is a hybrid: new and reworked screens are built in the **React web app** (served under `/app`), the others are still **server-rendered** (EJS). Both share one login session and one menu ([`backend/src/shared/managerNav.ts`](../backend/src/shared/managerNav.ts)). Field work happens in the **iPhone app**, GIS editing in **QGIS / QField**.
+
+**Status:** ✅ implemented &nbsp; 🚧 planned &nbsp;&nbsp; **Where:** ⚛️ React app &nbsp; 🖥️ server-rendered &nbsp; 📱 iPhone app &nbsp; 🗺️ QGIS / QField &nbsp; ✉️ email link
 
 ---
 
-## Public / Unauthenticated
+## Overview by role
 
-- ✅ Login — [Authentication](#authentication)
-- ✅ Set up & verify two-factor authentication — [TOTP / Two-Factor Auth](#totp--two-factor-auth)
-- ✅ Activate a new account — [Account Activation](#account-activation)
-- ✅ Respond to an event invitation — [RSVP – Guest Response](#rsvp--guest-response)
+### Everyone
 
----
+| Use case | Status | Where | Details |
+|---|---|---|---|
+| Log in (email + password) | ✅ | ⚛️ | [Authentication](#authentication) |
+| Two-factor login (TOTP, backup codes) for admins | ✅ | ⚛️ | [TOTP / Two-Factor Auth](#totp--two-factor-auth) |
+| Activate a new account and set a password | ✅ | ✉️ 🖥️ | [Account Activation](#account-activation) |
 
-## Admin
+### Guests (no account)
 
-- ✅ Manage platform estates — [Admin – Estate Management](#admin--estate-management)
-- ✅ Manage admin account & password — [Admin – Account Settings](#admin--account-settings)
+| Use case | Status | Where | Details |
+|---|---|---|---|
+| Respond to an event invitation and upload documents | ✅ | ✉️ 🖥️ | [RSVP – Guest Response](#rsvp--guest-response) |
 
----
+### Admin
 
-## Manager
+| Use case | Status | Where | Details |
+|---|---|---|---|
+| Manage estates and their managers | ✅ | ⚛️ | [Admin API](#admin-api-trpc) |
+| View the audit log | ✅ | ⚛️ | [Admin API](#admin-api-trpc) |
+| Manage admins, own account and password | ✅ | ⚛️ | [Admin API](#admin-api-trpc) |
 
-- ✅ Manage estate & hunting areas — [Manager – Estate & Areas](#manager--estate--areas)
-- ✅ Manage guests — [Manager – Guests](#manager--guests)
-- ✅ Verify guest documents (licenses & certificates) — [Manager – Document Verification](#manager--document-verification)
-- ✅ Manage guest groups — [Manager – Guest Groups](#manager--guest-groups)
-- ✅ Manage hunting events — [Manager – Events](#manager--events)
-- ✅ Manage event invitations — [Manager – Invitations](#manager--invitations)
-- ✅ Manage drives per event — [Manager – Drives](#manager--drives)
-- ✅ Manage staff / people — [Manager – Staff & People](#manager--staff--people)
-- ✅ Preview RSVP form — [RSVP – Manager Preview](#rsvp--manager-preview)
-- ✅ View interactive map — [Interactive Map](#interactive-map)
-- ✅ Edit areas and stands in QGIS / QField — [WFS – GIS Integration](#wfs--gis-integration)
-- ✅ Manage manager account & password — [Manager – Account Settings](#manager--account-settings)
+### Manager
 
----
+| Use case | Status | Where | Details |
+|---|---|---|---|
+| Dashboard | ✅ | 🖥️ | [Manager – Estate](#manager--estate) |
+| Manage the estate | ✅ | 🖥️ | [Manager – Estate](#manager--estate) |
+| **Manage hunting areas** (list, create, rename, delete, upload boundary file) | ✅ | ⚛️ | [Manager – Areas](#manager--areas-react-app) |
+| **See an area on a satellite map** with its boundary and stands | ✅ | ⚛️ | [Manager – Areas](#manager--areas-react-app) |
+| Manage guests | ✅ | 🖥️ | [Manager – Guests](#manager--guests) |
+| Verify guest documents (licences & certificates) | ✅ | 🖥️ | [Manager – Document Verification](#manager--document-verification) |
+| Manage guest groups | ✅ | 🖥️ | [Manager – Guest Groups](#manager--guest-groups) |
+| Manage hunting events | ✅ | 🖥️ | [Manager – Events](#manager--events) |
+| Invite guests to events (email, status tracking) | ✅ | 🖥️ | [Manager – Invitations](#manager--invitations) |
+| Manage drives per event | ✅ | 🖥️ | [Manager – Drives](#manager--drives) |
+| Manage staff | ✅ | 🖥️ | [Manager – Staff & People](#manager--staff--people) |
+| Preview the RSVP form | ✅ | 🖥️ | [RSVP – Manager Preview](#rsvp--manager-preview) |
+| Edit area boundaries and stands in QGIS / QField | ✅ | 🗺️ | [WFS – GIS Integration](#wfs--gis-integration) |
+| Own account and password | ✅ | 🖥️ | [Manager – Account Settings](#manager--account-settings) |
+| Move stands in the web app | 🚧 | ⚛️ | planned |
+
+### Manager and staff in the field
+
+| Use case | Status | Where | Details |
+|---|---|---|---|
+| Log in on the iPhone (stays logged in offline) | ✅ | 📱 | [Mobile App API](#mobile-app-api-trpc) |
+| See the estate's areas and stands on a map, offline | ✅ | 📱 | [Mobile App API](#mobile-app-api-trpc) |
+| Use downloaded offline basemaps (.mbtiles) | ✅ | 📱 | [`mobile/README.md`](../mobile/README.md) |
+| Edit stands in the field (synced later) | 🚧 | 📱 | planned (sync push handlers) |
+
+Staff have no area in the web app; logging in there shows a hint to use the iPhone app.
 
 ---
 
 ## Authentication
 
-> Public. Handles user login and logout.
+> The login page is part of the React app (`/app/login`) and talks to the [Auth API](#auth-api-trpc). The server-rendered routes below remain for compatibility.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/login` | Display login form |
-| POST | `/login` | Process login with email & password |
+| GET | `/` | Redirects: logged out (or staff, guest) → `/app/login`; manager → `/manager`; admin → `/admin` |
+| GET | `/login` | Same redirect as `/` (old links keep working) |
+| POST | `/login` | Old server-rendered login form (still supported) |
 | POST | `/logout` | Destroy session and log out |
 
 ---
 
 ## TOTP / Two-Factor Auth
 
-> Public (session-gated). Handles TOTP setup and verification for admin accounts.
+> Admin accounts need a second factor. The React app handles it under `/app/totp*` via the [Auth API](#auth-api-trpc). These server-rendered routes still exist but are no longer linked (retirement: HUN-51).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -80,9 +105,9 @@
 
 ---
 
-## Admin – Estate Management
+## Admin – Server-rendered pages (legacy)
 
-> Requires `requireAdmin`. Manage the top-level estates on the platform.
+> Requires `requireAdmin`. The admin area has moved to the React app (`/app/admin`, see [Admin API](#admin-api-trpc)); these pages still exist until they are retired (HUN-51).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -91,35 +116,42 @@
 | GET | `/admin/estates/:id` | View estate details |
 | POST | `/admin/estates/:id/rename` | Rename an estate |
 | POST | `/admin/estates/:id/delete` | Delete an estate |
-
----
-
-## Admin – Account Settings
-
-> Requires `requireAdmin`. Manage the admin user's own account.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/admin/account` | Display admin account settings |
+| GET | `/admin/account` | Admin account settings |
 | POST | `/admin/account/password` | Update admin password |
 
 ---
 
-## Manager – Estate & Areas
+## Manager – Estate
 
-> Requires `requireManager`. Manage the estate and its hunting areas, including geospatial file uploads.
+> Requires `requireManager` (re-checks role and active account on every request). Server-rendered.
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/manager/` | Manager dashboard |
-| GET | `/manager/estate` | View estate overview |
+| GET | `/manager/estate` | Estate overview (areas, staff) |
 | POST | `/manager/estate/rename` | Rename the estate |
+
+---
+
+## Manager – Areas (React app)
+
+> In the React app. Pages call the [Manager API](#manager-api-trpc). The business logic is shared with the server-rendered area pages in [`backend/src/services/areas.ts`](../backend/src/services/areas.ts).
+
+| Page | Description |
+|------|-------------|
+| `/app/manager/areas` | List of areas: name, number of stands, boundary status; create a new area |
+| `/app/manager/areas/:id` | Satellite map (boundary in red, everything outside shaded), rename, upload or remove the boundary file (GeoJSON, KML, GPX, Shapefile zip, GeoPackage; max 20 MB), stand list, delete with name confirmation |
+
+The old server-rendered area pages still exist until they are retired (HUN-49):
+
+| Method | Path | Description |
+|--------|------|-------------|
 | POST | `/manager/areas` | Create a new hunting area |
 | GET | `/manager/areas/:id` | View area details |
 | POST | `/manager/areas/:id/rename` | Rename an area |
-| POST | `/manager/areas/:id/delete` | Delete an area |
-| POST | `/manager/areas/:id/geofile` | Upload a geospatial file for an area |
-| POST | `/manager/areas/:id/geofile/delete` | Delete the geospatial file for an area |
+| POST | `/manager/areas/:id/delete` | Delete an area (name confirmation) |
+| POST | `/manager/areas/:id/geofile` | Upload a boundary file |
+| POST | `/manager/areas/:id/geofile/delete` | Remove the boundary |
 
 ---
 
@@ -298,6 +330,55 @@
 
 ---
 
+## Auth API (tRPC)
+
+> Mounted under `/api/v1/trpc`, used by the React app. Session cookie based. Login and the two-factor checks are rate-limited like the old forms (every call in a batch counts).
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `auth.me` | query | Current user or `null` |
+| `auth.login` | mutation | Email + password; admins continue with two-factor login |
+| `auth.checkPendingTotp` | query | Whether a pending admin login needs TOTP setup or verification |
+| `auth.beginTotpSetup` / `auth.confirmTotpSetup` | mutation | Set up TOTP (QR code) |
+| `auth.verifyTotp` | mutation | Verify a TOTP code |
+| `auth.getBackupCodes` / `auth.confirmBackupCodesSaved` | query / mutation | Backup codes after setup |
+| `auth.useBackupCode` | mutation | Log in with a backup code |
+| `auth.logout` | mutation | Log out |
+
+---
+
+## Admin API (tRPC)
+
+> `adminProcedure`: admins only. Used by the React admin area (`/app/admin`).
+
+| Procedure | Description |
+|-----------|-------------|
+| `admin.estates.list` / `get` / `create` / `rename` / `delete` / `addManager` | Estates and adding their first manager |
+| `admin.managers.get` / `deactivate` / `sendActivationLink` / `delete` | Manage managers |
+| `admin.audit.list` | Audit log (paginated) |
+| `admin.settings.listAdmins` / `createAdmin` | Admin accounts |
+| `admin.account.get` / `changePassword` | Own account |
+
+---
+
+## Manager API (tRPC)
+
+> `managerProcedure`: re-reads role, active flag and estate from the database on every call; every query is limited to the manager's own estate. Used by the React manager pages.
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `manager.estate.get` | query | Own estate with number of areas |
+| `manager.areas.list` | query | Areas sorted by name, with stand count and boundary status |
+| `manager.areas.get` | query | One area with boundary and stands (GeoJSON), stands in natural order |
+| `manager.areas.create` / `rename` | mutation | Create or rename an area |
+| `manager.areas.delete` | mutation | Delete an area and its stands; requires the area's name as confirmation |
+| `manager.areas.uploadBoundary` | mutation | FormData (`areaId`, `file`), max 20 MB; parsed in a worker thread |
+| `manager.areas.clearBoundary` | mutation | Remove the boundary |
+
+Errors: unknown or foreign areas → `NOT_FOUND`, invalid input or wrong confirmation → `BAD_REQUEST`.
+
+---
+
 ## Mobile App API (tRPC)
 
 > Used by the iOS app in `mobile/`. Mounted under `/api/v1/trpc`. Authenticates with `Authorization: Bearer <access token>` from a mobile session (not the session cookie). Only `manager` and `staff` can use it; data is scoped to the user's estate.
@@ -309,7 +390,7 @@
 | `mobile.auth.me` | query | Current user |
 | `mobile.auth.logout` | mutation | Revokes the mobile session |
 | `mobile.sync.pull` | query | Without `cursor`: all areas (GeoJSON) and stands. With `cursor`: rows changed since then plus deletions (`sync_tombstones`). Returns the next cursor |
-| `mobile.sync.push` | mutation | Applies queued offline changes in order. Each has a client UUID, so retries are applied only once. Handlers live in `backend/src/sync/handlers/` (none yet) |
+| `mobile.sync.push` | mutation | Applies queued offline changes in order. Each has a client UUID, so retries are applied only once. Handlers live in `backend/src/sync/handlers/` (none yet, so the app is read-only for now) |
 
 `areas.updated_at` / `stands.updated_at` are maintained by database triggers, and deletes are recorded by triggers too (migration `0011_mobile_sync`), so changes made through the manager UI or WFS-T reach the app automatically.
 
@@ -351,3 +432,11 @@ Each area exposes two feature types:
 - Inserting a stand outside the area boundary is rejected unless `force_outside_area` is set to `1`.
 - Stand numbers must be unique within an area.
 - The server returns `<wfs:InsertResults>` after Insert so QGIS/QField shows the new stand immediately without a manual layer refresh.
+
+---
+
+## Operations
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | 200 `{"status":"ok","checks":{"database":"ok"},"commit":"…"}` when the database answers, otherwise 503. Used by Render, Docker and CI. Not logged, no session |
