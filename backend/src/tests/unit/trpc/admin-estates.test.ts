@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TRPCError } from '@trpc/server';
 import { createCallerFactory } from '@/trpc/trpc';
 
 const { mockDb, mockTx } = vi.hoisted(() => {

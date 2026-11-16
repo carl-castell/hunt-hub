@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { trpc } from '@/lib/trpc'
 import { Button } from '@/components/ui/button'
@@ -24,8 +24,8 @@ export function AccountPage() {
     },
   })
 
-  const { register, handleSubmit, watch, reset, formState: { errors } } = useForm<PasswordForm>()
-  const newPassword = watch('newPassword', '')
+  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<PasswordForm>()
+  const newPassword = useWatch({ control, name: 'newPassword', defaultValue: '' })
 
   const hints = {
     length:  newPassword.length >= 8,

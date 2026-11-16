@@ -27,6 +27,17 @@ This is an npm workspaces monorepo (`backend/`, `web/`, `mobile/`) with **one lo
 npm install
 ```
 
+## Code quality
+
+| Tool | What it checks | Run |
+|---|---|---|
+| **TypeScript** (`strict`) | types across backend, web and mobile; the web and mobile apps also type-check the backend's tRPC types, so an API change that breaks a client fails at once | `npx tsc --noEmit` per workspace (CI) |
+| **ESLint** (`eslint.config.mjs`) | `@eslint/js` + `typescript-eslint` recommended rules for backend and web, React hooks rules for web; no warnings allowed | `npm run lint` |
+| **Vitest / Jest** | unit, integration (real PostGIS), e2e and worker tests for the backend; web and mobile unit tests | see the workspace READMEs |
+| **CI** (`.github/workflows/ci.yml`) | runs all of the above plus the Docker image check on every pull request | automatic |
+
+Rule exceptions are documented where they are made: `any` is allowed in tests (loosely typed mocks), and the one `any` in the source (`backend/src/sync/handlers/index.ts`) has a comment explaining why.
+
 ## Build and deploy
 
 The backend serves the server-rendered pages and, under `/app`, the built React app (`web/dist`). Both are packaged into **one Docker image** (`Dockerfile` in the repo root; see `backend/README.md` → "Running the app in Docker").

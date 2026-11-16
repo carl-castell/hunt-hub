@@ -6,6 +6,14 @@ import path from 'path';
 import os from 'os';
 import * as shapefile from 'shapefile';
 
+/** The part of the sql.js API the GeoPackage parser uses. */
+type SqlJs = {
+  Database: new (data: Uint8Array) => {
+    exec(sql: string): { columns: string[]; values: unknown[][] }[];
+    close(): void;
+  };
+};
+
 export class ParseError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
@@ -18,7 +26,7 @@ export function toGeometryCollection(geojson: string): string {
   if (parsed.type === 'FeatureCollection') {
     return JSON.stringify({
       type: 'GeometryCollection',
-      geometries: parsed.features.map((f: any) => f.geometry).filter(Boolean),
+      geometries: parsed.features.map((f: { geometry: unknown }) => f.geometry).filter(Boolean),
     });
   }
 
@@ -55,7 +63,7 @@ export class GeoJsonParser extends GeoFileParser {
 export class KmlParser extends GeoFileParser {
   override async parse(buf: Buffer): Promise<string> {
     const content = buf.toString('utf-8');
-    const dom = new DOMParser().parseFromString(content, 'text/xml' as any);
+    const dom = new DOMParser().parseFromString(content, 'text/xml');
     return this.toGeometryCollection(JSON.stringify(toGeoJSON.kml(dom)));
   }
 }
@@ -63,7 +71,7 @@ export class KmlParser extends GeoFileParser {
 export class GpxParser extends GeoFileParser {
   override async parse(buf: Buffer): Promise<string> {
     const content = buf.toString('utf-8');
-    const dom = new DOMParser().parseFromString(content, 'text/xml' as any);
+    const dom = new DOMParser().parseFromString(content, 'text/xml');
     return this.toGeometryCollection(JSON.stringify(toGeoJSON.gpx(dom)));
   }
 }
@@ -80,7 +88,7 @@ export class ShapefileParser extends GeoFileParser {
     }
     const shpPath = path.join(tmpDir, shpFile);
     const dbfPath = shpPath.replace('.shp', '.dbf');
-    const features: any[] = [];
+    const features: unknown[] = [];
     const source = await shapefile.open(shpPath, dbfPath);
     let next = await source.read();
     while (!next.done) { features.push(next.value); next = await source.read(); }
@@ -91,7 +99,9 @@ export class ShapefileParser extends GeoFileParser {
 
 export class GeoPackageParser extends GeoFileParser {
   override async parse(buf: Buffer): Promise<string> {
-    const initSqlJs = (await import('sql.js/dist/sql-asm.js' as any)).default as () => Promise<any>;
+    // The pure-JS build of sql.js has no type declarations, so describe the part we use.
+    const sqlJsModule: string = 'sql.js/dist/sql-asm.js';
+    const initSqlJs = (await import(sqlJsModule)).default as () => Promise<SqlJs>;
     const { Geometry: WkxGeometry } = await import('wkx');
     const SQL = await initSqlJs();
     const db = new SQL.Database(new Uint8Array(buf));
@@ -102,7 +112,7 @@ export class GeoPackageParser extends GeoFileParser {
       throw new ParseError(400, 'No geometry layers found in GeoPackage');
     }
 
-    const features: any[] = [];
+    const features: unknown[] = [];
     for (const [tableName, columnName] of gcResult[0].values as [string, string][]) {
       const rows = db.exec(`SELECT * FROM "${tableName}"`);
       if (!rows.length) continue;
@@ -120,7 +130,7 @@ export class GeoPackageParser extends GeoFileParser {
         const wkbStart = 8 + envelopeBytes;
 
         try {
-          const geom = WkxGeometry.parse(Buffer.from(blob.subarray(wkbStart))) as any;
+          const geom = WkxGeometry.parse(Buffer.from(blob.subarray(wkbStart)));
           const properties: Record<string, unknown> = {};
           cols.forEach((col: string, i: number) => { if (i !== geomIdx) properties[col] = row[i]; });
           features.push({ type: 'Feature', geometry: geom.toGeoJSON(), properties });

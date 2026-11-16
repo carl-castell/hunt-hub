@@ -40,6 +40,9 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Lint (ESLint, backend and web)
+        run: npm run lint
+
       - name: Backend - type check and build
         working-directory: backend
         run: npx tsc --noEmit && npm run build
