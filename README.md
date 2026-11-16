@@ -18,16 +18,31 @@ npm install
 
 ## Build and deploy
 
-The backend serves the server-rendered pages and, under `/app`, the built React app (`web/dist`). A production build therefore builds both, from the repo root:
+The backend serves the server-rendered pages and, under `/app`, the built React app (`web/dist`). Both are packaged into **one Docker image** (`Dockerfile` in the repo root; see `backend/README.md` → "Running the app in Docker").
+
+**Continuous deployment** (`.github/workflows/ci.yml`):
+
+```
+pull request ──> type check + build, unit, integration/e2e, Docker image (build, /health, graceful shutdown)
+merge to main ──> same checks ──> publish image to ghcr.io/carl-castell/hunt-hub:<commit>
+                              ──> migrate the production database (Neon) with that image
+                              ──> Render deploys ("After CI checks pass") and only switches
+                                  to the new version once GET /health returns 200
+```
+
+- Render waits for **all** CI checks of a commit, so the database is always migrated before the new version goes live.
+- CI never cancels a run on `main`, so a migration can't be interrupted.
+- `GET /health` shows the deployed commit (`"commit": "3bb1768"`).
+- Production secrets: Render environment variables for the app; the GitHub environment `production` holds `NEON_DATABASE_URL` for the migration job.
+
+Without Docker (e.g. Render's Node runtime), from the repo root:
 
 ```bash
-npm ci
+npm ci --include=dev
 npm run build -w web       # React app -> web/dist
 npm run build -w backend   # API + server-rendered pages -> backend/dist
 npm start -w backend       # runs with backend/ as working directory
 ```
-
-Render uses exactly these commands (root directory: repo root). Every pull request is checked by CI (`.github/workflows/ci.yml`).
 
 ---
 

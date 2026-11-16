@@ -3,6 +3,15 @@ import express, { Router, Request, Response } from 'express';
 /** Any cheap query against the database, e.g. `SELECT 1`. */
 export type DatabasePing = () => Promise<unknown>;
 
+/**
+ * The deployed commit, so you can see which version is live. Render sets
+ * RENDER_GIT_COMMIT automatically; elsewhere GIT_COMMIT can be passed in.
+ */
+function deployedCommit(): string | null {
+  const commit = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT;
+  return commit ? commit.slice(0, 7) : null;
+}
+
 /** A database that answers slower than this counts as unavailable. */
 const DATABASE_TIMEOUT_MS = 2000;
 
@@ -35,7 +44,12 @@ export function createHealthRouter(ping: DatabasePing): Router {
     res
       .status(healthy ? 200 : 503)
       .set('Cache-Control', 'no-store')
-      .json({ status: healthy ? 'ok' : 'error', checks: { database }, uptimeSeconds: Math.round(process.uptime()) });
+      .json({
+        status: healthy ? 'ok' : 'error',
+        checks: { database },
+        commit: deployedCommit(),
+        uptimeSeconds: Math.round(process.uptime()),
+      });
   });
 
   return router;

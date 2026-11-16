@@ -1,22 +1,31 @@
 name: CI
 
 # Runs on every pull request and on every push to main.
-# Render deploys main only after all checks of a commit have passed.
+#
+# Continuous deployment: Render's auto-deploy is set to "After CI checks
+# pass", so it deploys a main commit only when every job below succeeded.
+# On main the last job migrates the production database, so the schema is
+# always ready before the new version goes live:
+#
+#   tests + image build ──> publish image (GHCR) + migrate Neon ──> Render deploys
+#                                                                (only if /health is ok)
 on:
   pull_request:
   push:
     branches: [main]
 
-# A newer push to the same branch cancels the older, still running run.
+# A newer push to the same pull request cancels the older run. On main
+# runs are never cancelled, so a database migration can't stop halfway.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 env:
   NODE_VERSION: 22
+  IMAGE: ghcr.io/carl-castell/hunt-hub
 
 jobs:
   build:
@@ -124,6 +133,55 @@ jobs:
           docker stop app
           docker logs app | grep "shutdown complete"
           test "$(docker inspect app --format '{{.State.ExitCode}}')" = "0"
+
+
+  release:
+    name: Publish image and migrate production database
+    # Only for main, and only after every other job passed.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, unit, integration, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The production secrets live in the "production" environment.
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same Dockerfile and build cache as the tested image (fast), tagged
+      # with the commit; "latest" always points to a fully tested commit.
+      - name: Publish image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+
+      # Runs the migrations contained in exactly this image.
+      - name: Apply migrations to Neon
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          if [ -z "$NEON_DATABASE_URL" ]; then
+            echo "::error::The secret NEON_DATABASE_URL is missing in the 'production' environment."
+            exit 1
+          fi
+          docker run --rm \
+            -e DB_PROVIDER=neon \
+            -e NEON_DATABASE_URL \
+            "$IMAGE:${{ github.sha }}" \
+            node dist/src/db/migrate.js
 
   integration:
     name: Integration and e2e tests
