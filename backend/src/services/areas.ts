@@ -1,7 +1,8 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq, sql } from 'drizzle-orm';
 import path from 'path';
 import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
+import { standsTable } from '@/db/schema/stands';
 import { audit } from '@/services/audit';
 import { runWorker } from '@/utils/runWorker';
 
@@ -81,6 +82,52 @@ export async function getAreaWithBoundary(estateId: number, areaId: number): Pro
     .limit(1);
   if (!area) throw new AreaNotFoundError();
   return area;
+}
+
+export type AreaListItem = AreaSummary & { standCount: number; hasBoundary: boolean };
+
+/** All areas of the estate, sorted by name, with their number of stands. */
+export async function listAreas(estateId: number): Promise<AreaListItem[]> {
+  const rows = await db
+    .select({
+      id: areasTable.id,
+      name: areasTable.name,
+      estateId: areasTable.estateId,
+      hasBoundary: sql<boolean>`${areasTable.geofile} IS NOT NULL`,
+      standCount: count(standsTable.id),
+    })
+    .from(areasTable)
+    .leftJoin(standsTable, eq(standsTable.areaId, areasTable.id))
+    .where(eq(areasTable.estateId, estateId))
+    .groupBy(areasTable.id)
+    .orderBy(asc(areasTable.name));
+  return rows;
+}
+
+export type StandItem = {
+  id: number;
+  number: string;
+  /** The position as a GeoJSON Point string, or null if the stand has no position yet. */
+  locationGeoJson: string | null;
+};
+
+/** The stands of an area, in natural number order. Throws AreaNotFoundError for unknown or foreign areas. */
+export async function listStands(estateId: number, areaId: number): Promise<StandItem[]> {
+  const area = await requireAreaInEstate(estateId, areaId);
+  return db
+    .select({
+      id: standsTable.id,
+      number: standsTable.number,
+      locationGeoJson: sql<string | null>`ST_AsGeoJSON(${standsTable.location})`,
+    })
+    .from(standsTable)
+    .where(eq(standsTable.areaId, area.id))
+    // Stand numbers are text ("2", "10", "12a"): sort by the digits as a
+    // number first, so 2 comes before 10, then by the full text.
+    .orderBy(
+      sql`NULLIF(regexp_replace(${standsTable.number}, '\\D', '', 'g'), '')::int NULLS LAST`,
+      asc(standsTable.number),
+    );
 }
 
 async function requireAreaInEstate(estateId: number, areaId: number): Promise<AreaSummary> {
