@@ -13,6 +13,7 @@ import { getBaseUrl } from '@/utils/url';
 import { audit } from '@/services/audit';
 import crypto from 'crypto';
 import { logError } from '@/utils/logError';
+import { logger } from '@/utils/logger';
 
 const PICKER_LIMIT = 50;
 
@@ -491,7 +492,8 @@ export async function postSendInvitations(req: Request, res: Response) {
 
         sent.push({ firstName: row.firstName, lastName: row.lastName, email: row.email });
       } catch (emailErr) {
-        console.error(`[invite] Failed to send to ${row.email}:`, emailErr);
+        // No email address in the log: the invitation id is enough to find it.
+        logger.warn({ err: emailErr, invitationId: invId }, '[invite] Failed to send invitation email');
         failed.push({
           firstName: row.firstName,
           lastName: row.lastName,

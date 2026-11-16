@@ -1,5 +1,9 @@
-export function logError(prefix: string, err: unknown): void {
-  const msg = err instanceof Error ? err.message : String(err);
-  const stack = err instanceof Error ? (err.stack ?? '') : '';
-  console.error(prefix, msg, stack);
+import { logger } from './logger';
+
+/**
+ * Logs an unexpected error as structured JSON (message, type and stack in
+ * the `err` field). `context` says where it happened, e.g. "[requireManager]".
+ */
+export function logError(context: string, err: unknown): void {
+  logger.error({ err }, context);
 }
