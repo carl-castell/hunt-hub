@@ -62,6 +62,27 @@ export async function findAreaInEstate(estateId: number, areaId: number): Promis
   return area ?? null;
 }
 
+export type AreaWithBoundary = AreaSummary & {
+  /** The boundary as a GeoJSON MultiPolygon string, or null if none was uploaded. */
+  boundaryGeoJson: string | null;
+};
+
+/** The area with its boundary. Throws AreaNotFoundError for unknown or foreign areas. */
+export async function getAreaWithBoundary(estateId: number, areaId: number): Promise<AreaWithBoundary> {
+  const [area] = await db
+    .select({
+      id: areasTable.id,
+      name: areasTable.name,
+      estateId: areasTable.estateId,
+      boundaryGeoJson: sql<string | null>`ST_AsGeoJSON(${areasTable.geofile})`,
+    })
+    .from(areasTable)
+    .where(and(eq(areasTable.id, areaId), eq(areasTable.estateId, estateId)))
+    .limit(1);
+  if (!area) throw new AreaNotFoundError();
+  return area;
+}
+
 async function requireAreaInEstate(estateId: number, areaId: number): Promise<AreaSummary> {
   const area = await findAreaInEstate(estateId, areaId);
   if (!area) throw new AreaNotFoundError();

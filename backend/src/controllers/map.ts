@@ -1,7 +1,5 @@
 import { Request, Response } from 'express';
-import { eq, sql } from 'drizzle-orm';
-import { db } from '@/db';
-import { areasTable } from '@/db/schema/areas';
+import { AreaNotFoundError, getAreaWithBoundary } from '@/services/areas';
 import { logError } from '@/utils/logError';
 
 // ── GET /map/layers ───────────────────────────────────────────────────────────
@@ -33,29 +31,14 @@ export async function getLayerConfig(_req: Request, res: Response) {
 export async function getAreaMapData(req: Request, res: Response) {
   try {
     const user = req.session.user!;
-    const { id } = req.params;
+    if (user.estateId === null) return res.status(404).json({ error: 'Area not found' });
 
-    const [area] = await db
-      .select({
-        id: areasTable.id,
-        name: areasTable.name,
-        estateId: areasTable.estateId,
-        geofile: sql<string>`ST_AsGeoJSON(geofile)`,
-      })
-      .from(areasTable)
-      .where(eq(areasTable.id, Number(id)))
-      .limit(1);
+    const area = await getAreaWithBoundary(user.estateId, Number(req.params.id));
+    if (!area.boundaryGeoJson) return res.status(404).json({ error: 'No geo data for this area' });
 
-    if (!area || area.estateId !== user.estateId) {
-      return res.status(404).json({ error: 'Area not found' });
-    }
-
-    if (!area.geofile) {
-      return res.status(404).json({ error: 'No geo data for this area' });
-    }
-
-    res.json(JSON.parse(area.geofile));
+    res.json(JSON.parse(area.boundaryGeoJson));
   } catch (err) {
+    if (err instanceof AreaNotFoundError) return res.status(404).json({ error: err.message });
     logError('[error]', err);
     res.status(500).json({ error: 'Server error' });
   }

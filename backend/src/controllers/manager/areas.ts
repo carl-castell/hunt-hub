@@ -1,9 +1,6 @@
 import { Request, Response } from 'express';
-import { and, eq, sql } from 'drizzle-orm';
-import { db } from '@/db';
-import { areasTable } from '@/db/schema/areas';
 import {
-  AreaNotFoundError, DeleteConfirmationError, GeofileRejectedError, findAreaInEstate,
+  AreaNotFoundError, DeleteConfirmationError, GeofileRejectedError, findAreaInEstate, getAreaWithBoundary,
   createArea, renameArea, deleteArea, clearAreaBoundary, setAreaBoundaryFromFile,
 } from '@/services/areas';
 import { logError } from '@/utils/logError';
@@ -28,27 +25,15 @@ export async function getArea(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const [area] = await db
-      .select({
-        id: areasTable.id,
-        name: areasTable.name,
-        estateId: areasTable.estateId,
-        geofile: sql<string>`ST_AsGeoJSON(geofile)`,
-      })
-      .from(areasTable)
-      .where(and(eq(areasTable.id, Number(id)), eq(areasTable.estateId, user.estateId!)))
-      .limit(1);
-
-    if (!area) return res.status(404).send('Area not found');
+    const area = await getAreaWithBoundary(user.estateId!, Number(id));
 
     const breadcrumbs = [
       { label: 'Estate', href: '/manager/estate' },
       { label: area.name },
     ];
-    res.render('manager/estate/area', { title: area.name, user, area, breadcrumbs });
+    res.render('manager/estate/area', { title: area.name, user, area: { ...area, geofile: area.boundaryGeoJson }, breadcrumbs });
   } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
+    respondWithError(res, err);
   }
 }
 
