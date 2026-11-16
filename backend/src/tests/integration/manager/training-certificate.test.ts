@@ -9,7 +9,6 @@ import { db } from '@/db';
 import { usersTable } from '@/db/schema/users';
 import { contactsTable } from '@/db/schema/contacts';
 import { trainingCertificatesTable } from '@/db/schema/licenses';
-import { eq } from 'drizzle-orm';
 import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
 const jpegBuffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0xFF, 0xD9]);

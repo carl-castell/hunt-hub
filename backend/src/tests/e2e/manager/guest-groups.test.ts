@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import app from '@/app';
 import { db } from '@/db';
 import { guestGroupMembersTable } from '@/db/schema/guest_groups';
 import { and, count, eq } from 'drizzle-orm';
