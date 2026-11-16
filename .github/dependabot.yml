@@ -5,8 +5,21 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # Minor and patch updates are grouped (usually safe to merge together).
+    # Each major update gets its own pull request, so breaking changes can be handled one at a time.
     groups:
-      dev-dependencies:
-        dependency-type: "development"
-      production-dependencies:
+      production-minor-patch:
         dependency-type: "production"
+        update-types: ["minor", "patch"]
+      dev-minor-patch:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+    ignore:
+      # The mobile app's native packages must match the Expo SDK; update them with `npx expo install --fix`.
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "jest-expo"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@maplibre/maplibre-react-native"
