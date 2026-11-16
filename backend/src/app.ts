@@ -11,6 +11,8 @@ import { requireAdmin, requireManager, requireAuth } from './middlewares/require
 import { authLimiter, generalLimiter } from "./middlewares/rateLimiter";
 import { generateCsrfToken, verifyCsrfToken } from './middlewares/csrf';
 import { serveWebApp } from './middlewares/serveWebApp';
+import { letTrpcReadMultipart } from './middlewares/trpcMultipart';
+import { MAX_BOUNDARY_FILE_BYTES } from './trpc/routers/manager/areas';
 import { MANAGER_NAV, managerNavHref } from './shared/managerNav';
 
 import homeRouter from "./routes/home";
@@ -103,7 +105,13 @@ app.use('/wfs', wfsRouter);
 // Same brute-force protection for the mobile login as for the web login form.
 app.use('/api/v1/trpc', (req, res, next) =>
   req.path.includes('mobile.auth.login') ? authLimiter(req, res, next) : next());
-app.use('/api/v1/trpc', createExpressMiddleware({ router: appRouter, createContext }));
+app.use('/api/v1/trpc', letTrpcReadMultipart, createExpressMiddleware({
+  router: appRouter,
+  createContext,
+  // Allows geo file uploads (20 MB, same as the server-rendered upload form).
+  // JSON requests are still limited to 10 kB by express.json above.
+  maxBodySize: MAX_BOUNDARY_FILE_BYTES + 1_000_000,
+}));
 app.use(generateCsrfToken);
 app.use(verifyCsrfToken);
 app.use(express.static(path.join(process.cwd(), "public"), { maxAge: "7d" }));
