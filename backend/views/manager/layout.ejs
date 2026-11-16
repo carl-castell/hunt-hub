@@ -51,6 +51,25 @@
       dialog article {
         min-width: 360px;
       }
+      nav.section-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 1.25rem;
+        padding: 0.5rem 2rem;
+        border-bottom: 1px solid var(--pico-muted-border-color);
+        font-size: 0.9rem;
+      }
+      nav.section-nav a {
+        text-decoration: none;
+        color: var(--pico-muted-color);
+      }
+      nav.section-nav a:hover,
+      nav.section-nav a.active {
+        color: var(--pico-color);
+      }
+      nav.section-nav a.active {
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
@@ -75,6 +94,13 @@
           </li>
         </ul>
       </details>
+    </nav>
+
+    <%# Same entries as the React app's manager menu (backend/src/shared/managerNav.ts) %>
+    <nav class="section-nav" aria-label="Manager menu">
+      <% (typeof managerNav !== 'undefined' ? managerNav : []).forEach((item) => { %>
+        <a href="<%= item.href %>" class="<%= item.active ? 'active' : '' %>"><%= item.label %></a>
+      <% }) %>
     </nav>
 
     <% if (typeof breadcrumbs !== 'undefined' && breadcrumbs.length > 0) { %>

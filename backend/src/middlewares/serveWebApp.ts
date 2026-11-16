@@ -1,8 +1,7 @@
 import express, { Express } from 'express';
 import fs from 'fs';
 import path from 'path';
-
-export const WEB_APP_BASE_PATH = '/app';
+import { REACT_APP_BASE_PATH as WEB_APP_BASE_PATH } from '@/shared/managerNav';
 
 /** Where the built React app (`npm run build` in web/) is found. */
 export function resolveWebDistDir(): string {

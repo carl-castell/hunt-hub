@@ -11,6 +11,7 @@ import { requireAdmin, requireManager, requireAuth } from './middlewares/require
 import { authLimiter, generalLimiter } from "./middlewares/rateLimiter";
 import { generateCsrfToken, verifyCsrfToken } from './middlewares/csrf';
 import { serveWebApp } from './middlewares/serveWebApp';
+import { MANAGER_NAV, managerNavHref } from './shared/managerNav';
 
 import homeRouter from "./routes/home";
 import wfsRouter from "./routes/wfs";
@@ -128,6 +129,13 @@ app.use('/manager', requireManager, async (req, res, next) => {
     .limit(1);
 
   res.locals.estateName = estate?.name ?? '';
+  res.locals.managerNav = MANAGER_NAV.map(entry => ({
+    label: entry.label,
+    href: managerNavHref(entry),
+    active: entry.path === '/manager'
+      ? req.originalUrl === '/manager' || req.originalUrl === '/manager/'
+      : req.originalUrl.startsWith(entry.path),
+  }));
   next();
 });
 app.use("/manager", requireManager, managerRouter);
