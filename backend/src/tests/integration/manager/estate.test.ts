@@ -14,6 +14,14 @@ describe('GET /manager/estate', () => {
     expect(res.status).toBe(200);
   });
 
+  it('shows the shared manager menu, linking Areas to the React app', async () => {
+    const res = await setup.agent.get('/manager/estate');
+    expect(res.text).toContain('aria-label="Manager menu"');
+    expect(res.text).toContain('href="/app/manager/areas"');
+    expect(res.text).toMatch(/href="\/manager\/estate" class="active"/);
+    expect(res.text).toMatch(/href="\/manager\/guests" class=""/);
+  });
+
   it('redirects to /login when not authenticated', async () => {
     const res = await request(app).get('/manager/estate');
     expect(res.status).toBe(302);

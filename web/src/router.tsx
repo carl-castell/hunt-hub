@@ -6,6 +6,7 @@ import { TotpSetupPage } from '@/pages/totp/TotpSetupPage'
 import { TotpBackupCodesPage } from '@/pages/totp/TotpBackupCodesPage'
 import { TotpBackupPage } from '@/pages/totp/TotpBackupPage'
 import { AdminRouter } from '@/pages/admin/AdminRouter'
+import { ManagerRouter } from '@/pages/manager/ManagerRouter'
 import { RequireRole } from '@/components/RequireRole'
 import { homeForRole } from '@/lib/roles'
 
@@ -27,7 +28,7 @@ export function AppRouter() {
           <Route path="/totp/backup" element={<TotpBackupPage />} />
           <Route path="/" element={<RootRedirect />} />
           <Route path="/admin/*" element={<RequireRole role="admin"><AdminRouter /></RequireRole>} />
-          <Route path="/manager/*" element={<RequireRole role="manager"><div>Manager dashboard coming soon</div></RequireRole>} />
+          <Route path="/manager/*" element={<RequireRole role="manager"><ManagerRouter /></RequireRole>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
