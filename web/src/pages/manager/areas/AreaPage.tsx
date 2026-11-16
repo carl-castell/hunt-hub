@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { trpc } from '@/lib/trpc'
+import { AreaMap, type MapStand } from '@/components/map/AreaMap'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -39,9 +40,35 @@ export function AreaPage() {
     <div className="space-y-6 max-w-3xl">
       <Button variant="outline" size="sm" asChild><Link to="/manager/areas">← All areas</Link></Button>
       <AreaName areaId={area.id} name={area.name} />
+      <AreaMapCard boundary={area.boundary} stands={area.stands} />
       <BoundaryCard areaId={area.id} hasBoundary={area.boundary !== null} />
       <StandsCard stands={area.stands} />
       <DeleteAreaCard areaId={area.id} name={area.name} />
+    </div>
+  )
+}
+
+type ApiStand = { id: number; number: string; location: GeoJSON.Geometry | null }
+
+/** Only stands with a point position can be drawn on the map. */
+function toMapStands(stands: ApiStand[]): MapStand[] {
+  return stands.map((s) => ({
+    id: s.id,
+    number: s.number,
+    location: s.location?.type === 'Point' ? s.location : null,
+  }))
+}
+
+function AreaMapCard({ boundary, stands }: { boundary: GeoJSON.Geometry | null; stands: ApiStand[] }) {
+  const mapStands = useMemo(() => toMapStands(stands), [stands])
+  const nothingToShow = boundary === null && mapStands.every((s) => s.location === null)
+
+  return (
+    <div className="space-y-2">
+      <AreaMap boundary={boundary} stands={mapStands} />
+      {nothingToShow && (
+        <p className="text-xs text-muted-foreground">Upload a boundary file to see the area on the map.</p>
+      )}
     </div>
   )
 }
@@ -143,7 +170,6 @@ function BoundaryCard({ areaId, hasBoundary }: { areaId: number; hasBoundary: bo
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Map of the boundary and stands: HUN-48 */}
         <div className="flex flex-wrap items-center gap-2">
           <Label htmlFor="boundary-file" className="sr-only">Boundary file</Label>
           <Input id="boundary-file" ref={fileInput} type="file" accept={BOUNDARY_FILE_TYPES} className="max-w-xs" />
@@ -165,9 +191,7 @@ function BoundaryCard({ areaId, hasBoundary }: { areaId: number; hasBoundary: bo
   )
 }
 
-type Stand = { id: number; number: string; location: unknown }
-
-function StandsCard({ stands }: { stands: Stand[] }) {
+function StandsCard({ stands }: { stands: ApiStand[] }) {
   return (
     <Card>
       <CardHeader>

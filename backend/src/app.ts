@@ -58,7 +58,7 @@ app.use(helmet({
       "script-src": ["'self'", "https://unpkg.com"],
       "style-src": ["'self'", "'unsafe-inline'", "https://unpkg.com", "https://cdn.jsdelivr.net"],
       "img-src": [
-        "'self'", "data:",
+        "'self'", "data:", "blob:",
         "https://*.tile.openstreetmap.org",
         "https://*.opentopomap.org",
         "https://server.arcgisonline.com",
@@ -73,7 +73,9 @@ app.use(helmet({
       ],
       "frame-ancestors": ["'self'"],
       "frame-src": ["'self'"],
-      "worker-src": ["'self'", "https://unpkg.com"],
+      // blob: lets MapLibre (React area map) start its web worker.
+      "worker-src": ["'self'", "blob:", "https://unpkg.com"],
+      "child-src": ["'self'", "blob:"],
     },
   },
 }));
