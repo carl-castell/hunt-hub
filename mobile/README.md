@@ -30,6 +30,18 @@ The first build takes a few minutes. After that, `npm start` is enough while the
 
 Log in with a **manager** or **staff** account. Admin and guest accounts are refused.
 
+## Which backend the app talks to
+
+Set `EXPO_PUBLIC_API_URL` in `mobile/.env.local` and restart Metro with `npx expo start -c` (the value is built into the bundle):
+
+| Backend | `EXPO_PUBLIC_API_URL` |
+|---|---|
+| Local, in the simulator | `http://localhost:3000` |
+| Local, on your iPhone | `http://<your Mac's local IP>:3000` |
+| Production | `https://hunt-hub-docker.onrender.com` |
+
+On the free Render plan the first request after a quiet period can take up to a minute while the server starts; the app shows a sync error once and recovers on the next sync.
+
 ## Run on your iPhone
 
 1. Connect the phone by USB and enable Developer Mode on it (Settings → Privacy & Security).
