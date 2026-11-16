@@ -1,6 +1,19 @@
 # Hunt Hub — Web
 
-React frontend built with Vite + TypeScript.
+The React app (Vite, TypeScript, Tailwind, shadcn/ui, tRPC + React Query). It is served by the backend under **`/app`**, next to the server-rendered pages, and shares their login session.
+
+| Area | Path | Status |
+|---|---|---|
+| Login and two-factor login | `/app/login`, `/app/totp…` | everyone uses it (`/` and `/login` redirect here) |
+| Admin area | `/app/admin` | complete |
+| Manager pages | `/app/manager/areas…` | Areas (list, satellite map, boundary upload); more screens move here step by step |
+
+## How old and new pages fit together
+
+- **One menu for both:** the manager menu is defined once in `backend/src/shared/managerNav.ts`. Entries with `inReactApp: true` open React pages, the others open the server-rendered pages (full page load). Moving a screen to React means building it here and flipping that flag.
+- **One session:** in production the backend serves `web/dist` at `/app` (same origin); in development Vite forwards every path outside `/app` to the backend.
+- **API:** pages call the backend through a typed tRPC client (`src/lib/trpc.ts`); file uploads (FormData) are sent without batching.
+- **Roles:** `RequireRole` keeps admins and managers in their own area; the server checks the role again on every call.
 
 ## Setup
 
@@ -12,24 +25,28 @@ npm install
 
 ## Development
 
-Start the backend first (it must be running for API calls to work):
+Start the backend first (see `backend/README.md`):
 
 ```bash
-cd ../backend && npm run dev
+cd ../backend && npm run dev     # http://localhost:3000
 ```
 
-Then start the frontend:
+Then the React app:
 
 ```bash
-npm run dev
+npm run dev                      # http://localhost:5173/app/
 ```
 
-Vite runs on [http://localhost:5173](http://localhost:5173) and proxies `/api` requests to the backend on port 3000.
+Open **http://localhost:5173/app/** (or `/login`). Vite serves `/app` with hot reload and forwards everything else (`/manager`, `/api`, `/login`, …) to the backend, so old and new pages work together like in production.
 
-## Build
+## Tests and build
 
 ```bash
-npm run build
+npm test          # Vitest: roles, map framing, boundary mask
+npm run build     # type check + production build -> dist/
 ```
 
-Output goes to `dist/`.
+## Notes
+
+- **UI components:** shadcn/ui in `src/components/ui/`. Add new ones with `npx shadcn@latest add <name>`; the `@/` alias in `tsconfig.json` makes the CLI write to `src/`.
+- **Map:** MapLibre GL (`src/components/map/`). Its web worker is registered explicitly in `maplibre.ts`, so it also loads after Vite's bundling; satellite imagery only.
