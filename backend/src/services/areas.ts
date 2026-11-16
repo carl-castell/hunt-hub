@@ -1,7 +1,20 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import path from 'path';
 import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
 import { audit } from '@/services/audit';
+import { runWorker } from '@/utils/runWorker';
+
+// Parsing geo files is CPU-heavy, so it runs in a worker thread and does
+// not block other requests.
+const GEOFILE_WORKER = path.resolve(
+  __dirname,
+  __filename.endsWith('.ts') ? '../workers/geofile.worker.ts' : '../workers/geofile.worker.js',
+);
+
+type GeofileWorkerResult =
+  | { ok: true; geometryCollection: string }
+  | { ok: false; status: number; message: string };
 
 /**
  * Business logic for hunting areas, shared by the server-rendered manager
@@ -23,6 +36,14 @@ export class DeleteConfirmationError extends Error {
   constructor() {
     super('Confirmation name does not match.');
     this.name = 'DeleteConfirmationError';
+  }
+}
+
+/** The uploaded file could not be used as a boundary (wrong type, broken, no polygons). */
+export class GeofileRejectedError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'GeofileRejectedError';
   }
 }
 
@@ -85,4 +106,30 @@ export async function clearAreaBoundary(estateId: number, areaId: number, actor:
   const area = await requireAreaInEstate(estateId, areaId);
   await db.update(areasTable).set({ geofile: null }).where(eq(areasTable.id, area.id));
   await audit({ userId: actor.userId, event: 'geofile_deleted', ip: actor.ip, metadata: { areaId: area.id } });
+}
+
+/**
+ * Sets the area's boundary from an uploaded geo file (GPX, KML, GeoJSON,
+ * Shapefile zip or GeoPackage). Only the polygons of the file are kept.
+ */
+export async function setAreaBoundaryFromFile(
+  estateId: number,
+  areaId: number,
+  file: { buffer: Buffer; filename: string },
+  actor: Actor,
+): Promise<void> {
+  const area = await requireAreaInEstate(estateId, areaId);
+
+  const result = await runWorker<GeofileWorkerResult>(GEOFILE_WORKER, {
+    buffer: file.buffer,
+    filename: file.filename.toLowerCase(),
+  });
+  if (!result.ok) throw new GeofileRejectedError(result.status, result.message);
+
+  await db
+    .update(areasTable)
+    .set({ geofile: sql`ST_Multi(ST_CollectionExtract(ST_GeomFromGeoJSON(${result.geometryCollection}), 3))` })
+    .where(eq(areasTable.id, area.id));
+
+  await audit({ userId: actor.userId, event: 'geofile_uploaded', ip: actor.ip, metadata: { areaId: area.id } });
 }

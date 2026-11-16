@@ -1,21 +1,14 @@
 import { Request, Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
-import path from 'path';
 import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
-import { runWorker } from '@/utils/runWorker';
-import { audit } from '@/services/audit';
 import {
-  AreaNotFoundError, DeleteConfirmationError, findAreaInEstate,
-  createArea, renameArea, deleteArea, clearAreaBoundary,
+  AreaNotFoundError, DeleteConfirmationError, GeofileRejectedError, findAreaInEstate,
+  createArea, renameArea, deleteArea, clearAreaBoundary, setAreaBoundaryFromFile,
 } from '@/services/areas';
 import { logError } from '@/utils/logError';
 import { areaNameSchema, deleteConfirmSchema } from '@/schemas';
 
-const GEOFILE_WORKER = path.resolve(
-  __dirname,
-  __filename.endsWith('.ts') ? '../../workers/geofile.worker.ts' : '../../workers/geofile.worker.js'
-);
 
 // ── Errors ───────────────────────────────────────────────────────────────────
 
@@ -23,6 +16,7 @@ const GEOFILE_WORKER = path.resolve(
 function respondWithError(res: Response, err: unknown) {
   if (err instanceof AreaNotFoundError) return res.status(404).send(err.message);
   if (err instanceof DeleteConfirmationError) return res.status(400).send(err.message);
+  if (err instanceof GeofileRejectedError) return res.status(err.status).send(err.message);
   logError('[error]', err);
   return res.status(500).send('Server error');
 }
@@ -119,27 +113,21 @@ export async function postUploadGeofile(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const area = await findAreaInEstate(user.estateId!, Number(id));
-    if (!area) return res.status(404).send('Area not found');
-    if (!req.file) return res.status(400).send('No file uploaded');
+    if (!req.file) {
+      // Unknown or foreign areas stay 404, even without a file.
+      if (!(await findAreaInEstate(user.estateId!, Number(id)))) throw new AreaNotFoundError();
+      return res.status(400).send('No file uploaded');
+    }
 
-    const result = await runWorker<{ ok: true; geometryCollection: string } | { ok: false; status: number; message: string }>(
-      GEOFILE_WORKER,
-      { buffer: req.file.buffer, filename: req.file.originalname.toLowerCase() },
+    await setAreaBoundaryFromFile(
+      user.estateId!,
+      Number(id),
+      { buffer: req.file.buffer, filename: req.file.originalname },
+      { userId: user.id, ip: req.ip },
     );
-
-    if (!result.ok) return res.status(result.status).send(result.message);
-
-    await db
-      .update(areasTable)
-      .set({ geofile: sql`ST_Multi(ST_CollectionExtract(ST_GeomFromGeoJSON(${result.geometryCollection}), 3))` })
-      .where(eq(areasTable.id, Number(id)));
-
-    await audit({ userId: user.id, event: 'geofile_uploaded', ip: req.ip, metadata: { areaId: Number(id) } });
     res.redirect(`/manager/areas/${id}`);
   } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
+    respondWithError(res, err);
   }
 }
 
