@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
-export const logger = (request: Request, response: Response, next: NextFunction) => {
+export const logger = (request: Request, _response: Response, next: NextFunction) => {
   console.log(
     new Date().toUTCString(),
     'Request from',

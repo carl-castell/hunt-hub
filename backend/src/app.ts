@@ -109,7 +109,7 @@ app.use(express.static(path.join(process.cwd(), "public"), { maxAge: "7d" }));
 app.use("/", homeRouter);
 app.use("/", authRouter);
 app.use("/", totpRouter);
-app.use('/admin', requireAdmin, (req, res, next) => {
+app.use('/admin', requireAdmin, (_req, res, next) => {
   res.locals.layout = 'admin/layout';
   next();
 });

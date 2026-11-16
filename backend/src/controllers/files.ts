@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { eq, or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { s3, BUCKET } from '@/services/storage';
 import { audit } from '@/services/audit';

@@ -15,7 +15,6 @@ vi.mock('@/utils/logError', () => ({ logError: vi.fn() }));
 import { getDashboard } from '@/controllers/manager/dashboard';
 
 const sessionUser = { id: 1, role: 'manager' as const, estateId: 5 };
-const fakeEstate = { id: 5, name: 'Test Estate' };
 const fakeArea = { id: 1, name: 'North Block', estateId: 5 };
 
 function mockReq(): Partial<Request> {
@@ -38,7 +37,6 @@ describe('getDashboard', () => {
     const pastEvent   = { id: 11, date: '2000-01-01', estateId: 5, eventName: 'Past Hunt' };
 
     mockDb.where
-      .mockResolvedValueOnce([fakeEstate])
       .mockResolvedValueOnce([fakeArea])
       .mockResolvedValueOnce([futureEvent, pastEvent]);
 
