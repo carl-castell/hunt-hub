@@ -1,5 +1,19 @@
 {
   "name": "hunt-hub",
   "private": true,
-  "workspaces": ["backend", "web", "mobile"]
+  "workspaces": [
+    "backend",
+    "web",
+    "mobile"
+  ],
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "typescript-eslint": "8.72.1"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0"
+  }
 }
