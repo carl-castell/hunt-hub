@@ -8,6 +8,14 @@ import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { cleanupMobileTestData, createEstate, createUserWithAccount, PASSWORD } from '../helpers/mobile';
 
+describe('GET /', () => {
+  it('sends logged-out users to the React login', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/app/login');
+  });
+});
+
 describe('GET /login', () => {
   it('sends logged-out users to the React login', async () => {
     const res = await request(app).get('/login');
@@ -126,6 +134,14 @@ describe('Auth Integration Tests', () => {
       const res = await agent.get('/login');
       expect(res.status).toBe(302);
       expect(res.headers.location).not.toBe('/login');
+    });
+
+    it('sends a logged-in manager from the start page to the dashboard', async () => {
+      const agent = request.agent(app);
+      await agent.post('/login').send({ email: testUser.email, password: testUser.password });
+      const res = await agent.get('/');
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe('/manager');
     });
   });
 
