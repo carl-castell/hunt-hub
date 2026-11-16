@@ -7,7 +7,7 @@ import path from 'path';
 const provider = process.env.MAIL_PROVIDER ?? 'mailgun';
 
 const transporter = provider === 'local'
-  ? nodemailer.createTransport({ host: 'localhost', port: 1025, secure: false })
+  ? nodemailer.createTransport({ host: process.env.MAIL_HOST ?? 'localhost', port: 1025, secure: false })
   : nodemailer.createTransport(mailgunTransport({
       auth: {
         api_key: process.env.MAILGUN_API_KEY!,

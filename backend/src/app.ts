@@ -17,6 +17,7 @@ import { MAX_BOUNDARY_FILE_BYTES } from './trpc/routers/manager/areas';
 import { MANAGER_NAV, managerNavHref } from './shared/managerNav';
 
 import homeRouter from "./routes/home";
+import { createHealthRouter } from "./routes/health";
 import wfsRouter from "./routes/wfs";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
@@ -33,7 +34,7 @@ import { createContext } from './trpc/context';
 
 import { estatesTable } from './db/schema/estates';
 import { db } from './db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 
 const app: Express = express();
@@ -80,6 +81,9 @@ app.use(helmet({
     },
   },
 }));
+
+// Before the session middleware: health checks must not create sessions.
+app.use(createHealthRouter(() => db.execute(sql`SELECT 1`)));
 
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(express.json({ limit: '10kb' }));

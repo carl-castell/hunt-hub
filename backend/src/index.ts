@@ -16,13 +16,19 @@ if (dbProvider === 'neon' && !process.env.NEON_DATABASE_URL) throw new Error('NE
 if (dbProvider === 'local' && !process.env.LOCAL_DATABASE_URL) throw new Error('LOCAL_DATABASE_URL is required when DB_PROVIDER=local');
 
 if (!process.env.MAIL_FROM) throw new Error('MAIL_FROM is required');
+// Without MAIL_PROVIDER the app sends with Mailgun, which otherwise fails deep inside its library.
+if ((process.env.MAIL_PROVIDER ?? 'mailgun') !== 'local' && (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN)) {
+  throw new Error('MAILGUN_API_KEY and MAILGUN_DOMAIN are required unless MAIL_PROVIDER=local');
+}
 
-import app from './app';
+import app, { sessionPool } from './app';
+import { pool } from './db';
+import { installGracefulShutdown } from './utils/gracefulShutdown';
 
 const port = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   const displayUrl = isProduction
     ? process.env.DOMAIN
     : `http://localhost:${port}`;
@@ -31,3 +37,8 @@ app.listen(port, () => {
     console.log(`[mail]:   Mailpit web UI at http://localhost:8025`);
   }
 });
+
+installGracefulShutdown(server, [
+  { name: 'database pool', close: () => pool.end() },
+  { name: 'session store pool', close: () => sessionPool.end() },
+]);
