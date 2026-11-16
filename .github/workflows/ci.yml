@@ -1,0 +1,115 @@
+name: CI
+
+# Runs on every pull request and on every push to main.
+# Render deploys main only after all checks of a commit have passed.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch cancels the older, still running run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  build:
+    name: Type check and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Backend - type check and build
+        working-directory: backend
+        run: npx tsc --noEmit && npm run build
+
+      - name: Web - type check and build
+        working-directory: web
+        run: npm run build
+
+      - name: Mobile - type check
+        working-directory: mobile
+        run: npx tsc --noEmit
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Backend - unit tests
+        working-directory: backend
+        run: npm run test:unit
+
+      - name: Backend - worker tests
+        working-directory: backend
+        run: npm run test:workers
+
+      - name: Mobile - unit tests
+        working-directory: mobile
+        run: npm test -- --ci
+
+  integration:
+    name: Integration and e2e tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      # Same image and credentials as db_test in backend/docker-compose.yml
+      db_test:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: appdb_test
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d appdb_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      # Catches any email that is not mocked in a test
+      mailpit:
+        image: axllent/mailpit:v1.21
+        ports:
+          - 1025:1025
+    env:
+      NODE_ENV: test
+      SESSION_SECRET: ci-only-session-secret
+      MAIL_PROVIDER: local
+      MAIL_FROM: ci@example.com
+      DOMAIN: http://localhost:3000
+      STORAGE_PROVIDER: minio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Integration tests
+        working-directory: backend
+        run: npm run test:integration
+
+      - name: End-to-end tests
+        working-directory: backend
+        run: npm run test:e2e
