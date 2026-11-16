@@ -3,7 +3,6 @@ import { and, eq, sql } from 'drizzle-orm';
 import path from 'path';
 import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
-import { standsTable } from '@/db/schema/stands';
 import { runWorker } from '@/utils/runWorker';
 import { audit } from '@/services/audit';
 import { logError } from '@/utils/logError';
@@ -118,8 +117,9 @@ export async function postDeleteArea(req: Request, res: Response) {
       return res.status(400).send('Confirmation name does not match.');
     }
 
-    await db.delete(standsTable).where(eq(standsTable.areaId, Number(id)));
-    await db.delete(areasTable).where(eq(areasTable.id, Number(id)));
+    // One statement: the foreign key (ON DELETE CASCADE) removes the stands
+    // in the same operation, so area and stands go together or not at all.
+    await db.delete(areasTable).where(eq(areasTable.id, area.id));
 
     await audit({
       event: 'area_deleted',

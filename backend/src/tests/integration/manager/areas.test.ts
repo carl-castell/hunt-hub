@@ -5,7 +5,8 @@ import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
 import { estatesTable } from '@/db/schema/estates';
 import { standsTable } from '@/db/schema/stands';
-import { eq, sql } from 'drizzle-orm';
+import { syncTombstonesTable } from '@/db/schema/sync';
+import { and, eq, sql } from 'drizzle-orm';
 import path from 'path';
 import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
@@ -151,6 +152,21 @@ describe('POST /manager/areas/:id/delete', () => {
 
     expect(await db.select().from(areasTable).where(eq(areasTable.id, area.id))).toHaveLength(0);
     expect(await db.select().from(standsTable).where(eq(standsTable.areaId, area.id))).toHaveLength(0);
+  });
+
+  it('records an area tombstone so the iPhone app removes the area and its stands', async () => {
+    const [area] = await db
+      .insert(areasTable)
+      .values({ name: 'Synced Area', estateId: setup.estateId })
+      .returning();
+
+    await setup.agent.post(`/manager/areas/${area.id}/delete`).send({ confirm: 'Synced Area' });
+
+    const tombstones = await db
+      .select()
+      .from(syncTombstonesTable)
+      .where(and(eq(syncTombstonesTable.entity, 'area'), eq(syncTombstonesTable.entityId, area.id)));
+    expect(tombstones).toHaveLength(1);
   });
 
   it('returns 404 for an area in another estate and keeps it', async () => {
