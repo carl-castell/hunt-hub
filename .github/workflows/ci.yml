@@ -63,6 +63,10 @@ jobs:
         working-directory: backend
         run: npm run test:workers
 
+      - name: Web - unit tests
+        working-directory: web
+        run: npm test
+
       - name: Mobile - unit tests
         working-directory: mobile
         run: npm test -- --ci
