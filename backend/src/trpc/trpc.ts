@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from '@trpc/server'
 import type { Context } from './context'
 import { resolveAccessToken } from '@/services/mobileSessions'
+import { getUserAccess } from '@/services/userAccess'
 
 export const FIELD_ROLES = ['manager', 'staff'] as const
 export const isFieldRole = (role: string): role is typeof FIELD_ROLES[number] =>
@@ -21,6 +22,22 @@ export const adminProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED' })
   if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' })
   return next({ ctx: { ...ctx, user: ctx.user } })
+})
+
+/**
+ * For the manager area of the web app (session cookie). Like the
+ * `requireManager` middleware of the server-rendered pages, it re-reads role
+ * and active flag from the database on every call, so a demoted or
+ * deactivated manager loses access immediately. Puts `estateId` on the
+ * context: every manager procedure must scope its queries with it.
+ */
+export const managerProcedure = t.procedure.use(async ({ ctx, next }) => {
+  if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED' })
+  const access = await getUserAccess(ctx.user.id)
+  if (!access || access.role !== 'manager' || !access.active || access.estateId === null) {
+    throw new TRPCError({ code: 'FORBIDDEN' })
+  }
+  return next({ ctx: { ...ctx, user: ctx.user, estateId: access.estateId } })
 })
 
 /**
