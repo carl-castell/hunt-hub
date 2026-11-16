@@ -10,6 +10,7 @@ import { logger } from "./middlewares/logger";
 import { requireAdmin, requireManager, requireAuth } from './middlewares/requireRole';
 import { authLimiter, generalLimiter } from "./middlewares/rateLimiter";
 import { generateCsrfToken, verifyCsrfToken } from './middlewares/csrf';
+import { serveWebApp } from './middlewares/serveWebApp';
 
 import homeRouter from "./routes/home";
 import wfsRouter from "./routes/wfs";
@@ -105,11 +106,12 @@ app.use('/api/v1/trpc', createExpressMiddleware({ router: appRouter, createConte
 app.use(generateCsrfToken);
 app.use(verifyCsrfToken);
 app.use(express.static(path.join(process.cwd(), "public"), { maxAge: "7d" }));
+serveWebApp(app);
 
 app.use("/", homeRouter);
 app.use("/", authRouter);
 app.use("/", totpRouter);
-app.use('/admin', requireAdmin, (req, res, next) => {
+app.use('/admin', requireAdmin, (_req, res, next) => {
   res.locals.layout = 'admin/layout';
   next();
 });

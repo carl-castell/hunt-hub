@@ -27,7 +27,7 @@ function RootRedirect() {
 
 export function AppRouter() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/app">
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
