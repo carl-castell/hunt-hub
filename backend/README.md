@@ -16,7 +16,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 | ORM | Drizzle ORM |
 | Templating | EJS with express-ejs-layouts |
 | Auth | Session-based (express-session + connect-pg-simple) |
-| Storage | AWS S3-compatible — MinIO locally, Cloudflare R2 in production |
+| Storage | AWS S3-compatible — RustFS locally (MinIO-compatible), Cloudflare R2 in production |
 | Email | Nodemailer — Mailgun HTTP API in production, Mailpit locally |
 | API layer | tRPC v11 (mounted on Express at `/api/v1/trpc`) |
 | Validation | Zod |
@@ -43,7 +43,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 ## Prerequisites
 
 - Node.js 20.19+
-- Docker and Docker Compose (for local Postgres and MinIO)
+- Docker and Docker Compose (for local Postgres, file storage and Mailpit)
 - A Mailgun account for production email, or Mailpit for local development
 
 ---
@@ -63,7 +63,7 @@ cd backend
 cp .env.example .env
 # edit .env — see Environment Variables below
 
-# 4. Start Docker services (Postgres + MinIO)
+# 4. Start Docker services (Postgres, test database, file storage, Mailpit)
 docker compose up -d
 
 # 5. Enable extensions, run migrations, and create indexes
@@ -78,6 +78,20 @@ npm run dev
 ```
 
 ---
+
+## Running the app in Docker
+
+The repo-root `Dockerfile` builds one image with the backend and the built React app (multi-stage, runs as a non-root user, only production dependencies, no mobile packages). To run it locally with all services:
+
+```bash
+cd backend
+docker compose --profile app up -d --build                       # http://localhost:3001
+docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrations, if needed
+```
+
+- `GET /health` returns 200 when the database is reachable, otherwise 503 (used by Docker's `HEALTHCHECK`, Render and CI)
+- On `SIGTERM` (e.g. `docker stop`, a Render deploy) the server stops accepting connections, finishes running requests and closes the database pools before exiting
+- CI builds the image on every pull request and checks `/health` and the graceful shutdown
 
 ## Environment Variables
 

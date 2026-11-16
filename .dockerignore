@@ -1,0 +1,21 @@
+# Keep the build context small and never send secrets into the image.
+.git
+**/node_modules
+**/dist
+**/coverage
+**/*.log
+**/.DS_Store
+
+# Secrets: environment files stay outside the image (only templates are allowed)
+**/.env
+**/.env.*
+!**/.env.example
+
+# The mobile app is not part of the server image
+mobile
+
+# Tooling and docs not needed to build or run
+.github
+.claude*
+**/*.md
+!web/README.md
