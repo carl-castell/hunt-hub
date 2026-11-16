@@ -1,6 +1,15 @@
 {
-  "watch": ["src", "views"],
+  "watch": [
+    "src",
+    "views"
+  ],
   "ext": "ts,ejs",
-  "ignore": ["src/**/*.test.ts", "src/tests/**"],
-  "exec": "tsx src/index.ts"
+  "ignore": [
+    "src/**/*.test.ts",
+    "src/tests/**"
+  ],
+  "exec": "tsx src/index.ts",
+  "env": {
+    "LOG_PRETTY": "true"
+  }
 }
