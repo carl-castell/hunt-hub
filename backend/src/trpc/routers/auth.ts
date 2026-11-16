@@ -11,6 +11,7 @@ import { accountsTable } from '@/db/schema/accounts'
 import { totpBackupCodesTable } from '@/db/schema/totp_backup_codes'
 import { loginSchema } from '@/schemas'
 import { audit } from '@/services/audit'
+import { verifyCredentials } from '@/services/credentials'
 import { publicProcedure, protectedProcedure, router } from '../trpc'
 import type { Context } from '../context'
 
@@ -70,50 +71,7 @@ export const authRouter = router({
     .mutation(async ({ input, ctx }) => {
       const { email, password } = input
 
-      const [row] = await db
-        .select()
-        .from(accountsTable)
-        .innerJoin(usersTable, eq(accountsTable.userId, usersTable.id))
-        .where(eq(accountsTable.email, email))
-        .limit(1)
-
-      if (!row) {
-        await audit({ event: 'failed_login', ip: ctx.ip, metadata: { email } })
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password.' })
-      }
-
-      const { accounts: account, users: user } = row
-
-      if (!account.active || !account.password) {
-        await audit({ event: 'failed_login', ip: ctx.ip, metadata: { email } })
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: !account.active ? 'Your account is inactive. Please reach out to management or an admin.' : 'Invalid email or password.' })
-      }
-
-      if (account.lockedUntil && account.lockedUntil > new Date()) {
-        throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Account temporarily locked. Please try again later.' })
-      }
-
-      if (account.lockedUntil) {
-        await db.update(accountsTable).set({ failedAttempts: 0, lockedUntil: null }).where(eq(accountsTable.userId, account.userId))
-        account.failedAttempts = 0
-      }
-
-      const passwordMatch = await bcrypt.compare(password, account.password)
-      if (!passwordMatch) {
-        const newCount = account.failedAttempts + 1
-        const locked = newCount >= 10
-        await db.update(accountsTable).set({
-          failedAttempts: newCount,
-          lockedUntil: locked ? new Date(Date.now() + 15 * 60 * 1000) : null,
-        }).where(eq(accountsTable.userId, account.userId))
-        await audit({ event: 'failed_login', ip: ctx.ip, metadata: { email } })
-        if (locked) await audit({ userId: account.userId, event: 'account_locked', ip: ctx.ip, metadata: { reason: 'password' } })
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password.' })
-      }
-
-      if (account.failedAttempts > 0 || account.lockedUntil) {
-        await db.update(accountsTable).set({ failedAttempts: 0, lockedUntil: null }).where(eq(accountsTable.userId, account.userId))
-      }
+      const { account, user } = await verifyCredentials(email, password, ctx.ip)
 
       // Admin accounts require TOTP as a second factor
       if (user.role === 'admin' && process.env.SKIP_TOTP !== 'true') {

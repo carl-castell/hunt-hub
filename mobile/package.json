@@ -1,5 +1,49 @@
 {
   "name": "@hunt-hub/mobile",
-  "version": "0.0.0",
-  "private": true
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "ios": "expo run:ios",
+    "ios:device": "expo run:ios --device",
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@hunt-hub/backend": "^1.0.0",
+    "@maplibre/maplibre-react-native": "^11.5.0",
+    "@trpc/client": "11.17.0",
+    "expo": "~58.0.20",
+    "expo-constants": "~58.0.13",
+    "expo-crypto": "~58.0.7",
+    "expo-device": "~58.0.5",
+    "expo-document-picker": "~58.0.4",
+    "expo-file-system": "~58.0.12",
+    "expo-linking": "~58.0.14",
+    "expo-location": "~58.0.19",
+    "expo-network": "~58.0.4",
+    "expo-router": "~58.0.27",
+    "expo-secure-store": "~58.0.2",
+    "expo-sqlite": "~58.0.14",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0"
+  },
+  "devDependencies": {
+    "@trpc/server": "11.17.0",
+    "@types/jest": "^30.0.0",
+    "@types/react": "~19.3.0",
+    "jest": "^30.5.2",
+    "jest-expo": "^58.0.12",
+    "typescript": "~6.0.3"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "<rootDir>/src/**/*.test.ts"
+    ]
+  }
 }
