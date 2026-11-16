@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import path from 'path';
 import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
@@ -13,6 +13,18 @@ const GEOFILE_WORKER = path.resolve(
   __dirname,
   __filename.endsWith('.ts') ? '../../workers/geofile.worker.ts' : '../../workers/geofile.worker.js'
 );
+
+// ── Lookup ───────────────────────────────────────────────────────────────────
+
+/** The area with this id, but only if it belongs to the given estate. */
+async function findAreaInEstate(areaId: number, estateId: number) {
+  const [area] = await db
+    .select({ id: areasTable.id, name: areasTable.name, estateId: areasTable.estateId })
+    .from(areasTable)
+    .where(and(eq(areasTable.id, areaId), eq(areasTable.estateId, estateId)))
+    .limit(1);
+  return area ?? null;
+}
 
 // ── Get Area ─────────────────────────────────────────────────────────────────
 
@@ -29,10 +41,10 @@ export async function getArea(req: Request, res: Response) {
         geofile: sql<string>`ST_AsGeoJSON(geofile)`,
       })
       .from(areasTable)
-      .where(eq(areasTable.id, Number(id)))
+      .where(and(eq(areasTable.id, Number(id)), eq(areasTable.estateId, user.estateId!)))
       .limit(1);
 
-    if (!area || area.estateId !== user.estateId) return res.status(404).send('Area not found');
+    if (!area) return res.status(404).send('Area not found');
 
     const breadcrumbs = [
       { label: 'Estate', href: '/manager/estate' },
@@ -73,17 +85,8 @@ export async function postRenameArea(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const [area] = await db
-      .select({
-        id: areasTable.id,
-        name: areasTable.name,
-        estateId: areasTable.estateId,
-      })
-      .from(areasTable)
-      .where(eq(areasTable.id, Number(id)))
-      .limit(1);
-
-    if (!area || area.estateId !== user.estateId) return res.status(404).send('Area not found');
+    const area = await findAreaInEstate(Number(id), user.estateId!);
+    if (!area) return res.status(404).send('Area not found');
 
     const result = areaNameSchema.safeParse(req.body);
     if (!result.success) return res.status(400).send(result.error.issues[0].message);
@@ -107,17 +110,8 @@ export async function postDeleteArea(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const [area] = await db
-      .select({
-        id: areasTable.id,
-        name: areasTable.name,
-        estateId: areasTable.estateId,
-      })
-      .from(areasTable)
-      .where(eq(areasTable.id, Number(id)))
-      .limit(1);
-
-    if (!area || area.estateId !== user.estateId) return res.status(404).send('Area not found');
+    const area = await findAreaInEstate(Number(id), user.estateId!);
+    if (!area) return res.status(404).send('Area not found');
 
     const result = deleteConfirmSchema.safeParse(req.body);
     if (!result.success || result.data.confirm !== area.name) {
@@ -148,17 +142,8 @@ export async function postUploadGeofile(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const [area] = await db
-      .select({
-        id: areasTable.id,
-        name: areasTable.name,
-        estateId: areasTable.estateId,
-      })
-      .from(areasTable)
-      .where(eq(areasTable.id, Number(id)))
-      .limit(1);
-
-    if (!area || area.estateId !== user.estateId) return res.status(404).send('Area not found');
+    const area = await findAreaInEstate(Number(id), user.estateId!);
+    if (!area) return res.status(404).send('Area not found');
     if (!req.file) return res.status(400).send('No file uploaded');
 
     const result = await runWorker<{ ok: true; geometryCollection: string } | { ok: false; status: number; message: string }>(
@@ -188,17 +173,8 @@ export async function postDeleteGeofile(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const [area] = await db
-      .select({
-        id: areasTable.id,
-        name: areasTable.name,
-        estateId: areasTable.estateId,
-      })
-      .from(areasTable)
-      .where(eq(areasTable.id, Number(id)))
-      .limit(1);
-
-    if (!area || area.estateId !== user.estateId) return res.status(404).send('Area not found');
+    const area = await findAreaInEstate(Number(id), user.estateId!);
+    if (!area) return res.status(404).send('Area not found');
 
     await db
       .update(areasTable)
