@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { trpc } from '@/lib/trpc'
 import { Button } from '@/components/ui/button'
+import { homeForRole } from '@/lib/roles'
 
 type LoginForm = {
   email: string
@@ -19,11 +20,7 @@ export function LoginPage() {
         navigate('/totp')
       } else {
         utils.auth.me.setData(undefined, data.user ?? null)
-        switch (data.user?.role) {
-          case 'admin':   navigate('/admin'); break
-          case 'manager': navigate('/manager'); break
-          default:        navigate('/')
-        }
+        navigate(homeForRole(data.user?.role))
       }
     },
   })

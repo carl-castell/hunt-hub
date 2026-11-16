@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { trpc } from '@/lib/trpc'
 import { Button } from '@/components/ui/button'
+import { homeForRole } from '@/lib/roles'
 
 export function TotpBackupCodesPage() {
   const navigate = useNavigate()
@@ -14,10 +15,7 @@ export function TotpBackupCodesPage() {
   const confirmMutation = trpc.auth.confirmBackupCodesSaved.useMutation({
     onSuccess: (user) => {
       utils.auth.me.setData(undefined, user)
-      switch (user.role) {
-        case 'admin': navigate('/admin'); break
-        default:      navigate('/')
-      }
+      navigate(homeForRole(user.role))
     },
   })
 

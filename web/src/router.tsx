@@ -6,23 +6,13 @@ import { TotpSetupPage } from '@/pages/totp/TotpSetupPage'
 import { TotpBackupCodesPage } from '@/pages/totp/TotpBackupCodesPage'
 import { TotpBackupPage } from '@/pages/totp/TotpBackupPage'
 import { AdminRouter } from '@/pages/admin/AdminRouter'
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth()
-  if (isLoading) return null
-  if (!user) return <Navigate to="/login" replace />
-  return <>{children}</>
-}
+import { RequireRole } from '@/components/RequireRole'
+import { homeForRole } from '@/lib/roles'
 
 function RootRedirect() {
   const { user, isLoading } = useAuth()
   if (isLoading) return null
-  if (!user) return <Navigate to="/login" replace />
-  switch (user.role) {
-    case 'admin':   return <Navigate to="/admin" replace />
-    case 'manager': return <Navigate to="/manager" replace />
-    default:        return <Navigate to="/login" replace />
-  }
+  return <Navigate to={homeForRole(user?.role)} replace />
 }
 
 export function AppRouter() {
@@ -36,8 +26,8 @@ export function AppRouter() {
           <Route path="/totp/backup-codes" element={<TotpBackupCodesPage />} />
           <Route path="/totp/backup" element={<TotpBackupPage />} />
           <Route path="/" element={<RootRedirect />} />
-          <Route path="/admin/*" element={<ProtectedRoute><AdminRouter /></ProtectedRoute>} />
-          <Route path="/manager/*" element={<ProtectedRoute><div>Manager dashboard coming soon</div></ProtectedRoute>} />
+          <Route path="/admin/*" element={<RequireRole role="admin"><AdminRouter /></RequireRole>} />
+          <Route path="/manager/*" element={<RequireRole role="manager"><div>Manager dashboard coming soon</div></RequireRole>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
