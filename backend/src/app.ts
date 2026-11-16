@@ -8,10 +8,11 @@ import pg from 'pg';
 
 import { logger } from "./middlewares/logger";
 import { requireAdmin, requireManager, requireAuth } from './middlewares/requireRole';
-import { authLimiter, generalLimiter } from "./middlewares/rateLimiter";
+import { generalLimiter } from "./middlewares/rateLimiter";
 import { generateCsrfToken, verifyCsrfToken } from './middlewares/csrf';
 import { serveWebApp } from './middlewares/serveWebApp';
 import { letTrpcReadMultipart } from './middlewares/trpcMultipart';
+import { limitTrpcAuthAttempts } from './middlewares/trpcAuthLimits';
 import { MAX_BOUNDARY_FILE_BYTES } from './trpc/routers/manager/areas';
 import { MANAGER_NAV, managerNavHref } from './shared/managerNav';
 
@@ -104,9 +105,8 @@ app.use(
 app.use(logger);
 app.use(generalLimiter);
 app.use('/wfs', wfsRouter);
-// Same brute-force protection for the mobile login as for the web login form.
-app.use('/api/v1/trpc', (req, res, next) =>
-  req.path.includes('mobile.auth.login') ? authLimiter(req, res, next) : next());
+// Same brute-force protection for the tRPC logins (web and mobile) as for the old login form.
+app.use('/api/v1/trpc', limitTrpcAuthAttempts);
 app.use('/api/v1/trpc', letTrpcReadMultipart, createExpressMiddleware({
   router: appRouter,
   createContext,

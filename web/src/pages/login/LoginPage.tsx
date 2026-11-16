@@ -1,17 +1,42 @@
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { trpc } from '@/lib/trpc'
 import { Button } from '@/components/ui/button'
-import { homeForRole } from '@/lib/roles'
+import { useAuth } from '@/context/AuthContext'
+import { hasWebArea, homeForRole } from '@/lib/roles'
 
-type LoginForm = {
+type LoginFields = {
   email: string
   password: string
 }
 
 export function LoginPage() {
+  const { user, isLoading } = useAuth()
+  if (isLoading) return null
+  if (user && hasWebArea(user.role)) return <Navigate to={homeForRole(user.role)} replace />
+  if (user) return <NoWebAreaNotice />
+  return <LoginForm />
+}
+
+/** Staff (and guests) can log in, but have nothing to do in the web app. */
+function NoWebAreaNotice() {
+  const { logout } = useAuth()
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-full max-w-sm space-y-4 p-8 rounded-lg border border-border bg-card">
+        <h1 className="text-2xl font-semibold">Hunt Hub</h1>
+        <p className="text-sm text-muted-foreground">
+          Your account works with the Hunt Hub iPhone app. Please sign in there.
+        </p>
+        <Button variant="outline" className="w-full" onClick={logout}>Sign out</Button>
+      </div>
+    </div>
+  )
+}
+
+function LoginForm() {
   const navigate = useNavigate()
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>()
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginFields>()
 
   const utils = trpc.useUtils()
   const loginMutation = trpc.auth.login.useMutation({

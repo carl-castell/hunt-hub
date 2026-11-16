@@ -12,6 +12,8 @@ export const generalLimiter = rateLimit({
 });
 
 export const authLimiter = rateLimit({
+  // Counted once per login call in a tRPC batch on purpose (see trpcAuthLimits.ts).
+  validate: { singleCount: false },
   windowMs: 15 * 60 * 1000,
   max: isTest ? 0 : 20,
   skip: () => isTest,
@@ -30,6 +32,8 @@ export const rsvpUploadLimiter = rateLimit({
 });
 
 export const backupCodeLimiter = rateLimit({
+  // Counted once per login call in a tRPC batch on purpose (see trpcAuthLimits.ts).
+  validate: { singleCount: false },
   windowMs: 60 * 60 * 1000,
   max: isTest ? 0 : 10,
   skip: () => isTest,

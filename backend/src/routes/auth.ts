@@ -8,14 +8,13 @@ import { loginSchema } from '../schemas';
 import { authLimiter } from '@/middlewares/rateLimiter';
 import { audit } from '@/services/audit';
 import { logError } from '@/utils/logError';
+import { redirectByRole } from '@/utils/redirectByRole';
 
 const authRouter: Router = express.Router();
 
-// GET /login
-authRouter.get('/login', (req: Request, res: Response) => {
-  if (req.session.user) return redirectByRole(req, res);
-  res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: null });
-});
+// GET /login: the login page is part of the React app now. Logged-in users
+// go to their home page, everyone else to the React login.
+authRouter.get('/login', redirectByRole);
 
 // POST /login
 authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
@@ -142,14 +141,5 @@ authRouter.post('/logout', async (req: Request, res: Response) => {
     res.redirect('/login');
   });
 });
-
-function redirectByRole(req: Request, res: Response) {
-  switch (req.session.user?.role) {
-    case 'admin':   return res.redirect('/admin');
-    case 'manager': return res.redirect('/manager');
-    case 'staff':   return res.redirect('/staff');
-    default:        return res.redirect('/login');
-  }
-}
 
 export default authRouter;

@@ -6,27 +6,40 @@ import { usersTable, estatesTable } from '@/db/schema';
 import { accountsTable } from '@/db/schema/accounts';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
+import { cleanupMobileTestData, createEstate, createUserWithAccount, PASSWORD } from '../helpers/mobile';
+
+describe('GET /', () => {
+  it('sends logged-out users to the React login', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/app/login');
+  });
+});
 
 describe('GET /login', () => {
-  it('returns 200', async () => {
+  it('sends logged-out users to the React login', async () => {
     const res = await request(app).get('/login');
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/app/login');
   });
 
-  it('renders email and password fields', async () => {
-    const res = await request(app).get('/login');
-    expect(res.text).toContain('name="email"');
-    expect(res.text).toContain('name="password"');
-  });
+  describe('logged-in staff (no web area)', () => {
+    const EMAIL = 'login-staff@test.com';
+    const ESTATE = 'Login Staff Estate';
+    afterAll(() => cleanupMobileTestData([EMAIL], [ESTATE]));
 
-  it('includes a CSRF token field', async () => {
-    const res = await request(app).get('/login');
-    expect(res.text).toContain('name="_csrf"');
-  });
+    it('are sent to the React login, which explains to use the iPhone app', async () => {
+      await cleanupMobileTestData([EMAIL], [ESTATE]);
+      const estate = await createEstate(ESTATE);
+      await createUserWithAccount({ email: EMAIL, role: 'staff', estateId: estate.id });
+      const agent = request.agent(app);
+      await agent.post('/login').send({ email: EMAIL, password: PASSWORD });
 
-  it('shows no error message by default', async () => {
-    const res = await request(app).get('/login');
-    expect(res.text).not.toContain('alert-error');
+      const res = await agent.get('/login');
+
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe('/app/login');
+    });
   });
 });
 
@@ -121,6 +134,14 @@ describe('Auth Integration Tests', () => {
       const res = await agent.get('/login');
       expect(res.status).toBe(302);
       expect(res.headers.location).not.toBe('/login');
+    });
+
+    it('sends a logged-in manager from the start page to the dashboard', async () => {
+      const agent = request.agent(app);
+      await agent.post('/login').send({ email: testUser.email, password: testUser.password });
+      const res = await agent.get('/');
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe('/manager');
     });
   });
 
