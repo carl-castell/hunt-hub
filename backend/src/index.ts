@@ -16,6 +16,10 @@ if (dbProvider === 'neon' && !process.env.NEON_DATABASE_URL) throw new Error('NE
 if (dbProvider === 'local' && !process.env.LOCAL_DATABASE_URL) throw new Error('LOCAL_DATABASE_URL is required when DB_PROVIDER=local');
 
 if (!process.env.MAIL_FROM) throw new Error('MAIL_FROM is required');
+// Without MAIL_PROVIDER the app sends with Mailgun, which otherwise fails deep inside its library.
+if ((process.env.MAIL_PROVIDER ?? 'mailgun') !== 'local' && (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN)) {
+  throw new Error('MAILGUN_API_KEY and MAILGUN_DOMAIN are required unless MAIL_PROVIDER=local');
+}
 
 import app, { sessionPool } from './app';
 import { pool } from './db';
