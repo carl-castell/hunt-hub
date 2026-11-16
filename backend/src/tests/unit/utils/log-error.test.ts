@@ -1,29 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockLogger } = vi.hoisted(() => ({ mockLogger: { error: vi.fn() } }));
+vi.mock('@/utils/logger', () => ({ logger: mockLogger }));
+
 import { logError } from '@/utils/logError';
 
-beforeEach(() => {
-  vi.spyOn(console, 'error').mockImplementation(() => {});
-});
+beforeEach(() => vi.clearAllMocks());
 
 describe('logError()', () => {
-  it('logs the error message and stack when given an Error instance', () => {
+  it('logs an Error as a structured err field with the context as message', () => {
     const err = new Error('something went wrong');
 
     logError('[prefix]', err);
 
-    expect(console.error).toHaveBeenCalledWith('[prefix]', err.message, err.stack ?? '');
+    expect(mockLogger.error).toHaveBeenCalledWith({ err }, '[prefix]');
   });
 
-  it('logs String() when given a plain string', () => {
+  it('also accepts non-Error values', () => {
     logError('[prefix]', 'just a string');
 
-    expect(console.error).toHaveBeenCalledWith('[prefix]', 'just a string', '');
-  });
-
-  it('logs String() when given a number', () => {
-    logError('[prefix]', 404);
-
-    expect(console.error).toHaveBeenCalledWith('[prefix]', '404', '');
+    expect(mockLogger.error).toHaveBeenCalledWith({ err: 'just a string' }, '[prefix]');
   });
 
   it('does not throw regardless of input', () => {

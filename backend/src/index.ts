@@ -24,6 +24,7 @@ if ((process.env.MAIL_PROVIDER ?? 'mailgun') !== 'local' && (!process.env.MAILGU
 import app, { sessionPool } from './app';
 import { pool } from './db';
 import { installGracefulShutdown } from './utils/gracefulShutdown';
+import { logger } from './utils/logger';
 
 const port = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -32,13 +33,13 @@ const server = app.listen(port, () => {
   const displayUrl = isProduction
     ? process.env.DOMAIN
     : `http://localhost:${port}`;
-  console.log(`[server]: Server is running at ${displayUrl}`);
+  logger.info({ url: displayUrl, port }, 'Server is running');
   if (process.env.MAIL_PROVIDER === 'local') {
-    console.log(`[mail]:   Mailpit web UI at http://localhost:8025`);
+    logger.info('Mailpit web UI at http://localhost:8025');
   }
 });
 
 installGracefulShutdown(server, [
   { name: 'database pool', close: () => pool.end() },
   { name: 'session store pool', close: () => sessionPool.end() },
-]);
+], { log: (message) => logger.info(message) });

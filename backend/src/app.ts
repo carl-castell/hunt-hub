@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import connectPg from 'connect-pg-simple';
 import pg from 'pg';
 
-import { logger } from "./middlewares/logger";
+import { requestLogger } from "./utils/logger";
 import { requireAdmin, requireManager, requireAuth } from './middlewares/requireRole';
 import { generalLimiter } from "./middlewares/rateLimiter";
 import { generateCsrfToken, verifyCsrfToken } from './middlewares/csrf';
@@ -106,7 +106,8 @@ app.use(
   })
 );
 
-app.use(logger);
+// After the session, so each request line can include the user id and role.
+app.use(requestLogger);
 app.use(generalLimiter);
 app.use('/wfs', wfsRouter);
 // Same brute-force protection for the tRPC logins (web and mobile) as for the old login form.
