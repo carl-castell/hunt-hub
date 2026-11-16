@@ -5,6 +5,10 @@ import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
 import { runWorker } from '@/utils/runWorker';
 import { audit } from '@/services/audit';
+import {
+  AreaNotFoundError, DeleteConfirmationError, findAreaInEstate,
+  createArea, renameArea, deleteArea, clearAreaBoundary,
+} from '@/services/areas';
 import { logError } from '@/utils/logError';
 import { areaNameSchema, deleteConfirmSchema } from '@/schemas';
 
@@ -13,16 +17,14 @@ const GEOFILE_WORKER = path.resolve(
   __filename.endsWith('.ts') ? '../../workers/geofile.worker.ts' : '../../workers/geofile.worker.js'
 );
 
-// ── Lookup ───────────────────────────────────────────────────────────────────
+// ── Errors ───────────────────────────────────────────────────────────────────
 
-/** The area with this id, but only if it belongs to the given estate. */
-async function findAreaInEstate(areaId: number, estateId: number) {
-  const [area] = await db
-    .select({ id: areasTable.id, name: areasTable.name, estateId: areasTable.estateId })
-    .from(areasTable)
-    .where(and(eq(areasTable.id, areaId), eq(areasTable.estateId, estateId)))
-    .limit(1);
-  return area ?? null;
+/** Turns errors from the areas service into HTTP responses for these pages. */
+function respondWithError(res: Response, err: unknown) {
+  if (err instanceof AreaNotFoundError) return res.status(404).send(err.message);
+  if (err instanceof DeleteConfirmationError) return res.status(400).send(err.message);
+  logError('[error]', err);
+  return res.status(500).send('Server error');
 }
 
 // ── Get Area ─────────────────────────────────────────────────────────────────
@@ -65,15 +67,10 @@ export async function postCreateArea(req: Request, res: Response) {
     const result = areaNameSchema.safeParse(req.body);
     if (!result.success) return res.status(400).send(result.error.issues[0].message);
 
-    const [area] = await db
-      .insert(areasTable)
-      .values({ name: result.data.name, estateId: user.estateId! })
-      .returning();
-
+    const area = await createArea(user.estateId!, result.data.name);
     res.redirect(`/manager/areas/${area.id}`);
   } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
+    respondWithError(res, err);
   }
 }
 
@@ -84,21 +81,17 @@ export async function postRenameArea(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const area = await findAreaInEstate(Number(id), user.estateId!);
-    if (!area) return res.status(404).send('Area not found');
-
     const result = areaNameSchema.safeParse(req.body);
-    if (!result.success) return res.status(400).send(result.error.issues[0].message);
+    if (!result.success) {
+      // Unknown or foreign areas stay 404, even with an invalid name.
+      if (!(await findAreaInEstate(user.estateId!, Number(id)))) throw new AreaNotFoundError();
+      return res.status(400).send(result.error.issues[0].message);
+    }
 
-    await db
-      .update(areasTable)
-      .set({ name: result.data.name })
-      .where(eq(areasTable.id, Number(id)));
-
+    await renameArea(user.estateId!, Number(id), result.data.name);
     res.redirect(`/manager/areas/${id}`);
   } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
+    respondWithError(res, err);
   }
 }
 
@@ -109,29 +102,13 @@ export async function postDeleteArea(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const area = await findAreaInEstate(Number(id), user.estateId!);
-    if (!area) return res.status(404).send('Area not found');
-
     const result = deleteConfirmSchema.safeParse(req.body);
-    if (!result.success || result.data.confirm !== area.name) {
-      return res.status(400).send('Confirmation name does not match.');
-    }
+    const confirmName = result.success ? result.data.confirm : '';
 
-    // One statement: the foreign key (ON DELETE CASCADE) removes the stands
-    // in the same operation, so area and stands go together or not at all.
-    await db.delete(areasTable).where(eq(areasTable.id, area.id));
-
-    await audit({
-      event: 'area_deleted',
-      userId: user.id,
-      ip: req.ip,
-      metadata: { areaId: area.id, name: area.name, estateId: area.estateId },
-    });
-
+    await deleteArea(user.estateId!, Number(id), confirmName, { userId: user.id, ip: req.ip });
     res.redirect('/manager/estate');
   } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
+    respondWithError(res, err);
   }
 }
 
@@ -142,7 +119,7 @@ export async function postUploadGeofile(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const area = await findAreaInEstate(Number(id), user.estateId!);
+    const area = await findAreaInEstate(user.estateId!, Number(id));
     if (!area) return res.status(404).send('Area not found');
     if (!req.file) return res.status(400).send('No file uploaded');
 
@@ -173,18 +150,9 @@ export async function postDeleteGeofile(req: Request, res: Response) {
     const user = req.session.user!;
     const { id } = req.params;
 
-    const area = await findAreaInEstate(Number(id), user.estateId!);
-    if (!area) return res.status(404).send('Area not found');
-
-    await db
-      .update(areasTable)
-      .set({ geofile: null })
-      .where(eq(areasTable.id, Number(id)));
-
-    await audit({ userId: user.id, event: 'geofile_deleted', ip: req.ip, metadata: { areaId: Number(id) } });
+    await clearAreaBoundary(user.estateId!, Number(id), { userId: user.id, ip: req.ip });
     res.redirect(`/manager/areas/${id}`);
   } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
+    respondWithError(res, err);
   }
 }
