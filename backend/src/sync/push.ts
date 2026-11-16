@@ -5,6 +5,13 @@ import { logError } from '@/utils/logError'
 import { getSyncHandler } from './handlers'
 import type { MutationResult, SyncUser } from './types'
 
+/** The Postgres error code of a database error, also when wrapped (err.cause). */
+function postgresErrorCode(err: unknown): string | undefined {
+  const withCode = (value: unknown) =>
+    typeof value === 'object' && value !== null && 'code' in value && typeof value.code === 'string' ? value.code : undefined;
+  return withCode(err) ?? (typeof err === 'object' && err !== null && 'cause' in err ? withCode(err.cause) : undefined);
+}
+
 export type PushedMutation = { id: string; type: string; payload: unknown; createdAt: string }
 
 /** Temporary failure (e.g. DB down): not recorded, so the client retries later. */
@@ -39,9 +46,9 @@ async function applyOne(m: PushedMutation, user: SyncUser): Promise<PushOutcome>
       })
       return result
     })
-  } catch (err: any) {
+  } catch (err) {
     // The same mutation arrived twice at the same time: return what the other request stored.
-    if (err?.code === PG_UNIQUE_VIOLATION || err?.cause?.code === PG_UNIQUE_VIOLATION) {
+    if (postgresErrorCode(err) === PG_UNIQUE_VIOLATION) {
       const stored = await storedResult(m.id, user.id)
       if (stored) return stored
       // Id taken by another user's mutation: never apply it under this id.

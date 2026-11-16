@@ -10,7 +10,7 @@ import { logError } from '@/utils/logError';
 export async function getFile(req: Request, res: Response) {
   try {
     const user = req.session.user!;
-    const key = (req.params as any)[0]; // captures full path after /files/
+    const key = req.params['0']; // captures the full path after /files/ (wildcard route)
 
     // Look up the attachment in hunting licenses
     const [huntingAttachment] = await db
@@ -61,8 +61,9 @@ export async function getFile(req: Request, res: Response) {
     });
 
     (object.Body as NodeJS.ReadableStream).pipe(res);
-  } catch (err: any) {
-    if (err?.name === 'NoSuchKey') return res.status(404).send('File not found');
+  } catch (err) {
+    const isMissingFile = typeof err === 'object' && err !== null && 'name' in err && err.name === 'NoSuchKey';
+    if (isMissingFile) return res.status(404).send('File not found');
     logError('[error]', err);
     res.status(500).send('Server error');
   }
