@@ -8,13 +8,16 @@ import { loginSchema } from '../schemas';
 import { authLimiter } from '@/middlewares/rateLimiter';
 import { audit } from '@/services/audit';
 import { logError } from '@/utils/logError';
+import { REACT_APP_BASE_PATH } from '@/shared/managerNav';
+
+const REACT_LOGIN_PATH = `${REACT_APP_BASE_PATH}/login`;
 
 const authRouter: Router = express.Router();
 
-// GET /login
+// GET /login: the login page is part of the React app now.
 authRouter.get('/login', (req: Request, res: Response) => {
   if (req.session.user) return redirectByRole(req, res);
-  res.render('login', { layout: false, title: 'Hunt-Hub | Login', error: null });
+  res.redirect(REACT_LOGIN_PATH);
 });
 
 // POST /login
@@ -147,8 +150,8 @@ function redirectByRole(req: Request, res: Response) {
   switch (req.session.user?.role) {
     case 'admin':   return res.redirect('/admin');
     case 'manager': return res.redirect('/manager');
-    case 'staff':   return res.redirect('/staff');
-    default:        return res.redirect('/login');
+    // Staff and guests have no web area; the React login explains where to go.
+    default:        return res.redirect(REACT_LOGIN_PATH);
   }
 }
 
