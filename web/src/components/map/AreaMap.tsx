@@ -1,84 +1,105 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import { maplibregl } from './maplibre'
 import { boundsOf } from './bounds'
-import { maskOutside } from './mask'
+import { areaStyle, BOUNDARY_COLOR, type BasemapId, type BoundaryStyle } from './areaStyle'
 
 export type MapStand = { id: number; number: string; location: GeoJSON.Point | null }
+
+/** What the page can do with the map: its own zoom buttons, "whole area" and "fly to stand". */
+export type AreaMapHandle = {
+  zoomIn: () => void
+  zoomOut: () => void
+  fitArea: () => void
+  flyTo: (position: [number, number]) => void
+}
 
 type AreaMapProps = {
   boundary: GeoJSON.Geometry | null
   stands: MapStand[]
+  basemapId: BasemapId
+  showBoundary: boolean
+  boundaryStyle: BoundaryStyle
+  showStands: boolean
+  ref?: Ref<AreaMapHandle>
 }
 
-const BOUNDARY_COLOR = '#dc2626'
 /** Roughly central Germany, shown when the area has neither boundary nor stands. */
 const FALLBACK_VIEW = { center: [10.4, 51.1] as [number, number], zoom: 5 }
+const EMPTY_STYLE: maplibregl.StyleSpecification = { version: 8, sources: {}, layers: [] }
+const FIT_OPTIONS = { padding: 40, maxZoom: 17 }
 
 /**
- * Satellite imagery only (same source as the old pages). The boundary is part
- * of the style itself, so it is drawn as soon as the map renders, without
- * waiting for any load event. Everything outside the area is shaded red.
+ * Map of one area: a base map, the boundary (everything outside shaded red)
+ * and the stands as numbered markers. The map is created once per area;
+ * changing the base map or turning layers on and off only updates it, so the
+ * view stays where it is.
  */
-function satelliteStyle(boundary: GeoJSON.Geometry | null): maplibregl.StyleSpecification {
-  const mask = boundary ? maskOutside(boundary) : null
-  const style: maplibregl.StyleSpecification = {
-    version: 8,
-    sources: {
-      satellite: {
-        type: 'raster',
-        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-        tileSize: 256,
-        maxzoom: 19,
-        attribution: '© <a href="https://www.esri.com">Esri</a>',
-      },
-    },
-    layers: [{ id: 'satellite', type: 'raster', source: 'satellite' }],
-  }
-
-  if (boundary && mask) {
-    style.sources.outside = { type: 'geojson', data: mask }
-    style.sources.boundary = { type: 'geojson', data: boundary }
-    style.layers.push(
-      { id: 'outside-shade', type: 'fill', source: 'outside', paint: { 'fill-color': BOUNDARY_COLOR, 'fill-opacity': 0.25 } },
-      { id: 'boundary-line', type: 'line', source: 'boundary', paint: { 'line-color': BOUNDARY_COLOR, 'line-width': 2.5 } },
-    )
-  }
-  return style
-}
-
-/** Read-only satellite map of one area: its boundary and its stands as numbered markers. */
-export function AreaMap({ boundary, stands }: AreaMapProps) {
+export function AreaMap({ boundary, stands, basemapId, showBoundary, boundaryStyle, showStands, ref }: AreaMapProps) {
   const container = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<maplibregl.Map | null>(null)
+  const markersRef = useRef<maplibregl.Marker[]>([])
+  const boundsRef = useRef<ReturnType<typeof boundsOf>>(null)
 
+  // Create the map and its markers; zoom to the area.
   useEffect(() => {
     if (!container.current) return
 
     const placedStands = stands.filter((s): s is MapStand & { location: GeoJSON.Point } => s.location !== null)
     const bounds = boundsOf([boundary, ...placedStands.map((s) => s.location)])
+    boundsRef.current = bounds
 
     const map = new maplibregl.Map({
       container: container.current,
-      style: satelliteStyle(boundary),
-      ...(bounds ? { bounds, fitBoundsOptions: { padding: 40, maxZoom: 17 } } : FALLBACK_VIEW),
-      attributionControl: { compact: true },
+      style: EMPTY_STYLE, // the real style is set by the effect below
+      ...(bounds ? { bounds, fitBoundsOptions: FIT_OPTIONS } : FALLBACK_VIEW),
+      attributionControl: false,
     })
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+    // Bottom left, below the legend.
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left')
 
     // HTML markers instead of a symbol layer: no font server needed for the numbers.
     const markers = placedStands.map((stand) => {
       const element = document.createElement('div')
       element.className =
-        'flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-white bg-primary px-1 text-[11px] font-semibold text-primary-foreground shadow'
+        'flex h-6 min-w-6 items-center justify-center rounded-full border-2 bg-white px-1 text-[11px] font-bold shadow'
+      element.style.borderColor = BOUNDARY_COLOR
+      element.style.color = BOUNDARY_COLOR
       element.textContent = stand.number
       element.title = `Stand ${stand.number}`
       return new maplibregl.Marker({ element }).setLngLat(stand.location.coordinates as [number, number]).addTo(map)
     })
 
+    mapRef.current = map
+    markersRef.current = markers
     return () => {
       markers.forEach((marker) => marker.remove())
       map.remove()
+      mapRef.current = null
+      markersRef.current = []
     }
   }, [boundary, stands])
 
-  return <div ref={container} className="h-80 w-full overflow-hidden rounded-md border border-border" />
+  // Base map and boundary: update the style without recreating the map.
+  useEffect(() => {
+    mapRef.current?.setStyle(areaStyle(basemapId, boundary, showBoundary, boundaryStyle))
+  }, [basemapId, boundary, showBoundary, boundaryStyle, stands])
+
+  // Stands on or off.
+  useEffect(() => {
+    for (const marker of markersRef.current) marker.getElement().style.display = showStands ? '' : 'none'
+  }, [showStands, stands])
+
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => mapRef.current?.zoomIn(),
+    zoomOut: () => mapRef.current?.zoomOut(),
+    fitArea: () => {
+      if (boundsRef.current) mapRef.current?.fitBounds(boundsRef.current, FIT_OPTIONS)
+    },
+    flyTo: (position) => {
+      const map = mapRef.current
+      if (map) map.flyTo({ center: position, zoom: Math.max(map.getZoom(), 17) })
+    },
+  }), [])
+
+  return <div ref={container} className="h-full w-full" />
 }
