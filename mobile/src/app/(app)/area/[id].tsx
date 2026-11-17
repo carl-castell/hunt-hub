@@ -1,4 +1,4 @@
-import { Camera, Map, UserLocation, type CameraRef } from '@maplibre/maplibre-react-native'
+import { Camera, Map, Marker, UserLocation, type CameraRef } from '@maplibre/maplibre-react-native'
 import * as Location from 'expo-location'
 import { Stack, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -8,6 +8,7 @@ import { basemapFile, listBasemaps, type Basemap } from '../../../basemaps/basem
 import { getDb } from '../../../db/database'
 import { useQuery } from '../../../db/useQuery'
 import { bboxContains, bboxOf, type BBox } from '../../../map/bbox'
+import { standMarkers, standsBBox, type StandRow } from '../../../map/stands'
 import { buildAreaStyle, type BasemapChoice } from '../../../map/style'
 import { useSync } from '../../../sync/SyncProvider'
 import { useTheme } from '../../../ui/theme'
@@ -33,10 +34,17 @@ export default function AreaMap() {
     () => db.getFirstSync<{ id: number; name: string; geojson: string | null }>('SELECT id, name, geojson FROM areas WHERE id = ?', Number(id)),
     ['areas'], [id],
   )
+  const standRows = useQuery(
+    () => db.getAllSync<StandRow>('SELECT id, number, lng, lat FROM stands WHERE area_id = ?', Number(id)),
+    ['stands'], [id],
+  )
   const basemaps = useQuery(listBasemaps, ['basemaps'])
 
   const geometry = useMemo(() => (area?.geojson ? JSON.parse(area.geojson) : null), [area?.geojson])
-  const areaBox = useMemo(() => bboxOf(geometry), [geometry])
+  const stands = useMemo(() => standMarkers(standRows), [standRows])
+  // Without a boundary, frame the stands instead.
+  const areaBox = useMemo(() => bboxOf(geometry) ?? standsBBox(stands), [geometry, stands])
+  const [showStands, setShowStands] = useState(true)
 
   const [choiceId, setChoiceId] = useState<string | null>(null)
   useEffect(() => {
@@ -95,6 +103,13 @@ export default function AreaMap() {
           onTrackUserLocationChange={(e) => setFollowing(e.nativeEvent.trackUserLocation !== null)}
         />
         {showLocation && <UserLocation accuracy heading />}
+        {showStands && stands.map((s) => (
+          <Marker key={s.id} id={`stand-${s.id}`} lngLat={s.lngLat}>
+            <View style={styles.stand} accessibilityLabel={`Stand ${s.number}`}>
+              <Text style={styles.standText} numberOfLines={1}>{s.number}</Text>
+            </View>
+          </Marker>
+        ))}
       </Map>
 
       {!geometry && (
@@ -104,6 +119,15 @@ export default function AreaMap() {
       )}
 
       <View style={styles.fabs} pointerEvents="box-none">
+        {stands.length > 0 && (
+          <Pressable
+            style={[styles.fab, { backgroundColor: showStands ? t.accent : t.card }]}
+            onPress={() => setShowStands((v) => !v)}
+            accessibilityLabel={showStands ? 'Hide stands' : 'Show stands'}
+          >
+            <Text style={[styles.fabText, { color: showStands ? t.accentText : t.text }]}>#</Text>
+          </Pressable>
+        )}
         <Pressable style={[styles.fab, { backgroundColor: t.card }]} onPress={fitArea} accessibilityLabel="Show whole area">
           <Text style={[styles.fabText, { color: t.text }]}>⤢</Text>
         </Pressable>
@@ -138,6 +162,8 @@ const styles = StyleSheet.create({
   fabs: { position: 'absolute', right: 12, bottom: 90, gap: 10 },
   fab: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   fabText: { fontSize: 22 },
+  stand: { minWidth: 26, height: 26, paddingHorizontal: 5, borderRadius: 13, backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#d9480f', alignItems: 'center', justifyContent: 'center' },
+  standText: { fontSize: 12, fontWeight: '700', color: '#d9480f' },
   chips: { gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
   chip: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 220 },
 })
