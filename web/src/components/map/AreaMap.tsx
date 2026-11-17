@@ -1,7 +1,8 @@
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import { maplibregl } from './maplibre'
 import { boundsOf } from './bounds'
-import { areaStyle, BOUNDARY_COLOR, type BasemapId, type BoundaryStyle } from './areaStyle'
+import { areaStyle, type BasemapId, type BoundaryStyle } from './areaStyle'
+import { applyStandMarkerStyle, standMarkerStyle } from './standMarker'
 
 export type MapStand = { id: number; number: string; location: GeoJSON.Point | null }
 
@@ -58,15 +59,20 @@ export function AreaMap({ boundary, stands, basemapId, showBoundary, boundarySty
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left')
 
     // HTML markers instead of a symbol layer: no font server needed for the numbers.
+    // Same look as the iPhone app: one circle size for all numbers, dots when zoomed out.
+    let look = standMarkerStyle(map.getZoom())
     const markers = placedStands.map((stand) => {
       const element = document.createElement('div')
-      element.className =
-        'flex h-6 min-w-6 items-center justify-center rounded-full border-2 bg-white px-1 text-[11px] font-bold shadow'
-      element.style.borderColor = BOUNDARY_COLOR
-      element.style.color = BOUNDARY_COLOR
-      element.textContent = stand.number
       element.title = `Stand ${stand.number}`
+      applyStandMarkerStyle(element, stand.number, look)
       return new maplibregl.Marker({ element }).setLngLat(stand.location.coordinates as [number, number]).addTo(map)
+    })
+    // Restyle only when the zoom crosses a step.
+    map.on('zoom', () => {
+      const next = standMarkerStyle(map.getZoom())
+      if (next.size === look.size) return
+      look = next
+      markers.forEach((marker, i) => applyStandMarkerStyle(marker.getElement(), placedStands[i].number, look))
     })
 
     mapRef.current = map
@@ -86,7 +92,7 @@ export function AreaMap({ boundary, stands, basemapId, showBoundary, boundarySty
 
   // Stands on or off.
   useEffect(() => {
-    for (const marker of markersRef.current) marker.getElement().style.display = showStands ? '' : 'none'
+    for (const marker of markersRef.current) marker.getElement().style.display = showStands ? 'flex' : 'none'
   }, [showStands, stands])
 
   useImperativeHandle(ref, () => ({
