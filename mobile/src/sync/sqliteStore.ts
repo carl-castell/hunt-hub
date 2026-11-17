@@ -33,10 +33,12 @@ export function createSqliteSyncStore(db: SQLiteDatabase): SyncStore {
         }
         for (const s of r.stands) {
           db.runSync(
-            `INSERT INTO stands (id, area_id, number, lng, lat, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+            `INSERT INTO stands (id, area_id, number, lng, lat, nickname, status, status_date, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET area_id = excluded.area_id, number = excluded.number,
-               lng = excluded.lng, lat = excluded.lat, updated_at = excluded.updated_at`,
-            s.id, s.areaId, s.number, s.lng, s.lat, s.updatedAt,
+               lng = excluded.lng, lat = excluded.lat, nickname = excluded.nickname,
+               status = excluded.status, status_date = excluded.status_date, updated_at = excluded.updated_at`,
+            s.id, s.areaId, s.number, s.lng, s.lat, s.nickname ?? null, s.status ?? null, s.statusDate ?? null, s.updatedAt,
           )
         }
         for (const d of r.deleted) {

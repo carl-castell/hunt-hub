@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite'
 import { enqueue } from '../sync/outbox'
+import { todayIso, type StandStatus } from '../stands/status'
 
 /**
  * Stand edits on the phone. Each one changes the local database at once
@@ -69,6 +70,29 @@ export function moveStandLocal(db: SQLiteDatabase, id: number, position: Positio
   })
 }
 
+export type StandDetails = { nickname: string | null; status: StandStatus | null; statusDate: string | null }
+
+/**
+ * New nickname and/or status. A changed status gets today's date (the day of
+ * the change, even if it only reaches the server days later); no status, no date.
+ */
+export function updateStandDetailsLocal(db: SQLiteDatabase, id: number, changes: { nickname: string | null; status: StandStatus | null }) {
+  const previous = db.getFirstSync<StandDetails>('SELECT nickname, status, status_date AS statusDate FROM stands WHERE id = ?', id)
+  if (!previous) return
+  const nickname = changes.nickname?.trim() || null
+  const status = changes.status
+  const statusDate = status === null ? null : status === previous.status ? previous.statusDate ?? todayIso() : todayIso()
+  if (nickname === previous.nickname && status === previous.status && statusDate === previous.statusDate) return
+
+  db.withTransactionSync(() => {
+    db.runSync('UPDATE stands SET nickname = ?, status = ?, status_date = ?, updated_at = ? WHERE id = ?',
+      nickname, status, statusDate, now(), id)
+    const details = { nickname, status, ...(statusDate ? { statusDate } : {}) }
+    if (id < 0 && updatePendingCreate(db, id, details)) return
+    enqueue(db, 'stand.update', { id, ...details, previous })
+  })
+}
+
 type PushResult = { status: string; data?: unknown }
 
 /**
@@ -89,5 +113,8 @@ export function applyStandPushResult(db: SQLiteDatabase, type: string, payload: 
     db.runSync('UPDATE stands SET number = ? WHERE id = ?', payload.previousNumber, payload.id)
   } else if (type === 'stand.move' && refused && payload.previous) {
     db.runSync('UPDATE stands SET lng = ?, lat = ? WHERE id = ?', payload.previous.lng, payload.previous.lat, payload.id)
+  } else if (type === 'stand.update' && refused && payload.previous) {
+    const p = payload.previous as StandDetails
+    db.runSync('UPDATE stands SET nickname = ?, status = ?, status_date = ? WHERE id = ?', p.nickname, p.status, p.statusDate, payload.id)
   }
 }

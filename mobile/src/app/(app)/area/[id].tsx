@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { basemapFile, listBasemaps } from '../../../basemaps/basemaps'
 import { getDb } from '../../../db/database'
 import { getAreaMapSettings, saveAreaMapSettings, usePreferences, type AreaMapSettings } from '../../../db/mapSettings'
-import { createStandLocal, moveStandLocal, numberExists } from '../../../db/standEdits'
+import { createStandLocal, moveStandLocal, numberExists, updateStandDetailsLocal } from '../../../db/standEdits'
 import { useEditMode } from '../../../edit/EditMode'
 import { promptRenameStand } from '../../../edit/renameStand'
 import { insideBoundary } from '../../../map/geometry'
@@ -19,8 +19,10 @@ import { distanceRings, formatDistance, metresPerPoint } from '../../../map/scal
 import { ONLINE_BASEMAPS, onlineBasemap } from '../../../map/sources'
 import { standMarkerStyle, standMarkers, standsBBox, type StandRow } from '../../../map/stands'
 import { BOUNDARY_COLOR, buildAreaStyle, type BasemapChoice } from '../../../map/style'
+import { isStandStatus } from '../../../stands/status'
 import { useSync } from '../../../sync/SyncProvider'
 import { LayerSheet } from '../../../ui/LayerSheet'
+import { StandDetailsSheet, type EditableStand } from '../../../ui/StandDetailsSheet'
 import { StandFormSheet } from '../../../ui/StandFormSheet'
 import { StandSheet, type SheetStand } from '../../../ui/StandSheet'
 import { CompassButton, Crosshair, MapButton, MapInfoBar, DistanceRings, RINGS_ON_DARK, RINGS_ON_LIGHT } from '../../../ui/MapOverlays'
@@ -53,7 +55,7 @@ export default function AreaMap() {
     ['areas'], [areaId],
   )
   const standRows = useQuery(
-    () => db.getAllSync<StandRow>('SELECT id, number, lng, lat FROM stands WHERE area_id = ?', areaId),
+    () => db.getAllSync<StandRow>('SELECT id, number, lng, lat, nickname, status, status_date FROM stands WHERE area_id = ?', areaId),
     ['stands'], [areaId],
   )
   const imported = useQuery(listBasemaps, ['basemaps'])
@@ -93,6 +95,7 @@ export default function AreaMap() {
   // Editing stands (only while "Edit stands" is on in the settings).
   // A new stand being created: where the map was pressed, and whether the GPS position is used instead.
   const [newStand, setNewStand] = useState<{ pressed: [number, number]; atGps: boolean } | null>(null)
+  const [editingDetails, setEditingDetails] = useState<EditableStand | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   // Bumped after a cancelled move, so the dragged marker jumps back to its saved position.
   const [dragVersion, setDragVersion] = useState(0)
@@ -362,9 +365,23 @@ export default function AreaMap() {
         })()}
         onClose={() => setSelectedStandId(null)}
         onRename={editStands ? (s) => promptRenameStand(db, { id: s.id, number: s.number, areaId }, () => void syncNow()) : undefined}
+        onEditDetails={editStands ? (s) => {
+          setSelectedStandId(null)
+          setEditingDetails({ id: s.id, number: s.number, nickname: s.nickname, status: isStandStatus(s.status) ? s.status : null })
+        } : undefined}
         onDetails={(standId) => {
           setSelectedStandId(null)
           router.push({ pathname: '/stand/[id]', params: { id: String(standId) } })
+        }}
+      />
+
+      <StandDetailsSheet
+        stand={editingDetails}
+        onCancel={() => setEditingDetails(null)}
+        onSave={(changes) => {
+          if (editingDetails) updateStandDetailsLocal(db, editingDetails.id, changes)
+          setEditingDetails(null)
+          void syncNow()
         }}
       />
 

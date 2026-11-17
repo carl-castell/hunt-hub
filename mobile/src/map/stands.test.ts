@@ -7,7 +7,7 @@ describe('standMarkers', () => {
       { id: 2, number: '2', lng: null, lat: null },
       { id: 3, number: '3', lng: 11, lat: null },
     ])
-    expect(markers).toEqual([{ id: 1, number: '1', lngLat: [10, 50] }])
+    expect(markers).toEqual([{ id: 1, number: '1', lngLat: [10, 50], nickname: null, status: null, statusDate: null }])
   })
 
   it('sorts by number in natural order', () => {
@@ -18,6 +18,11 @@ describe('standMarkers', () => {
     ])
     expect(markers.map((m) => m.number)).toEqual(['1a', '2', '10'])
   })
+
+  it('carries nickname and status for the stand panel', () => {
+    const [marker] = standMarkers([{ id: 1, number: '1', lng: 10, lat: 50, nickname: 'Eiche', status: 'broken', status_date: '2026-11-17' }])
+    expect(marker).toMatchObject({ nickname: 'Eiche', status: 'broken', statusDate: '2026-11-17' })
+  })
 })
 
 describe('standsBBox', () => {
@@ -27,8 +32,8 @@ describe('standsBBox', () => {
 
   it('surrounds all stands', () => {
     expect(standsBBox([
-      { id: 1, number: '1', lngLat: [10, 50] },
-      { id: 2, number: '2', lngLat: [11, 49] },
+      { lngLat: [10, 50] },
+      { lngLat: [11, 49] },
     ])).toEqual([10, 49, 11, 50])
   })
 })
@@ -43,6 +48,12 @@ describe('searchStands', () => {
   it('finds stands whose number contains the search, ignoring case and spaces', () => {
     expect(searchStands(stands, ' 12A ').map((s) => s.number)).toEqual(['12a'])
     expect(searchStands(stands, '1').map((s) => s.number)).toEqual(['1', '10', '12a'])
+  })
+
+  it('also finds the nickname, ignoring case', () => {
+    const named = [{ number: '1', nickname: 'Eiche' }, { number: '2', nickname: null }, { number: '3', nickname: 'Am Bach' }]
+    expect(searchStands(named, 'eich').map((s) => s.number)).toEqual(['1'])
+    expect(searchStands(named, 'BACH').map((s) => s.number)).toEqual(['3'])
   })
 })
 

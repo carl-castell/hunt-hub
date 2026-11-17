@@ -1,29 +1,38 @@
 import type { BBox } from './bbox'
 
-export type StandRow = { id: number; number: string; lng: number | null; lat: number | null }
-export type StandMarker = { id: number; number: string; lngLat: [number, number] }
+export type StandRow = {
+  id: number; number: string; lng: number | null; lat: number | null
+  nickname?: string | null; status?: string | null; status_date?: string | null
+}
+export type StandMarker = {
+  id: number; number: string; lngLat: [number, number]
+  nickname: string | null; status: string | null; statusDate: string | null
+}
 
 /** Stands that can be drawn on the map: only those with a position, in natural number order (2 before 10). */
 export function standMarkers(rows: StandRow[]): StandMarker[] {
   return rows
     .filter((s): s is StandRow & { lng: number; lat: number } => s.lng != null && s.lat != null)
     .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }))
-    .map((s) => ({ id: s.id, number: s.number, lngLat: [s.lng, s.lat] }))
+    .map((s) => ({
+      id: s.id, number: s.number, lngLat: [s.lng, s.lat],
+      nickname: s.nickname ?? null, status: s.status ?? null, statusDate: s.status_date ?? null,
+    }))
 }
 
 /** Bounding box around the stands; null when there are none. */
-export function standsBBox(markers: StandMarker[]): BBox | null {
+export function standsBBox(markers: Pick<StandMarker, 'lngLat'>[]): BBox | null {
   if (markers.length === 0) return null
   const lngs = markers.map((m) => m.lngLat[0])
   const lats = markers.map((m) => m.lngLat[1])
   return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)]
 }
 
-/** Stands in natural number order, filtered by a search for their number. */
-export function searchStands<T extends { number: string }>(stands: T[], query: string): T[] {
+/** Stands in natural number order, filtered by a search for their number or nickname. */
+export function searchStands<T extends { number: string; nickname?: string | null }>(stands: T[], query: string): T[] {
   const q = query.trim().toLowerCase()
   return stands
-    .filter((s) => s.number.toLowerCase().includes(q))
+    .filter((s) => s.number.toLowerCase().includes(q) || (s.nickname ?? '').toLowerCase().includes(q))
     .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }))
 }
 

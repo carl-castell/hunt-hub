@@ -1,5 +1,6 @@
 import * as Clipboard from 'expo-clipboard'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { useState } from 'react'
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
 import { getDb } from '../../../db/database'
 import { usePreferences } from '../../../db/mapSettings'
@@ -8,9 +9,15 @@ import { promptRenameStand } from '../../../edit/renameStand'
 import { useSync } from '../../../sync/SyncProvider'
 import { formatCoordinate } from '../../../map/coords'
 import { googleMapsUrl } from '../../../map/stands'
+import { updateStandDetailsLocal } from '../../../db/standEdits'
+import { isStandStatus, standTitle, statusText } from '../../../stands/status'
+import { StandDetailsSheet } from '../../../ui/StandDetailsSheet'
 import { useTheme } from '../../../ui/theme'
 
-type StandDetail = { id: number; number: string; lng: number | null; lat: number | null; updated_at: string; area_id: number; area_name: string }
+type StandDetail = {
+  id: number; number: string; lng: number | null; lat: number | null; updated_at: string; area_id: number; area_name: string
+  nickname: string | null; status: string | null; status_date: string | null
+}
 
 /** Everything the app knows about one stand. Long press the coordinates to copy them. */
 export default function StandDetails() {
@@ -20,9 +27,10 @@ export default function StandDetails() {
   const db = getDb()
   const prefs = usePreferences()
   const { syncNow } = useSync()
+  const [editingDetails, setEditingDetails] = useState(false)
 
   const stand = useQuery(() => db.getFirstSync<StandDetail>(
-    `SELECT s.id, s.number, s.lng, s.lat, s.updated_at, s.area_id, a.name AS area_name
+    `SELECT s.id, s.number, s.lng, s.lat, s.updated_at, s.area_id, a.name AS area_name, s.nickname, s.status, s.status_date
      FROM stands s JOIN areas a ON a.id = s.area_id WHERE s.id = ?`, Number(id),
   ), ['stands', 'areas'], [id])
 
@@ -39,7 +47,7 @@ export default function StandDetails() {
   const shareGoogleMaps = () => {
     if (!hasPosition) return
     const url = googleMapsUrl(stand.lng!, stand.lat!)
-    void Share.share({ message: `Stand ${stand.number} (${stand.area_name}): ${url}`, url })
+    void Share.share({ message: `${standTitle(stand)} (${stand.area_name}): ${url}`, url })
   }
 
   // The pencil next to the number renames the stand (also outside edit mode).
@@ -53,6 +61,8 @@ export default function StandDetails() {
   // Coordinates in the format chosen in the settings; only they can be copied.
   const rows: { label: string; value: string; copyable?: boolean; onEdit?: () => void }[] = [
     { label: 'Number', value: stand.number, onEdit: rename },
+    { label: 'Nickname', value: stand.nickname ?? '–', onEdit: () => setEditingDetails(true) },
+    { label: 'Status', value: statusText(stand.status, stand.status_date) ?? 'Not checked', onEdit: () => setEditingDetails(true) },
     { label: 'Area', value: stand.area_name },
     hasPosition
       ? { label: 'Coordinates', value: formatCoordinate(stand.lng!, stand.lat!, prefs.coordinateFormat), copyable: true }
@@ -62,7 +72,7 @@ export default function StandDetails() {
 
   return (
     <ScrollView style={{ backgroundColor: t.bg }} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
-      <Stack.Screen options={{ title: `Stand ${stand.number}` }} />
+      <Stack.Screen options={{ title: standTitle(stand) }} />
       <View style={[styles.card, { backgroundColor: t.card }]}>
         {rows.map((r) => (
           <Pressable key={r.label} disabled={!r.copyable}
@@ -95,6 +105,16 @@ export default function StandDetails() {
           </Pressable>
         </View>
       )}
+
+      <StandDetailsSheet
+        stand={editingDetails ? { id: stand.id, number: stand.number, nickname: stand.nickname, status: isStandStatus(stand.status) ? stand.status : null } : null}
+        onCancel={() => setEditingDetails(false)}
+        onSave={(changes) => {
+          updateStandDetailsLocal(db, stand.id, changes)
+          setEditingDetails(false)
+          void syncNow()
+        }}
+      />
     </ScrollView>
   )
 }
