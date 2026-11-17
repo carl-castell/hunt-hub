@@ -35,10 +35,14 @@ export default function AreaList() {
           </Link>
         ),
       }} />
-      <SyncBanner />
+      {/* The list must be the first scrollable child and adjust its insets itself:
+          on iOS 26 the header is see-through and the content scrolls behind it. */}
       <FlatList
         data={areas}
         keyExtractor={(a) => String(a.id)}
+        contentInsetAdjustmentBehavior="automatic"
+        ListHeaderComponent={<SyncBanner />}
+        stickyHeaderIndices={[0]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         contentContainerStyle={areas.length === 0 ? styles.emptyContainer : undefined}
         ListEmptyComponent={
