@@ -1,3 +1,4 @@
+import AdmZip from 'adm-zip';
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'fs/promises';
 import path from 'path';
@@ -139,4 +140,45 @@ describe('GeoJsonParser.parse()', () => {
     const parser = new GeoJsonParser();
     await expect(parser.parse(Buffer.from('not-json'))).rejects.toThrow(SyntaxError);
   });
+});
+
+describe('coordinate system of a file', () => {
+  const UTM_PRJ = 'PROJCS["ETRS_1989_UTM_Zone_32N",GEOGCS["GCS_ETRS_1989",DATUM["D_ETRS_1989",SPHEROID["GRS_1980",6378137.0,298.257222101]]]]';
+
+  it('takes the .prj of a shapefile as it is, and null without one', async () => {
+    const original = new AdmZip(await readFile(path.join(FIXTURES_DIR, 'sample.zip')));
+    const withoutPrj = new AdmZip();
+    const withPrj = new AdmZip();
+    for (const entry of original.getEntries()) {
+      if (entry.entryName.toLowerCase().endsWith('.prj')) continue;
+      withoutPrj.addFile(entry.entryName, entry.getData());
+      withPrj.addFile(entry.entryName, entry.getData());
+    }
+    const shp = original.getEntries().find((e) => e.entryName.endsWith('.shp'))!.entryName;
+    withPrj.addFile(shp.replace(/\.shp$/, '.prj'), Buffer.from(UTM_PRJ));
+
+    const parserWith = createParser('with.zip');
+    await parserWith.parse(withPrj.toBuffer());
+    expect(parserWith.crs).toBe(UTM_PRJ);
+
+    const parserWithout = createParser('without.zip');
+    await parserWithout.parse(withoutPrj.toBuffer());
+    expect(parserWithout.crs).toBeNull();
+  }, 10000);
+
+  it('reads the crs member of a GeoJSON file, null without one', async () => {
+    const named = createParser('a.geojson');
+    await named.parse(Buffer.from(JSON.stringify({ type: 'Point', coordinates: [1, 2], crs: { type: 'name', properties: { name: 'EPSG:25832' } } })));
+    expect(named.crs).toBe('EPSG:25832');
+
+    const plain = createParser('b.geojson');
+    await plain.parse(Buffer.from(JSON.stringify({ type: 'Point', coordinates: [1, 2] })));
+    expect(plain.crs).toBeNull();
+  });
+
+  it('reads the coordinate system of a GeoPackage layer', async () => {
+    const parser = createParser('sample.gpkg');
+    await parser.parse(await readFile(path.join(FIXTURES_DIR, 'sample.gpkg')));
+    expect(parser.crs).toMatch(/^EPSG:\d+$/);
+  }, 10000);
 });

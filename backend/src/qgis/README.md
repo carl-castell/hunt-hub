@@ -54,7 +54,7 @@ Select the layer **"Stands – area name"** and click the **pencil** (Toggle Edi
 
 | To… | Do this |
 |---|---|
-| **Add a stand** | **Add Point Feature**, click inside the boundary, enter a **number** (e.g. `1`, `2`, `12a`) |
+| **Add a stand** | **Add Point Feature**, click inside the boundary, enter a **number** (e.g. `1`, `2`, `12a`). Left empty, the stand is saved as `NOT-NAMED-1`, `NOT-NAMED-2`, … and can be renamed later |
 | **Move a stand** | **Vertex Tool**, drag the point |
 | **Change a number** | Open the attribute table (F6) and edit the number |
 | **Set a nickname or status** | In the attribute table, fill in `nickname`, `status` and (optionally) `status_date` |
@@ -90,7 +90,7 @@ Rules:
 |---|---|
 | "Invalid or inactive token" | The key was regenerated or deleted, or your account is inactive. Generate a new key and update the connection's URL. |
 | Layers appear in the wrong place | Tick **Invert axis orientation** in the connection (see step 2). |
-| Error when saving a new stand | The number already exists in this area, or the stand is outside the boundary. |
+| Error when saving a new stand | The number already exists in this area (the message names it), or the stand is outside the boundary. |
 | "Unknown status" when saving | Use one of `ok`, `needs_repair`, `broken`, `removed`, or leave it empty. |
 | QGIS waits a long time on Connect | The live server is starting up. Wait a minute and try again. |
 

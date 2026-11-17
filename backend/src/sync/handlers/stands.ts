@@ -1,15 +1,17 @@
-import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { standDetailsSchema } from '@/schemas'
-import { StandNotFoundError, updateStandDetails } from '@/services/stands'
-import type { MutationResult, SyncHandler, SyncUser, Tx } from '../types'
+import {
+  createStand as createStandInDb, moveStand as moveStandInDb, renameStand as renameStandInDb,
+  StandNotFoundError, StandNumberTakenError, updateStandDetails,
+} from '@/services/stands'
+import type { MutationResult, SyncHandler, SyncUser } from '../types'
 
 /**
- * Stand edits from the iPhone app (create, rename, move, details), pushed through the
- * sync outbox, so they also work offline. Same rules as the website and QGIS:
- * own estate only, and a stand number exists only once per area. A stand
- * outside the area boundary is accepted (the app warns before saving) and
- * reported back as `outsideArea`.
+ * Stand edits from the iPhone app (create, rename, move, details), pushed
+ * through the sync outbox, so they also work offline. The rules live in
+ * services/stands.ts (same as website and QGIS): own estate only, and a stand
+ * number exists only once per area. A stand outside the area boundary is
+ * accepted (the app warns before saving) and reported back as `outsideArea`.
  */
 
 const standNumber = z.string().trim().min(1).max(32)
@@ -27,36 +29,15 @@ function forbidden(user: SyncUser): MutationResult | null {
   return user.role === 'manager' ? null : { status: 'rejected', reason: 'forbidden' }
 }
 
-/**
- * Locks the area (if it belongs to the user's estate) for the rest of the
- * transaction, so two phones can't both create or rename to the same number.
- */
-async function lockArea(tx: Tx, areaId: number, estateId: number): Promise<boolean> {
-  const res = await tx.execute(sql`SELECT id FROM areas WHERE id = ${areaId} AND estate_id = ${estateId} FOR UPDATE`)
-  return res.rows.length > 0
-}
-
-/** The stand's area, if the stand belongs to the user's estate. */
-async function areaOfStand(tx: Tx, standId: number, estateId: number): Promise<number | null> {
-  const res = await tx.execute<{ area_id: number }>(sql`
-    SELECT s.area_id FROM stands s JOIN areas a ON a.id = s.area_id
-    WHERE s.id = ${standId} AND a.estate_id = ${estateId}`)
-  return res.rows[0]?.area_id ?? null
-}
-
-async function numberTaken(tx: Tx, areaId: number, number: string, exceptStandId?: number): Promise<boolean> {
-  const res = await tx.execute(sql`
-    SELECT 1 FROM stands WHERE area_id = ${areaId} AND number = ${number}
-    ${exceptStandId ? sql`AND id <> ${exceptStandId}` : sql``} LIMIT 1`)
-  return res.rows.length > 0
-}
-
-/** Whether a point lies outside the area's boundary (false if the area has none). */
-async function outsideArea(tx: Tx, areaId: number, lngValue: number, latValue: number): Promise<boolean> {
-  const res = await tx.execute<{ outside: boolean }>(sql`
-    SELECT geofile IS NOT NULL AND NOT ST_Covers(geofile, ST_SetSRID(ST_MakePoint(${lngValue}, ${latValue}), 4326)) AS outside
-    FROM areas WHERE id = ${areaId}`)
-  return res.rows[0]?.outside ?? false
+/** The service's errors as answers the app understands. */
+async function answer(run: () => Promise<MutationResult>, notFound: string): Promise<MutationResult> {
+  try {
+    return await run()
+  } catch (err) {
+    if (err instanceof StandNotFoundError) return { status: 'rejected', reason: notFound }
+    if (err instanceof StandNumberTakenError) return { status: 'rejected', reason: 'number_taken' }
+    throw err
+  }
 }
 
 export const createStand: SyncHandler<z.infer<typeof createPayload>> = {
@@ -64,17 +45,14 @@ export const createStand: SyncHandler<z.infer<typeof createPayload>> = {
   async apply(tx, p, user) {
     const denied = forbidden(user)
     if (denied) return denied
-    if (!(await lockArea(tx, p.areaId, user.estateId))) return { status: 'rejected', reason: 'area_not_found' }
-    if (await numberTaken(tx, p.areaId, p.number)) return { status: 'rejected', reason: 'number_taken' }
-
-    const res = await tx.execute<{ id: number }>(sql`
-      INSERT INTO stands (area_id, number, location)
-      VALUES (${p.areaId}, ${p.number}, ST_SetSRID(ST_MakePoint(${p.lng}, ${p.lat}), 4326))
-      RETURNING id`)
-    const id = res.rows[0].id
-    const { nickname, status, statusDate } = p
-    const details = nickname || status ? await updateStandDetails(tx, user.estateId, id, { nickname, status, statusDate }) : null
-    return { status: 'applied', data: { id, outsideArea: await outsideArea(tx, p.areaId, p.lng, p.lat), ...(details ? { details } : {}) } }
+    return answer(async () => {
+      const { areaId, number, lng: x, lat: y, ...details } = p
+      const created = await createStandInDb(tx, user.estateId, areaId, { number, position: { lng: x, lat: y }, ...details })
+      return {
+        status: 'applied',
+        data: { id: created.id, outsideArea: created.outsideArea, ...(created.details ? { details: created.details } : {}) },
+      }
+    }, 'area_not_found')
   },
 }
 
@@ -83,13 +61,10 @@ export const renameStand: SyncHandler<z.infer<typeof renamePayload>> = {
   async apply(tx, p, user) {
     const denied = forbidden(user)
     if (denied) return denied
-    const areaId = await areaOfStand(tx, p.id, user.estateId)
-    if (areaId === null) return { status: 'rejected', reason: 'stand_not_found' }
-    await lockArea(tx, areaId, user.estateId)
-    if (await numberTaken(tx, areaId, p.number, p.id)) return { status: 'rejected', reason: 'number_taken' }
-
-    await tx.execute(sql`UPDATE stands SET number = ${p.number} WHERE id = ${p.id}`)
-    return { status: 'applied' }
+    return answer(async () => {
+      await renameStandInDb(tx, user.estateId, p.id, p.number)
+      return { status: 'applied' }
+    }, 'stand_not_found')
   },
 }
 
@@ -98,11 +73,10 @@ export const moveStand: SyncHandler<z.infer<typeof movePayload>> = {
   async apply(tx, p, user) {
     const denied = forbidden(user)
     if (denied) return denied
-    const areaId = await areaOfStand(tx, p.id, user.estateId)
-    if (areaId === null) return { status: 'rejected', reason: 'stand_not_found' }
-
-    await tx.execute(sql`UPDATE stands SET location = ST_SetSRID(ST_MakePoint(${p.lng}, ${p.lat}), 4326) WHERE id = ${p.id}`)
-    return { status: 'applied', data: { outsideArea: await outsideArea(tx, areaId, p.lng, p.lat) } }
+    return answer(async () => {
+      const { outsideArea } = await moveStandInDb(tx, user.estateId, p.id, { lng: p.lng, lat: p.lat })
+      return { status: 'applied', data: { outsideArea } }
+    }, 'stand_not_found')
   },
 }
 
@@ -113,11 +87,8 @@ export const updateStand: SyncHandler<z.infer<typeof updatePayload>> = {
     const denied = forbidden(user)
     if (denied) return denied
     const { id, ...details } = p
-    try {
-      return { status: 'applied', data: { details: await updateStandDetails(tx, user.estateId, id, details) } }
-    } catch (err) {
-      if (err instanceof StandNotFoundError) return { status: 'rejected', reason: 'stand_not_found' }
-      throw err
-    }
+    return answer(async () => ({
+      status: 'applied', data: { details: await updateStandDetails(tx, user.estateId, id, details) },
+    }), 'stand_not_found')
   },
 }

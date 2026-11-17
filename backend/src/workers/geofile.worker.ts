@@ -2,7 +2,7 @@ import { workerData, parentPort } from 'worker_threads';
 import { createParser, ParseError } from '@/utils/geofile-parsers';
 
 type WorkerInput  = { buffer: Buffer; filename: string };
-type WorkerResult = { ok: true; geometryCollection: string } | { ok: false; status: number; message: string };
+type WorkerResult = { ok: true; geometryCollection: string; crs: string | null } | { ok: false; status: number; message: string };
 
 async function run(): Promise<void> {
   const { buffer, filename }: WorkerInput = workerData;
@@ -11,7 +11,7 @@ async function run(): Promise<void> {
   try {
     const parser = createParser(filename);
     const geometryCollection = await parser.parse(buf);
-    const result: WorkerResult = { ok: true, geometryCollection };
+    const result: WorkerResult = { ok: true, geometryCollection, crs: parser.crs };
     parentPort!.postMessage(result);
   } catch (err) {
     if (err instanceof ParseError) {

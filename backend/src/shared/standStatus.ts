@@ -13,6 +13,10 @@ export const STAND_STATUSES = ['ok', 'needs_repair', 'broken', 'removed'] as con
 export type StandStatus = (typeof STAND_STATUSES)[number]
 
 export const STAND_NICKNAME_MAX = 64
+export const STAND_NUMBER_MAX = 32
+
+/** A stand saved without a number gets the next free "NOT-NAMED-<n>" in its area. */
+export const UNNAMED_STAND_PREFIX = 'NOT-NAMED-'
 
 export function isStandStatus(value: unknown): value is StandStatus {
   return typeof value === 'string' && (STAND_STATUSES as readonly string[]).includes(value)

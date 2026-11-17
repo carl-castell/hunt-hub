@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server'
 import { z } from 'zod'
 import { areaNameSchema } from '@/schemas'
+import { epsgFromInput } from '@/utils/crs'
 import {
   AreaNotFoundError, DeleteConfirmationError, GeofileRejectedError,
   listAreas, getAreaWithBoundary, listStands, createArea, renameArea, deleteArea,
@@ -37,9 +38,13 @@ const areaProcedure = managerProcedure.use(async ({ next }) => {
 /** Multipart upload: `areaId` and `file` fields. Sent with httpLink (FormData can't be batched). */
 const boundaryUploadInput = z
   .instanceof(FormData)
-  .transform((form) => ({ areaId: Number(form.get('areaId')), file: form.get('file') }))
+  .transform((form) => ({ areaId: Number(form.get('areaId')), file: form.get('file'), crs: typeof form.get('crs') === 'string' ? (form.get('crs') as string) : '' }))
   .pipe(z.object({
     areaId: z.number().int().positive(),
+    // Only needed for files that don't say which coordinate system they use.
+    crs: z.string().trim()
+      .transform((value) => (value ? epsgFromInput(value) ?? value : null))
+      .refine((value) => value === null || value.startsWith('EPSG:'), 'Please enter an EPSG code, e.g. 25832'),
     file: z
       .instanceof(File, { message: 'Please choose a file' })
       .refine((file) => file.size > 0, 'The file is empty')
@@ -84,7 +89,7 @@ export const managerAreasRouter = router({
     .input(boundaryUploadInput)
     .mutation(async ({ ctx, input }) => {
       const buffer = Buffer.from(await input.file.arrayBuffer())
-      await setAreaBoundaryFromFile(ctx.estateId, input.areaId, { buffer, filename: input.file.name }, actorOf(ctx))
+      await setAreaBoundaryFromFile(ctx.estateId, input.areaId, { buffer, filename: input.file.name, crs: input.crs }, actorOf(ctx))
     }),
 
   clearBoundary: areaProcedure

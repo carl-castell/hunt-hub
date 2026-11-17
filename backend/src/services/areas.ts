@@ -7,6 +7,7 @@ import { standsTable } from '@/db/schema/stands';
 import { audit } from '@/services/audit';
 import { runWorker } from '@/utils/runWorker';
 import type { StandStatus } from '@/shared/standStatus';
+import { isWgs84 } from '@/utils/crs';
 
 // Parsing geo files is CPU-heavy, so it runs in a worker thread and does
 // not block other requests.
@@ -16,7 +17,7 @@ const GEOFILE_WORKER = path.resolve(
 );
 
 type GeofileWorkerResult =
-  | { ok: true; geometryCollection: string }
+  | { ok: true; geometryCollection: string; crs: string | null }
   | { ok: false; status: number; message: string };
 
 /**
@@ -207,13 +208,54 @@ export async function clearAreaBoundary(estateId: number, areaId: number, actor:
 }
 
 /**
+ * The polygons of a parsed file as a WGS 84 MultiPolygon (what the maps, the
+ * iPhone app and QGIS expect). A file in any other coordinate system that
+ * PostGIS knows (an EPSG code, or the WKT of a .prj / GeoPackage) is
+ * converted. `fallbackCrs` (an EPSG code typed by the user) is used only if
+ * the file doesn't say. Refuses coordinates that are no longitude/latitude
+ * afterwards, instead of storing a boundary that no map can show.
+ */
+async function boundaryInWgs84(geometryCollection: string, fileCrs: string | null, fallbackCrs: string | null) {
+  const crs = fileCrs ?? fallbackCrs;
+  const polygons = sql`ST_Multi(ST_CollectionExtract(ST_SetSRID(ST_GeomFromGeoJSON(${geometryCollection}), 4326), 3))`;
+  const geometry = crs && !isWgs84(crs)
+    ? sql`ST_Transform(ST_SetSRID(${polygons}, 0), ${crs}::text, 4326)`
+    : polygons;
+
+  let check: { empty: boolean; lnglat: boolean };
+  try {
+    const res = await db.execute<{ empty: boolean; lnglat: boolean }>(sql`
+      SELECT ST_IsEmpty(g) AS empty,
+             ST_XMin(g) >= -180 AND ST_XMax(g) <= 180 AND ST_YMin(g) >= -90 AND ST_YMax(g) <= 90 AS lnglat
+      FROM (SELECT ${geometry} AS g) AS boundary`);
+    check = res.rows[0];
+  } catch {
+    // PROJ couldn't read the definition.
+    throw new GeofileRejectedError(400, `Hunt Hub doesn't know the file's coordinate system (${describeCrs(crs!)}). Please export it as WGS 84 (EPSG:4326), or as EPSG code.`);
+  }
+  if (check.empty) throw new GeofileRejectedError(400, 'The file contains no area (polygon).');
+  if (!check.lnglat) {
+    throw new GeofileRejectedError(400, crs === null || isWgs84(crs)
+      ? "The file's coordinates are not longitude/latitude, and the file doesn't say which coordinate system it uses (e.g. UTM). Enter its EPSG code (e.g. 25832 for UTM zone 32N) and upload again."
+      : `The file's coordinates don't fit its coordinate system (${describeCrs(crs)}). Please check the export.`);
+  }
+  return geometry;
+}
+
+/** A short name for a coordinate system in a message: the EPSG code, or the name at the start of a WKT. */
+function describeCrs(crs: string): string {
+  const name = crs.match(/^\s*[A-Z_]+\[\s*"([^"]+)"/i)?.[1];
+  return name ?? (crs.length > 60 ? `${crs.slice(0, 57)}…` : crs);
+}
+
+/**
  * Sets the area's boundary from an uploaded geo file (GPX, KML, GeoJSON,
  * Shapefile zip or GeoPackage). Only the polygons of the file are kept.
  */
 export async function setAreaBoundaryFromFile(
   estateId: number,
   areaId: number,
-  file: { buffer: Buffer; filename: string },
+  file: { buffer: Buffer; filename: string; crs?: string | null },
   actor: Actor,
 ): Promise<void> {
   const area = await requireAreaInEstate(estateId, areaId);
@@ -224,9 +266,10 @@ export async function setAreaBoundaryFromFile(
   });
   if (!result.ok) throw new GeofileRejectedError(result.status, result.message);
 
+  const boundary = await boundaryInWgs84(result.geometryCollection, result.crs, file.crs ?? null);
   await db
     .update(areasTable)
-    .set({ geofile: sql`ST_Multi(ST_CollectionExtract(ST_GeomFromGeoJSON(${result.geometryCollection}), 3))` })
+    .set({ geofile: boundary })
     .where(eq(areasTable.id, area.id));
 
   await audit({ userId: actor.userId, event: 'geofile_uploaded', ip: actor.ip, metadata: { areaId: area.id } });

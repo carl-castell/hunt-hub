@@ -33,3 +33,22 @@ export function bboxOf(geojson: unknown): BBox | null {
 export function bboxContains(outer: BBox, inner: BBox) {
   return inner[0] >= outer[0] && inner[1] >= outer[1] && inner[2] <= outer[2] && inner[3] <= outer[3]
 }
+
+/**
+ * A boundary as stored, if it can be drawn: parsed, and with longitude/latitude
+ * coordinates. A boundary uploaded before the server converted coordinate
+ * systems may be in UTM metres; it would break the whole map, so it counts as
+ * `broken` and isn't drawn.
+ */
+export function usableBoundary(geojson: string | null | undefined): { geometry: unknown; broken: boolean } {
+  if (!geojson) return { geometry: null, broken: false }
+  let geometry: unknown
+  try {
+    geometry = JSON.parse(geojson)
+  } catch {
+    return { geometry: null, broken: true }
+  }
+  const box = bboxOf(geometry)
+  const lngLat = box !== null && box[0] >= -180 && box[2] <= 180 && box[1] >= -90 && box[3] <= 90
+  return lngLat ? { geometry, broken: false } : { geometry: null, broken: true }
+}

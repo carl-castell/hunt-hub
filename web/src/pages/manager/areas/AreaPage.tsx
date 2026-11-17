@@ -9,6 +9,8 @@ import {
 import { trpc } from '@/lib/trpc'
 import { AreaMap, type AreaMapHandle, type MapStand } from '@/components/map/AreaMap'
 import { BASEMAPS, DEFAULT_BASEMAP, type BasemapId, type BoundaryStyle } from '@/components/map/areaStyle'
+import { hasLngLatCoordinates } from '@/components/map/bounds'
+import { insideBoundary } from '@/components/map/geometry'
 import { usePersistentState } from '@/lib/usePersistentState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,12 +46,15 @@ export function AreaPage() {
     )
   }
 
-  return <AreaMapPage area={area} />
+  // A boundary with coordinates that aren't longitude/latitude (an old upload in UTM) would
+  // break the whole map; leave it out and say so instead.
+  const brokenBoundary = area.boundary !== null && !hasLngLatCoordinates(area.boundary)
+  return <AreaMapPage area={brokenBoundary ? { ...area, boundary: null } : area} brokenBoundary={brokenBoundary} />
 }
 
 type Area = { id: number; name: string; boundary: GeoJSON.Geometry | null; stands: ApiStand[] }
 
-function AreaMapPage({ area }: { area: Area }) {
+function AreaMapPage({ area, brokenBoundary = false }: { area: Area; brokenBoundary?: boolean }) {
   const mapRef = useRef<AreaMapHandle>(null)
   const [basemapId, setBasemapId] = useState<BasemapId>(DEFAULT_BASEMAP)
   const [showBoundary, setShowBoundary] = useState(true)
@@ -57,6 +62,11 @@ function AreaMapPage({ area }: { area: Area }) {
   const [layersOpen, setLayersOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [standsOpen, setStandsOpen] = useState(false)
+  // Edit mode (like the iPhone app): stands can be dragged; right-click adds one.
+  const [editStands, setEditStands] = useState(false)
+  const [placing, setPlacing] = useState(false)
+  const [newStandAt, setNewStandAt] = useState<[number, number] | null>(null)
+  const [pendingMove, setPendingMove] = useState<{ stand: ApiStand; to: [number, number]; revert: () => void } | null>(null)
   // A display preference of this browser, the same for every area.
   const [boundaryStyle, setBoundaryStyle] = usePersistentState<BoundaryStyle>('hunthub.boundaryStyle', 'inverted', ['inverted', 'line'])
 
@@ -77,9 +87,31 @@ function AreaMapPage({ area }: { area: Area }) {
 
       <div className="relative flex-1 overflow-hidden">
         <AreaMap ref={mapRef} boundary={area.boundary} stands={mapStands}
-          basemapId={basemapId} showBoundary={showBoundary} boundaryStyle={boundaryStyle} showStands={showStands} />
+          basemapId={basemapId} showBoundary={showBoundary} boundaryStyle={boundaryStyle} showStands={showStands}
+          editable={editStands} placing={placing}
+          onPlace={(at) => { setPlacing(false); setNewStandAt(at) }}
+          onMoveStand={(standId, to, revert) => {
+            const stand = area.stands.find((s) => s.id === standId)
+            if (stand) setPendingMove({ stand, to, revert })
+            else revert()
+          }} />
 
-        {area.boundary === null && mapStands.every((s) => s.location === null) && (
+        {editStands && (
+          <div role="status" className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-3 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground shadow-md">
+            {placing
+              ? <>Click on the map where the new stand goes.
+                  <Button size="sm" variant="secondary" onClick={() => setPlacing(false)}>Cancel</Button></>
+              : <>Edit mode: drag a stand to move it, right-click the map to add one.
+                  <Button size="sm" variant="secondary" onClick={() => setEditStands(false)}>Done</Button></>}
+          </div>
+        )}
+
+        {brokenBoundary && (
+          <p role="alert" className="absolute left-4 top-4 max-w-md rounded-md bg-background/95 px-3 py-2 text-sm text-destructive shadow">
+            The boundary can&apos;t be shown: its coordinates are not longitude/latitude. Upload the file again in the settings.
+          </p>
+        )}
+        {!brokenBoundary && area.boundary === null && mapStands.every((s) => s.location === null) && (
           <p className="absolute left-4 top-4 rounded-md bg-background/90 px-3 py-2 text-sm text-muted-foreground shadow">
             No boundary yet. Upload one in the settings.
           </p>
@@ -112,10 +144,22 @@ function AreaMapPage({ area }: { area: Area }) {
 
         <StandsPanel
           areaId={area.id}
+          onAdd={() => { setEditStands(true); setPlacing(true) }}
+          editing={editStands}
+          onToggleEdit={() => { setEditStands((on) => !on); setPlacing(false) }}
           open={standsOpen} stands={area.stands} onClose={() => setStandsOpen(false)}
-          onSelect={(position) => mapRef.current?.flyTo(position)}
+          onSelect={(stand, position) => mapRef.current?.flyTo(position, stand.id)}
         />
       </div>
+
+      {newStandAt && (
+        <NewStandDialog areaId={area.id} at={newStandAt} outside={!insideBoundary(newStandAt, area.boundary)}
+          onClose={() => setNewStandAt(null)} />
+      )}
+      {pendingMove && (
+        <MoveStandDialog areaId={area.id} move={pendingMove} outside={!insideBoundary(pendingMove.to, area.boundary)}
+          onClose={() => setPendingMove(null)} />
+      )}
 
       <AreaSettings area={area} open={settingsOpen} onOpenChange={setSettingsOpen}
         boundaryStyle={boundaryStyle} onBoundaryStyle={setBoundaryStyle} />
@@ -174,11 +218,12 @@ function LayerMenu({ value, onChange, onClose }: { value: BasemapId; onChange: (
   )
 }
 
-function StandsPanel({ areaId, open, stands, onClose, onSelect }: {
-  areaId: number; open: boolean; stands: ApiStand[]; onClose: () => void; onSelect: (position: [number, number]) => void
+function StandsPanel({ areaId, open, stands, editing, onToggleEdit, onAdd, onClose, onSelect }: {
+  areaId: number; open: boolean; stands: ApiStand[]; editing: boolean; onToggleEdit: () => void
+  onAdd: () => void; onClose: () => void; onSelect: (stand: ApiStand, position: [number, number]) => void
 }) {
   const [query, setQuery] = useState('')
-  const [editing, setEditing] = useState<ApiStand | null>(null)
+  const [editingStand, setEditingStand] = useState<ApiStand | null>(null)
   const found = searchStands(stands, query)
 
   return (
@@ -196,8 +241,7 @@ function StandsPanel({ areaId, open, stands, onClose, onSelect }: {
       )}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="font-semibold">Stands <span className="font-normal text-muted-foreground">({stands.length})</span></h2>
-        {/* Adding stands on the website comes with HUN-58. */}
-        <Button size="sm" variant="outline" disabled title="Coming soon" tabIndex={open ? 0 : -1}>
+        <Button size="sm" variant="outline" title="Add a stand on the map" tabIndex={open ? 0 : -1} onClick={onAdd}>
           <PlusIcon /> Add
         </Button>
       </div>
@@ -212,7 +256,7 @@ function StandsPanel({ areaId, open, stands, onClose, onSelect }: {
           return (
             <li key={stand.id} className="group flex items-start gap-1 rounded hover:bg-muted">
               <button type="button" disabled={!position} tabIndex={open ? 0 : -1}
-                onClick={() => position && onSelect(position)}
+                onClick={() => position && onSelect(stand, position)}
                 className="flex min-w-0 flex-1 flex-col gap-1 px-3 py-2 text-left text-sm disabled:cursor-default">
                 <span className="flex w-full items-baseline gap-2">
                   <span className="font-medium">{stand.number}</span>
@@ -222,9 +266,9 @@ function StandsPanel({ areaId, open, stands, onClose, onSelect }: {
                 {stand.status && <StandStatusLine status={stand.status} date={stand.statusDate} />}
               </button>
               <Button type="button" variant="ghost" size="icon" tabIndex={open ? 0 : -1}
-                aria-label={`Edit ${standTitle(stand)}`} title="Edit name and status"
+                aria-label={`Edit ${standTitle(stand)}`} title="Edit number, name and status"
                 className="mt-1 mr-1 text-muted-foreground opacity-60 group-hover:opacity-100"
-                onClick={() => setEditing(stand)}>
+                onClick={() => setEditingStand(stand)}>
                 <PencilSimpleIcon />
               </Button>
             </li>
@@ -232,12 +276,19 @@ function StandsPanel({ areaId, open, stands, onClose, onSelect }: {
         })}
         {found.length === 0 && (
           <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-            {stands.length === 0 ? 'No stands yet. Stands are placed in QGIS for now.' : 'No stand matches this search.'}
+            {stands.length === 0 ? 'No stands yet. Click Add to place one on the map.' : 'No stand matches this search.'}
           </li>
         )}
       </ul>
-      {editing && (
-        <StandDetailsDialog key={editing.id} areaId={areaId} stand={editing} onClose={() => setEditing(null)} />
+      {/* Edit mode at the bottom of the list, like a footer: drag stands, right-click to add. */}
+      <div className="border-t border-border p-3">
+        <Button className="w-full" variant={editing ? 'default' : 'outline'} aria-pressed={editing}
+          tabIndex={open ? 0 : -1} onClick={onToggleEdit}>
+          <PencilSimpleIcon /> {editing ? 'Done editing' : 'Edit stands'}
+        </Button>
+      </div>
+      {editingStand && (
+        <StandDetailsDialog key={editingStand.id} areaId={areaId} stand={editingStand} onClose={() => setEditingStand(null)} />
       )}
     </aside>
   )
@@ -261,34 +312,60 @@ function StandStatusLine({ status, date }: { status: StandStatus; date: string |
   )
 }
 
-/** Nickname and status of one stand. Changing the status sets the date to today; it can be corrected. */
-function StandDetailsDialog({ areaId, stand, onClose }: { areaId: number; stand: ApiStand; onClose: () => void }) {
+/** Status choice: "Not checked" or one of the four statuses. */
+function StatusPicker({ value, onChange }: { value: StandStatus | ''; onChange: (status: StandStatus | '') => void }) {
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="text-xs font-medium">Status</legend>
+      <div className="grid grid-cols-2 gap-1.5">
+        {(['', ...STAND_STATUSES] as const).map((code) => (
+          <label key={code || 'none'}
+            className="flex cursor-pointer items-center gap-2 border border-input px-2.5 py-1.5 text-xs has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+            <input type="radio" name="stand-status" value={code} checked={value === code}
+              onChange={() => onChange(code)} className="accent-primary" />
+            {code ? <><span className={`size-2 rounded-full ${STATUS_DOT[code]}`} aria-hidden />{STAND_STATUS_LABELS[code]}</> : 'Not checked'}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
+function OutsideWarning() {
+  return (
+    <p className="flex items-start gap-2 border border-amber-500/50 bg-amber-500/10 px-2.5 py-2 text-xs">
+      <WarningIcon className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
+      This position is outside the area boundary.
+    </p>
+  )
+}
+
+/** A new stand where the map was clicked. Without a number it is saved as NOT-NAMED-n. */
+function NewStandDialog({ areaId, at, outside, onClose }: {
+  areaId: number; at: [number, number]; outside: boolean; onClose: () => void
+}) {
   const invalidate = useInvalidateArea(areaId)
-  const [nickname, setNickname] = useState(stand.nickname ?? '')
-  const [status, setStatus] = useState<StandStatus | ''>(stand.status ?? '')
-  const [statusDate, setStatusDate] = useState(stand.statusDate ?? todayIso())
-  const update = trpc.manager.stands.update.useMutation({
-    onSuccess: () => {
+  const [number, setNumber] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [status, setStatus] = useState<StandStatus | ''>('')
+  const [error, setError] = useState<string | null>(null)
+  const create = trpc.manager.stands.create.useMutation({
+    onSuccess: (stand) => {
       invalidate()
-      toast.success(`${standTitle({ number: stand.number, nickname: nickname.trim() || null })} saved`)
+      toast.success(`Stand ${stand.number} added`)
       onClose()
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => setError(err.message),
   })
-
-  const changeStatus = (next: StandStatus | '') => {
-    setStatus(next)
-    // A new status gets today's date; going back to the saved status restores its date.
-    setStatusDate(next === stand.status && stand.statusDate ? stand.statusDate : todayIso())
-  }
 
   const save = (e: React.FormEvent) => {
     e.preventDefault()
-    update.mutate({
-      id: stand.id,
+    setError(null)
+    create.mutate({
+      areaId, position: { lng: at[0], lat: at[1] },
+      number: number.trim() || undefined,
       nickname: nickname.trim() || null,
       status: status || null,
-      ...(status ? { statusDate } : {}),
     })
   }
 
@@ -296,40 +373,180 @@ function StandDetailsDialog({ areaId, stand, onClose }: { areaId: number; stand:
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Stand {stand.number}</DialogTitle>
-          <DialogDescription>Name and condition of the stand. The number is changed in QGIS or the iPhone app.</DialogDescription>
+          <DialogTitle>New stand</DialogTitle>
+          <DialogDescription>At {at[1].toFixed(5)}, {at[0].toFixed(5)}</DialogDescription>
         </DialogHeader>
         <form onSubmit={save} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="stand-nickname">Nickname (optional)</Label>
-            <Input id="stand-nickname" value={nickname} maxLength={64} placeholder="e.g. Eiche"
+            <Label htmlFor="new-stand-number">Number</Label>
+            <Input id="new-stand-number" value={number} maxLength={32} autoFocus aria-invalid={error !== null}
+              placeholder="Leave empty for NOT-NAMED-…" onChange={(e) => { setNumber(e.target.value); setError(null) }} />
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-stand-nickname">Nickname (optional)</Label>
+            <Input id="new-stand-nickname" value={nickname} maxLength={64} placeholder="e.g. Eiche"
               onChange={(e) => setNickname(e.target.value)} />
           </div>
-          <fieldset className="space-y-1.5">
-            <legend className="text-xs font-medium">Status</legend>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(['', ...STAND_STATUSES] as const).map((code) => (
-                <label key={code || 'none'}
-                  className="flex cursor-pointer items-center gap-2 border border-input px-2.5 py-1.5 text-xs has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                  <input type="radio" name="stand-status" value={code} checked={status === code}
-                    onChange={() => changeStatus(code)} className="accent-primary" />
-                  {code ? <><span className={`size-2 rounded-full ${STATUS_DOT[code]}`} aria-hidden />{STAND_STATUS_LABELS[code]}</> : 'Not checked'}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {status && (
-            <div className="space-y-1.5">
-              <Label htmlFor="stand-status-date">Status since</Label>
-              <Input id="stand-status-date" type="date" required value={statusDate} max={todayIso()}
-                onChange={(e) => setStatusDate(e.target.value)} />
-            </div>
-          )}
+          <StatusPicker value={status} onChange={setStatus} />
+          {outside && <OutsideWarning />}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={update.isPending}>{update.isPending ? 'Saving…' : 'Save'}</Button>
+            <Button type="submit" disabled={create.isPending}>
+              {create.isPending ? 'Saving…' : outside ? 'Save anyway' : 'Save'}
+            </Button>
           </div>
         </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Confirms a stand that was dragged to a new place; Cancel puts it back. */
+function MoveStandDialog({ areaId, move, outside, onClose }: {
+  areaId: number; move: { stand: ApiStand; to: [number, number]; revert: () => void }; outside: boolean; onClose: () => void
+}) {
+  const invalidate = useInvalidateArea(areaId)
+  const moveStand = trpc.manager.stands.move.useMutation({
+    onSuccess: () => {
+      invalidate()
+      toast.success(`${standTitle(move.stand)} moved`)
+      onClose()
+    },
+    onError: (err) => toast.error(err.message),
+  })
+  const cancel = () => {
+    move.revert()
+    onClose()
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open && !moveStand.isPending) cancel() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Move {standTitle(move.stand)}?</DialogTitle>
+          <DialogDescription>New position: {move.to[1].toFixed(5)}, {move.to[0].toFixed(5)}</DialogDescription>
+        </DialogHeader>
+        {outside && <OutsideWarning />}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={cancel}>Cancel</Button>
+          <Button type="button" disabled={moveStand.isPending}
+            onClick={() => moveStand.mutate({ id: move.stand.id, position: { lng: move.to[0], lat: move.to[1] } })}>
+            {moveStand.isPending ? 'Saving…' : outside ? 'Save anyway' : 'Save'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Number, nickname and status of one stand, and deleting it. Changing the
+ * status sets the date to today; it can be corrected.
+ */
+function StandDetailsDialog({ areaId, stand, onClose }: { areaId: number; stand: ApiStand; onClose: () => void }) {
+  const invalidate = useInvalidateArea(areaId)
+  const [number, setNumber] = useState(stand.number)
+  const [nickname, setNickname] = useState(stand.nickname ?? '')
+  const [status, setStatus] = useState<StandStatus | ''>(stand.status ?? '')
+  const [statusDate, setStatusDate] = useState(stand.statusDate ?? todayIso())
+  const [numberError, setNumberError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const rename = trpc.manager.stands.rename.useMutation()
+  const update = trpc.manager.stands.update.useMutation()
+  const remove = trpc.manager.stands.delete.useMutation({
+    onSuccess: () => {
+      invalidate()
+      toast.success(`${standTitle(stand)} deleted`)
+      onClose()
+    },
+    onError: (err) => toast.error(err.message),
+  })
+  const saving = rename.isPending || update.isPending
+
+  const changeStatus = (next: StandStatus | '') => {
+    setStatus(next)
+    // A new status gets today's date; going back to the saved status restores its date.
+    setStatusDate(next === stand.status && stand.statusDate ? stand.statusDate : todayIso())
+  }
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setNumberError(null)
+    const newNumber = number.trim()
+    if (!newNumber) {
+      setNumberError('Please enter a number.')
+      return
+    }
+    try {
+      if (newNumber !== stand.number) await rename.mutateAsync({ id: stand.id, number: newNumber })
+    } catch (err) {
+      setNumberError(err instanceof Error ? err.message : 'Could not change the number.')
+      return
+    }
+    try {
+      await update.mutateAsync({
+        id: stand.id,
+        nickname: nickname.trim() || null,
+        status: status || null,
+        ...(status ? { statusDate } : {}),
+      })
+      invalidate()
+      toast.success(`${standTitle({ number: newNumber, nickname: nickname.trim() || null })} saved`)
+      onClose()
+    } catch (err) {
+      invalidate()
+      toast.error(err instanceof Error ? err.message : 'Could not save.')
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{standTitle(stand)}</DialogTitle>
+          <DialogDescription>Number, name and condition of the stand. Move it by dragging it in edit mode.</DialogDescription>
+        </DialogHeader>
+        {confirmDelete ? (
+          <div className="space-y-4">
+            <p className="text-sm">Delete {standTitle(stand)}? This can&apos;t be undone. It also disappears from the iPhone app with the next sync.</p>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+              <Button type="button" variant="destructive" disabled={remove.isPending} onClick={() => remove.mutate({ id: stand.id })}>
+                <TrashIcon /> {remove.isPending ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={save} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="stand-number">Number</Label>
+              <Input id="stand-number" value={number} maxLength={32} aria-invalid={numberError !== null}
+                onChange={(e) => { setNumber(e.target.value); setNumberError(null) }} />
+              {numberError && <p className="text-xs text-destructive">{numberError}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="stand-nickname">Nickname (optional)</Label>
+              <Input id="stand-nickname" value={nickname} maxLength={64} placeholder="e.g. Eiche"
+                onChange={(e) => setNickname(e.target.value)} />
+            </div>
+            <StatusPicker value={status} onChange={changeStatus} />
+            {status && (
+              <div className="space-y-1.5">
+                <Label htmlFor="stand-status-date">Status since</Label>
+                <Input id="stand-status-date" type="date" required value={statusDate} max={todayIso()}
+                  onChange={(e) => setStatusDate(e.target.value)} />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" className="mr-auto text-destructive" onClick={() => setConfirmDelete(true)}>
+                <TrashIcon /> Delete
+              </Button>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -439,6 +656,8 @@ function RenameSection({ areaId, name }: { areaId: number; name: string }) {
 function BoundarySection({ areaId, hasBoundary }: { areaId: number; hasBoundary: boolean }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const invalidate = useInvalidateArea(areaId)
+  // Only for files that don't say which coordinate system they use.
+  const [epsg, setEpsg] = useState('')
 
   const upload = trpc.manager.areas.uploadBoundary.useMutation({
     onSuccess: () => {
@@ -463,6 +682,7 @@ function BoundarySection({ areaId, hasBoundary }: { areaId: number; hasBoundary:
     const form = new FormData()
     form.set('areaId', String(areaId))
     form.set('file', file)
+    form.set('crs', epsg.trim())
     upload.mutate(form)
   }
 
@@ -480,6 +700,14 @@ function BoundarySection({ areaId, hasBoundary }: { areaId: number; hasBoundary:
           <Button onClick={uploadSelectedFile} disabled={upload.isPending}>
             {upload.isPending ? 'Uploading…' : hasBoundary ? 'Replace' : 'Upload'}
           </Button>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="boundary-epsg" className="text-xs">Coordinate system (EPSG code, optional)</Label>
+          <Input id="boundary-epsg" value={epsg} onChange={(e) => setEpsg(e.target.value)} inputMode="numeric"
+            placeholder="e.g. 25832" className="max-w-40" />
+          <p className="text-xs text-muted-foreground">
+            Any coordinate system works. Only needed if the file doesn&apos;t say which one it uses, e.g. a shapefile without .prj.
+          </p>
         </div>
         {hasBoundary && (
           <Button variant="ghost" size="sm" className="-ml-3 text-muted-foreground"
