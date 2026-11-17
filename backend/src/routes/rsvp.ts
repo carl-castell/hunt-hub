@@ -1,46 +1,13 @@
 import { Router } from 'express';
-import multer from 'multer';
-import { verifyCsrfTokenMultipart } from '../middlewares/csrf';
-import { requireManager } from '../middlewares/requireRole';
-import { rsvpUploadLimiter, rsvpLimiter } from '../middlewares/rateLimiter';
-import { getRsvp, postRespond, postUploadLicense, postUploadCertificate, postUploadDetails } from '../controllers/rsvp';
-import { getPreviewRsvp, postPreviewRespond, postPreviewUploadLicense, postPreviewUploadCertificate, postPreviewUploadDetails } from '../controllers/rsvp-preview';
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10_000_000 } });
-
+/**
+ * The guest's answer page lives in the React app (HUN-90). Links in emails
+ * point here (/rsvp/<id>), so emails already sent keep working; they are sent
+ * on to the React page. The manager's preview moves the same way.
+ */
 const rsvpRouter = Router();
 
-rsvpRouter.use('/preview', requireManager);
-rsvpRouter.get('/preview/:eventId', getPreviewRsvp);
-rsvpRouter.post('/preview/:eventId/respond', postPreviewRespond);
-rsvpRouter.post('/preview/:eventId/upload/license',
-  upload.fields([{ name: 'licenseFiles', maxCount: 4 }]),
-  verifyCsrfTokenMultipart,
-  postPreviewUploadLicense,
-);
-rsvpRouter.post('/preview/:eventId/upload/certificate',
-  upload.fields([{ name: 'certFiles', maxCount: 2 }]),
-  verifyCsrfTokenMultipart,
-  postPreviewUploadCertificate,
-);
-rsvpRouter.post('/preview/:eventId/upload/details', postPreviewUploadDetails);
-
-rsvpRouter.get('/:publicId', rsvpLimiter, getRsvp);
-rsvpRouter.post('/:publicId/respond', rsvpLimiter, postRespond);
-rsvpRouter.post(
-  '/:publicId/upload/license',
-  rsvpUploadLimiter,
-  upload.fields([{ name: 'licenseFiles', maxCount: 4 }]),
-  verifyCsrfTokenMultipart,
-  postUploadLicense,
-);
-rsvpRouter.post(
-  '/:publicId/upload/certificate',
-  rsvpUploadLimiter,
-  upload.fields([{ name: 'certFiles', maxCount: 2 }]),
-  verifyCsrfTokenMultipart,
-  postUploadCertificate,
-);
-rsvpRouter.post('/:publicId/upload/details', rsvpUploadLimiter, postUploadDetails);
+rsvpRouter.get('/preview/:eventId(\\d+)', (req, res) => res.redirect(`/app/rsvp/preview/${req.params.eventId}`));
+rsvpRouter.get('/:publicId', (req, res) => res.redirect(`/app/rsvp/${encodeURIComponent(req.params.publicId)}`));
 
 export default rsvpRouter;

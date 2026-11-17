@@ -4,7 +4,6 @@ import { getEstate, postRenameEstate } from '../controllers/manager/estate';
 import { getArea, postCreateArea, postRenameArea, postDeleteArea, postUploadGeofile, postDeleteGeofile } from '../controllers/manager/areas';
 import { getGuests, getNewGuest, postCreateGuest, getGuest, postUpdateGuest, postDeleteGuest, postGuestAddToGroup, postGuestRemoveFromGroup } from '../controllers/manager/guests';
 import { postCreateEvent, postUpdateEvent, postDeleteEvent } from '../controllers/manager/events';
-import { getInvitation, getInvitationList, getInvitationPicker, postStageInvitations, postRemoveInvitation, postUpdateInvitation, getSendInvitations, postSendInvitations, getPreviewInvitation } from '../controllers/manager/invitations';
 import { postCreateDrive } from '../controllers/manager/drives';
 import {
   getPeople, postCreateUser,
@@ -77,16 +76,8 @@ managerRouter.post('/events',                         postCreateEvent);
 managerRouter.post('/events/:id/update',              postUpdateEvent);
 managerRouter.post('/events/:id/delete',              postDeleteEvent);
 
-// Invitations
-managerRouter.get('/events/:eventId/invitations',                         getInvitationList);
-managerRouter.get('/events/:eventId/invitations/send',                    getSendInvitations);
-managerRouter.get('/events/:eventId/invitations/preview',                 getPreviewInvitation);
-managerRouter.post('/events/:eventId/invitations/send',                   postSendInvitations);
-managerRouter.get('/events/:eventId/invitations/new',                     getInvitationPicker);
-managerRouter.post('/events/:eventId/invitations',                        postStageInvitations);
-managerRouter.get('/events/:eventId/invitations/:invitationId',           getInvitation);
-managerRouter.post('/events/:eventId/invitations/:invitationId/update',   postUpdateInvitation);
-managerRouter.post('/events/:eventId/invitations/:invitationId/remove',   postRemoveInvitation);
+// Invitations: the guest list is the Guests tab of the React event page (HUN-89).
+managerRouter.get('/events/:eventId(\\d+)/invitations*', (req, res) => res.redirect(`/app/manager/events/${req.params.eventId}?tab=guests`));
 
 // Drives
 managerRouter.post('/events/:eventId/drives',         postCreateDrive);
