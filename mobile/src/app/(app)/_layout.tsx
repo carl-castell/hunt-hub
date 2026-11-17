@@ -15,6 +15,9 @@ export default function AppLayout() {
       <Stack.Screen name="index" options={{ title: 'Areas' }} />
       <Stack.Screen name="area/[id]" options={{ title: '' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+      {/* Back buttons only show the arrow, not the previous page's title. */}
+      <Stack.Screen name="stands/[areaId]" options={{ title: 'Stands', headerBackButtonDisplayMode: 'minimal' }} />
+      <Stack.Screen name="stand/[id]" options={{ title: 'Stand', headerBackButtonDisplayMode: 'minimal' }} />
     </Stack>
   )
 }

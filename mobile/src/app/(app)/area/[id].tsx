@@ -17,6 +17,7 @@ import { standMarkers, standsBBox, type StandRow } from '../../../map/stands'
 import { BOUNDARY_COLOR, buildAreaStyle, type BasemapChoice } from '../../../map/style'
 import { useSync } from '../../../sync/SyncProvider'
 import { LayerSheet } from '../../../ui/LayerSheet'
+import { StandSheet } from '../../../ui/StandSheet'
 import { CompassButton, Crosshair, MapButton, MapInfoBar, DistanceRings, RINGS_ON_DARK, RINGS_ON_LIGHT } from '../../../ui/MapOverlays'
 import { useTheme } from '../../../ui/theme'
 
@@ -29,7 +30,8 @@ type View2D = { center: [number, number]; zoom: number; bearing: number }
 
 export default function AreaMap() {
   const t = useTheme()
-  const { id } = useLocalSearchParams<{ id: string }>()
+  // `focus`: a stand to fly to, set by "Show on map" on the stand's page.
+  const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>()
   const areaId = Number(id)
   const { online } = useSync()
   const db = getDb()
@@ -79,6 +81,8 @@ export default function AreaMap() {
   )
 
   const [layersOpen, setLayersOpen] = useState(false)
+  // The stand tapped on the map, shown in the panel at the bottom.
+  const [selectedStandId, setSelectedStandId] = useState<number | null>(null)
 
   // Location: the GPS accuracy is shown whenever there is a position; the blue dot only when turned on.
   const [locationAllowed, setLocationAllowed] = useState(false)
@@ -109,6 +113,17 @@ export default function AreaMap() {
     setFollowing(false)
     if (areaBox) cameraRef.current?.fitBounds(areaBox, { padding: PADDING, duration: 600 })
   }
+
+  // "Show on map" from a stand's page: fly to it, and make sure stands are visible.
+  useEffect(() => {
+    const target = stands.find((s) => String(s.id) === focus)
+    if (!target) return
+    if (!settings.showStands) updateSettings({ showStands: true })
+    setFollowing(false)
+    cameraRef.current?.flyTo({ center: target.lngLat, zoom: 17, duration: 800 })
+    // Only when a new stand is requested, not on every change of the stands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus])
 
   // Map centre, zoom and rotation, for the coordinates, the distance rings and the compass.
   const [view, setView] = useState<View2D | null>(null)
@@ -174,7 +189,7 @@ export default function AreaMap() {
         />
         {showLocation && <UserLocation accuracy heading />}
         {settings.showStands && stands.map((s) => (
-          <Marker key={s.id} id={`stand-${s.id}`} lngLat={s.lngLat}>
+          <Marker key={s.id} id={`stand-${s.id}`} lngLat={s.lngLat} onPress={() => { setLayersOpen(false); setSelectedStandId(s.id) }}>
             <View style={styles.stand} accessibilityLabel={`Stand ${s.number}`}>
               <Text style={styles.standText} numberOfLines={1}>{s.number}</Text>
             </View>
@@ -204,6 +219,7 @@ export default function AreaMap() {
       <View style={[styles.buttons, { top }]} pointerEvents="box-none">
         <MapButton symbol="⧉" label={layersOpen ? 'Close layers' : 'Layers'} active={layersOpen} onPress={() => setLayersOpen((o) => !o)} />
         <MapButton symbol="⚙" label="Settings" onPress={() => router.push('/settings')} />
+        <MapButton symbol="☰" label="Stand list" onPress={() => router.push({ pathname: '/stands/[areaId]', params: { areaId: String(areaId) } })} />
         <MapButton symbol="⤢" label="Show whole area" onPress={fitArea} />
         <MapButton symbol="◎" label="Show my location" active={following} onPress={toggleLocation} />
         {rotated && <CompassButton bearing={view.bearing} onPress={turnNorth} />}
@@ -220,6 +236,21 @@ export default function AreaMap() {
         selectedBasemapId={basemapId}
         onSelectBasemap={(basemapId) => updateSettings({ basemapId })}
         attribution={choice.kind === 'online' ? choice.attribution : `Imported map: ${choice.name}`}
+      />
+
+      <StandSheet
+        stand={stands.find((s) => s.id === selectedStandId) ?? null}
+        areaName={area.name}
+        coordinateFormat={prefs.coordinateFormat}
+        distance={(() => {
+          const s = stands.find((x) => x.id === selectedStandId)
+          return s && gps ? `${formatDistance(distanceBetween(gps, s.lngLat))} from you` : null
+        })()}
+        onClose={() => setSelectedStandId(null)}
+        onDetails={(standId) => {
+          setSelectedStandId(null)
+          router.push({ pathname: '/stand/[id]', params: { id: String(standId) } })
+        }}
       />
     </View>
   )
