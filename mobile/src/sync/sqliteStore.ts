@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite'
+import { applyStandPushResult } from '../db/standEdits'
 import type { OutboxItem, PullResult, PushOutcome, SyncStore } from './types'
 
 export const CURSOR_KEY = 'cursor'
@@ -65,6 +66,9 @@ export function createSqliteSyncStore(db: SQLiteDatabase): SyncStore {
     async recordPushResults(results: PushOutcome[]) {
       db.withTransactionSync(() => {
         for (const r of results) {
+          // Stand edits react to the answer: real id for new stands, undo when refused.
+          const item = db.getFirstSync<{ type: string; payload: string }>('SELECT type, payload FROM outbox WHERE id = ?', r.id)
+          if (item?.type.startsWith('stand.') && r.status !== 'error') applyStandPushResult(db, item.type, JSON.parse(item.payload), r)
           if (r.status === 'applied') {
             db.runSync('DELETE FROM outbox WHERE id = ?', r.id)
           } else if (r.status === 'error') {
