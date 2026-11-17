@@ -67,3 +67,18 @@ export function formatCoordinate(lng: number, lat: number, format: CoordinateFor
 export function formatAccuracy(metres: number): string {
   return `GPS ± ${Math.max(1, Math.round(metres))} m`
 }
+
+/** Distance in metres between two points (haversine, on a sphere). */
+export function distanceBetween(a: [number, number], b: [number, number]): number {
+  const R = 6371008.8
+  const rad = Math.PI / 180
+  const dLat = (b[1] - a[1]) * rad
+  const dLng = (b[0] - a[0]) * rad
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+/** Height above sea level as "312 m a.s.l.". */
+export function formatAltitude(metres: number): string {
+  return `${Math.round(metres)} m a.s.l.`
+}

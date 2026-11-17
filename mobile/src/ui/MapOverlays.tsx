@@ -13,14 +13,18 @@ export function MapButton({ symbol, label, active = false, onPress }: { symbol: 
   )
 }
 
-/** Very thin cross that marks the map centre (the point whose coordinates are shown). */
-export function Crosshair() {
+/** Very thin cross that marks the map centre. `small`: only marks the centre of the distance rings. */
+export function Crosshair({ small = false }: { small?: boolean }) {
+  const size = small ? 12 : 28
+  const half = size / 2
+  const box = { width: size, height: size, marginLeft: -half, marginTop: -half }
   return (
-    <View style={styles.crossWrap} pointerEvents="none">
-      <View style={styles.haloH} />
-      <View style={styles.haloV} />
-      <View style={styles.lineH} />
-      <View style={styles.lineV} />
+    <View style={[styles.crossWrap, box]} pointerEvents="none">
+      {/* A slightly wider white line below each black one keeps the cross visible on dark satellite images. */}
+      <View style={[styles.lineH, { top: half - 0.75, height: 1.5 }, styles.halo]} />
+      <View style={[styles.lineV, { left: half - 0.75, width: 1.5 }, styles.halo]} />
+      <View style={[styles.lineH, { top: half - 0.25, height: 0.5 }]} />
+      <View style={[styles.lineV, { left: half - 0.25, width: 0.5 }]} />
     </View>
   )
 }
@@ -39,40 +43,49 @@ export function CompassButton({ bearing, onPress }: { bearing: number; onPress: 
   )
 }
 
-/** Distance rings around the map centre, each labelled with its distance. */
-export function DistanceRings({ rings }: { rings: Ring[] }) {
+/** Colours of the distance rings: a line plus a halo in the opposite colour, so they stand out on any map. */
+export type RingColors = { line: string; halo: string }
+export const RINGS_ON_DARK: RingColors = { line: '#ffffff', halo: 'rgba(0,0,0,0.65)' }
+export const RINGS_ON_LIGHT: RingColors = { line: '#1d1f1a', halo: 'rgba(255,255,255,0.9)' }
+
+/** Distance rings around the map centre, each labelled at its top. */
+export function DistanceRings({ rings, colors }: { rings: Ring[]; colors: RingColors }) {
+  const circle = (radius: number, width: number, color: string) => ({
+    width: radius * 2, height: radius * 2, borderRadius: radius, marginLeft: -radius, marginTop: -radius,
+    borderWidth: width, borderColor: color,
+  })
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {rings.map((r) => (
-        <View key={r.label} style={[styles.ring, { width: r.radius * 2, height: r.radius * 2, borderRadius: r.radius, marginLeft: -r.radius, marginTop: -r.radius }]}>
-          <Text style={styles.ringLabel}>{r.label}</Text>
+        <View key={r.label} style={StyleSheet.absoluteFill}>
+          {/* A wider ring in the opposite colour below the thin one keeps it visible on any map. */}
+          <View style={[styles.ring, circle(r.radius + 1, 3, colors.halo)]} />
+          <View style={[styles.ring, circle(r.radius, 1, colors.line)]} />
+          <Text numberOfLines={1}
+            style={[styles.ringLabel, { color: colors.line, textShadowColor: colors.halo, marginTop: -r.radius - RING_LABEL_HEIGHT - 1 }]}>
+            {r.label}
+          </Text>
         </View>
       ))}
     </View>
   )
 }
 
-/** Bottom of the map: centre coordinates and GPS accuracy. */
-export function MapInfoBar({ coordinate, accuracy, bottomInset }: {
-  coordinate: string | null
-  accuracy: string | null
-  bottomInset: number
-}) {
+/** Bottom of the map: one main line (coordinates) and one smaller line below it. */
+export function MapInfoBar({ main, sub, bottomInset }: { main: string | null; sub: string | null; bottomInset: number }) {
   const t = useTheme()
+  if (!main && !sub) return null
   return (
     <View style={[styles.info, { paddingBottom: bottomInset + 6 }]} pointerEvents="none">
-      {(coordinate || accuracy) && (
-        <View style={[styles.pill, { backgroundColor: t.card }]}>
-          <Text style={[styles.infoText, { color: t.text }]} numberOfLines={1}>
-            {[coordinate, accuracy].filter(Boolean).join('  ·  ')}
-          </Text>
-        </View>
-      )}
+      <View style={[styles.pill, { backgroundColor: t.card }]}>
+        {main && <Text style={[styles.infoText, { color: t.text }]} numberOfLines={1}>{main}</Text>}
+        {sub && <Text style={[styles.infoSub, { color: t.muted }]} numberOfLines={1}>{sub}</Text>}
+      </View>
     </View>
   )
 }
 
-const CROSS = 28
+const RING_LABEL_HEIGHT = 14
 
 const styles = StyleSheet.create({
   button: {
@@ -80,25 +93,21 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
   },
   symbol: { fontSize: 21 },
-  crossWrap: { position: 'absolute', top: '50%', left: '50%', width: CROSS, height: CROSS, marginLeft: -CROSS / 2, marginTop: -CROSS / 2 },
-  lineH: { position: 'absolute', left: 0, right: 0, top: CROSS / 2 - 0.25, height: 0.5, backgroundColor: '#000' },
-  lineV: { position: 'absolute', top: 0, bottom: 0, left: CROSS / 2 - 0.25, width: 0.5, backgroundColor: '#000' },
-  // A slightly wider white line below each black one keeps the cross visible on dark satellite images.
-  haloH: { position: 'absolute', left: 0, right: 0, top: CROSS / 2 - 0.75, height: 1.5, backgroundColor: 'rgba(255,255,255,0.8)' },
-  haloV: { position: 'absolute', top: 0, bottom: 0, left: CROSS / 2 - 0.75, width: 1.5, backgroundColor: 'rgba(255,255,255,0.8)' },
+  crossWrap: { position: 'absolute', top: '50%', left: '50%' },
+  lineH: { position: 'absolute', left: 0, right: 0, backgroundColor: '#000' },
+  lineV: { position: 'absolute', top: 0, bottom: 0, backgroundColor: '#000' },
+  halo: { backgroundColor: 'rgba(255,255,255,0.8)' },
   info: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', gap: 4 },
   pill: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, opacity: 0.92 },
-  infoText: { fontSize: 13, fontVariant: ['tabular-nums'] },
+  infoText: { fontSize: 13, fontVariant: ['tabular-nums'], textAlign: 'center' },
+  infoSub: { fontSize: 12, fontVariant: ['tabular-nums'], textAlign: 'center', marginTop: 1 },
   needle: { alignItems: 'center' },
   needleNorth: { fontSize: 11, lineHeight: 12, color: '#c92a2a' },
   needleN: { fontSize: 13, lineHeight: 15, fontWeight: '700' },
-  ring: {
-    position: 'absolute', top: '50%', left: '50%', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(29,31,26,0.75)',
-  },
-  // The label sits on the top of the ring.
+  // No background: a halo (text shadow) in the opposite colour keeps the number readable on any map.
+  ring: { position: 'absolute', top: '50%', left: '50%' },
   ringLabel: {
-    marginTop: -8, fontSize: 11, lineHeight: 14, fontWeight: '600', color: '#1d1f1a',
-    backgroundColor: 'rgba(255,255,255,0.8)', paddingHorizontal: 4, borderRadius: 4, overflow: 'hidden',
+    position: 'absolute', top: '50%', left: 0, right: 0, textAlign: 'center',
+    fontSize: 11, lineHeight: RING_LABEL_HEIGHT, fontWeight: '700', textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 },
   },
 })

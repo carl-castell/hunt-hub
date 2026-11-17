@@ -1,4 +1,4 @@
-import { formatAccuracy, formatCoordinate, toUtm } from './coords'
+import { distanceBetween, formatAccuracy, formatAltitude, formatCoordinate, toUtm } from './coords'
 
 describe('toUtm', () => {
   it('central meridian on the equator: easting 500000, northing 0', () => {
@@ -53,5 +53,21 @@ describe('formatAccuracy', () => {
   it('rounds to whole metres, never below 1', () => {
     expect(formatAccuracy(4.6)).toBe('GPS ± 5 m')
     expect(formatAccuracy(0.2)).toBe('GPS ± 1 m')
+  })
+})
+
+describe('distanceBetween', () => {
+  it('one degree of latitude is about 111.2 km', () => {
+    expect(distanceBetween([10, 51], [10, 52])).toBeCloseTo(111195, -1)
+  })
+
+  it('is zero for the same point', () => {
+    expect(distanceBetween([10, 51], [10, 51])).toBe(0)
+  })
+})
+
+describe('formatAltitude', () => {
+  it('whole metres above sea level', () => {
+    expect(formatAltitude(311.6)).toBe('312 m a.s.l.')
   })
 })

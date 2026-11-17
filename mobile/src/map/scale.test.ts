@@ -36,8 +36,17 @@ describe('distanceRings', () => {
     expect(rings[0].radius).toBeCloseTo(50 / 1.5032, 0)
   })
 
-  it('always at least three rings, all within the maximum radius', () => {
+  it('no rings at all as soon as one would reach 1000 m', () => {
     for (let zoom = 8; zoom <= 20; zoom += 0.25) {
+      for (const r of distanceRings(51, zoom, 180)) expect(r.metres).toBeLessThan(1000)
+    }
+    // Zoom 13 at 51°N: rings every 200 m, the fifth would be 1000 m, so none are shown.
+    expect(distanceRings(51, 13, 180)).toEqual([])
+    expect(distanceRings(51, 10, 180)).toEqual([])
+  })
+
+  it('zoomed in: at least three rings, all within the maximum radius', () => {
+    for (let zoom = 14; zoom <= 20; zoom += 0.25) {
       const rings = distanceRings(51, zoom, 180)
       expect(rings.length).toBeGreaterThanOrEqual(3)
       expect(rings[rings.length - 1].radius).toBeLessThanOrEqual(180)

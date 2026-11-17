@@ -16,18 +16,22 @@ export function formatDistance(metres: number): string {
   return metres >= 1000 ? `${+(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`
 }
 
-export type Ring = { radius: number; label: string }
+export type Ring = { metres: number; radius: number; label: string }
+
+/** As soon as a ring would reach this distance, no rings are shown at all. */
+export const MAX_RING_METRES = 1000
 
 /**
  * Distance rings around the map centre: evenly spaced by a round distance,
- * at least `count` rings within `maxRadius` points.
+ * at least `count` rings within `maxRadius` points. None at all once a ring would reach 1000 m.
  */
 export function distanceRings(lat: number, zoom: number, maxRadius: number, count = 3): Ring[] {
   const mpp = metresPerPoint(lat, zoom)
   const step = roundDistance((maxRadius * mpp) / count)
   const rings: Ring[] = []
   for (let k = 1; (k * step) / mpp <= maxRadius; k++) {
-    rings.push({ radius: (k * step) / mpp, label: formatDistance(k * step) })
+    if (k * step >= MAX_RING_METRES) return []
+    rings.push({ metres: k * step, radius: (k * step) / mpp, label: formatDistance(k * step) })
   }
   return rings
 }

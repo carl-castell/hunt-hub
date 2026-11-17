@@ -9,18 +9,19 @@ import { getDb } from '../../../db/database'
 import { getAreaMapSettings, saveAreaMapSettings, usePreferences, type AreaMapSettings } from '../../../db/mapSettings'
 import { useQuery } from '../../../db/useQuery'
 import { bboxOf } from '../../../map/bbox'
-import { formatAccuracy, formatCoordinate } from '../../../map/coords'
+import { distanceBetween, formatAccuracy, formatAltitude, formatCoordinate } from '../../../map/coords'
 import { resolveBasemapId } from '../../../map/layerChoice'
-import { distanceRings } from '../../../map/scale'
+import { distanceRings, formatDistance } from '../../../map/scale'
 import { ONLINE_BASEMAPS, onlineBasemap } from '../../../map/sources'
 import { standMarkers, standsBBox, type StandRow } from '../../../map/stands'
 import { BOUNDARY_COLOR, buildAreaStyle, type BasemapChoice } from '../../../map/style'
 import { useSync } from '../../../sync/SyncProvider'
 import { LayerSheet } from '../../../ui/LayerSheet'
-import { CompassButton, Crosshair, DistanceRings, MapButton, MapInfoBar } from '../../../ui/MapOverlays'
+import { CompassButton, Crosshair, MapButton, MapInfoBar, DistanceRings, RINGS_ON_DARK, RINGS_ON_LIGHT } from '../../../ui/MapOverlays'
 import { useTheme } from '../../../ui/theme'
 
-const PADDING = { top: 120, right: 70, bottom: 90, left: 40 }
+// Zoom to the area: the boundary almost touches the screen edges (buttons may cover it).
+const PADDING = { top: 12, right: 12, bottom: 12, left: 12 }
 const BUTTON = 46
 const GAP = 10
 
@@ -124,6 +125,32 @@ export default function AreaMap() {
     return <View style={[styles.center, { backgroundColor: t.bg }]}><Text style={{ color: t.muted }}>This area no longer exists.</Text></View>
   }
 
+  // Distance rings around the map centre; light on satellite, dark on the other maps.
+  const rings = prefs.showRings && view && size
+    ? distanceRings(view.center[1], view.zoom, Math.min(size.width, size.height) / 2 - 24)
+    : []
+  const ringColors = basemapId === 'satellite' ? RINGS_ON_DARK : RINGS_ON_LIGHT
+
+  // Info bar. Cross on: the cross's coordinates, its distance from you and the GPS accuracy.
+  // Cross off: your GPS position, its accuracy and the height above sea level.
+  const gps: [number, number] | null = position ? [position.coords.longitude, position.coords.latitude] : null
+  const join = (parts: (string | null)[]) => parts.filter(Boolean).join('  ·  ') || null
+  const info = prefs.showCrosshair
+    ? {
+        main: view ? formatCoordinate(view.center[0], view.center[1], prefs.coordinateFormat) : null,
+        sub: join([
+          gps && view ? `${formatDistance(distanceBetween(gps, view.center))} from you` : null,
+          position ? formatAccuracy(position.coords.accuracy) : null,
+        ]),
+      }
+    : {
+        main: gps ? formatCoordinate(gps[0], gps[1], prefs.coordinateFormat) : locationAllowed ? 'Waiting for GPS…' : 'Location access is off',
+        sub: position ? join([
+          formatAccuracy(position.coords.accuracy),
+          position.coords.altitude != null ? formatAltitude(position.coords.altitude) : null,
+        ]) : null,
+      }
+
   const layerOptions = [
     ...ONLINE_BASEMAPS.map((b) => ({ id: b.id, label: b.label })),
     ...imported.map((b) => ({ id: b.id, label: b.name })),
@@ -155,10 +182,9 @@ export default function AreaMap() {
         ))}
       </Map>
 
-      {prefs.showRings && view && size && (
-        <DistanceRings rings={distanceRings(view.center[1], view.zoom, Math.min(size.width, size.height) / 2 - 24)} />
-      )}
-      {prefs.showCrosshair && <Crosshair />}
+      {rings.length > 0 && <DistanceRings rings={rings} colors={ringColors} />}
+      {/* Cross off but rings on: a tiny cross still marks the centre of the rings. */}
+      {(prefs.showCrosshair || rings.length > 0) && <Crosshair small={!prefs.showCrosshair} />}
 
       <View style={[styles.topLeft, { top }]} pointerEvents="box-none">
         <MapButton symbol="‹" label="Back to areas" onPress={() => router.back()} />
@@ -173,11 +199,7 @@ export default function AreaMap() {
         </View>
       )}
 
-      <MapInfoBar
-        coordinate={view ? formatCoordinate(view.center[0], view.center[1], prefs.coordinateFormat) : null}
-        accuracy={position ? formatAccuracy(position.coords.accuracy) : null}
-        bottomInset={insets.bottom}
-      />
+      <MapInfoBar main={info.main} sub={info.sub} bottomInset={insets.bottom} />
 
       <View style={[styles.buttons, { top }]} pointerEvents="box-none">
         <MapButton symbol="⧉" label={layersOpen ? 'Close layers' : 'Layers'} active={layersOpen} onPress={() => setLayersOpen((o) => !o)} />
@@ -206,7 +228,7 @@ export default function AreaMap() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   topLeft: { position: 'absolute', left: 12, right: 12 + BUTTON + GAP, flexDirection: 'row', alignItems: 'center', gap: GAP },
-  title: { flexShrink: 1, height: 36, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 18, opacity: 0.94 },
+  title: { flexShrink: 1, height: BUTTON, justifyContent: 'center', paddingHorizontal: 16, borderRadius: BUTTON / 2, opacity: 0.94 },
   titleText: { fontSize: 17, fontWeight: '600' },
   notice: { position: 'absolute', left: 12, right: 12 + BUTTON + GAP, padding: 12, borderRadius: 10 },
   buttons: { position: 'absolute', right: 12, gap: GAP },
