@@ -40,4 +40,15 @@ export const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   `,
+  `
+  -- Layer choice on each area's map (base map, stands and boundary on/off).
+  CREATE TABLE area_map_settings (
+    area_id INTEGER PRIMARY KEY,
+    basemap_id TEXT,
+    show_stands INTEGER NOT NULL DEFAULT 1,
+    show_boundary INTEGER NOT NULL DEFAULT 1
+  );
+  -- App settings of this phone (e.g. coordinate format); kept on logout.
+  CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT);
+  `,
 ]

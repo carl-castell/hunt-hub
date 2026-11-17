@@ -14,7 +14,7 @@ export default function AppLayout() {
     <Stack>
       <Stack.Screen name="index" options={{ title: 'Areas' }} />
       <Stack.Screen name="area/[id]" options={{ title: '' }} />
-      <Stack.Screen name="settings" options={{ title: 'Settings', presentation: 'modal' }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings' }} />
     </Stack>
   )
 }
