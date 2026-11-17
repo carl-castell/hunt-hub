@@ -6,6 +6,7 @@ import { areasTable } from '@/db/schema/areas';
 import { standsTable } from '@/db/schema/stands';
 import { audit } from '@/services/audit';
 import { runWorker } from '@/utils/runWorker';
+import type { StandStatus } from '@/shared/standStatus';
 
 // Parsing geo files is CPU-heavy, so it runs in a worker thread and does
 // not block other requests.
@@ -132,6 +133,9 @@ export type StandItem = {
   number: string;
   /** The position as a GeoJSON Point string, or null if the stand has no position yet. */
   locationGeoJson: string | null;
+  nickname: string | null;
+  status: StandStatus | null;
+  statusDate: string | null;
 };
 
 /** The stands of an area, in natural number order. Throws AreaNotFoundError for unknown or foreign areas. */
@@ -142,6 +146,9 @@ export async function listStands(estateId: number, areaId: number): Promise<Stan
       id: standsTable.id,
       number: standsTable.number,
       locationGeoJson: sql<string | null>`ST_AsGeoJSON(${standsTable.location})`,
+      nickname: standsTable.nickname,
+      status: standsTable.status,
+      statusDate: standsTable.statusDate,
     })
     .from(standsTable)
     .where(eq(standsTable.areaId, area.id))

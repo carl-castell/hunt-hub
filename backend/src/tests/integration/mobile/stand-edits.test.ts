@@ -3,7 +3,8 @@ import { randomUUID } from 'crypto'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { areasTable, standsTable } from '@/db/schema'
-import { cleanupMobileTestData, createEstate, createUserWithAccount, mobileLogin, trpcMutation } from '../../helpers/mobile'
+import { cleanupMobileTestData, createEstate, createUserWithAccount, mobileLogin, trpcMutation, trpcQuery } from '../../helpers/mobile'
+import { todayInGermany } from '@/services/stands'
 
 // Area from (10, 50) to (10.1, 50.1); (10.05, 50.05) is inside, (11, 51) outside.
 const POLY = 'MULTIPOLYGON(((10 50,10.1 50,10.1 50.1,10 50.1,10 50)))'
@@ -29,7 +30,7 @@ async function push(type: string, payload: unknown, token = managerToken) {
   expect(res.status).toBe(200)
   const result = { ...res.body.result.data[0] }
   delete result.id
-  return result as { status: string; reason?: string; data?: { id?: number; outsideArea?: boolean } }
+  return result as { status: string; reason?: string; data?: { id?: number; outsideArea?: boolean; details?: unknown } }
 }
 
 async function stand(id: number) {
@@ -130,5 +131,40 @@ describe('stand.move', () => {
     expect(await push('stand.move', { id: 999999999, lng: 10, lat: 50 })).toEqual({ status: 'rejected', reason: 'stand_not_found' })
     const { data } = await push('stand.create', { areaId, number: '21', lng: 10.05, lat: 50.05 })
     expect(await push('stand.move', { id: data!.id, lng: 10.06, lat: 50.06 }, staffToken)).toEqual({ status: 'rejected', reason: 'forbidden' })
+  })
+})
+
+describe('stand.update (nickname and status)', () => {
+  it('creates a stand with a nickname and status', async () => {
+    const { status, data } = await push('stand.create', { areaId, number: '30', lng: 10.05, lat: 50.05, nickname: 'Eiche', status: 'ok' })
+    expect(status).toBe('applied')
+    expect(data!.details).toEqual({ nickname: 'Eiche', status: 'ok', statusDate: todayInGermany() })
+  })
+
+  it('still accepts a create without them (older app versions)', async () => {
+    const { status, data } = await push('stand.create', { areaId, number: '31', lng: 10.05, lat: 50.05 })
+    expect(status).toBe('applied')
+    expect(data!.details).toBeUndefined()
+  })
+
+  it('changes the status and returns the date the server set', async () => {
+    const { data } = await push('stand.create', { areaId, number: '32', lng: 10.05, lat: 50.05 })
+    const result = await push('stand.update', { id: data!.id, status: 'needs_repair' })
+    expect(result).toEqual({ status: 'applied', data: { details: { nickname: null, status: 'needs_repair', statusDate: todayInGermany() } } })
+  })
+
+  it('sends the new fields with the next pull', async () => {
+    const { data } = await push('stand.create', { areaId, number: '33', lng: 10.05, lat: 50.05 })
+    await push('stand.update', { id: data!.id, nickname: 'Am Bach', status: 'broken', statusDate: '2026-11-02' })
+    const res = await trpcQuery('mobile.sync.pull', { cursor: null }, managerToken)
+    const pulled = res.body.result.data.stands.find((s: { id: number }) => s.id === data!.id)
+    expect(pulled).toMatchObject({ nickname: 'Am Bach', status: 'broken', statusDate: '2026-11-02' })
+  })
+
+  it('rejects unknown statuses, foreign stands and staff', async () => {
+    const { data } = await push('stand.create', { areaId, number: '34', lng: 10.05, lat: 50.05 })
+    expect(await push('stand.update', { id: data!.id, status: 'fine' })).toEqual({ status: 'rejected', reason: 'invalid_payload' })
+    expect(await push('stand.update', { id: 999999999, status: 'ok' })).toEqual({ status: 'rejected', reason: 'stand_not_found' })
+    expect(await push('stand.update', { id: data!.id, status: 'ok' }, staffToken)).toEqual({ status: 'rejected', reason: 'forbidden' })
   })
 })

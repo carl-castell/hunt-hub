@@ -38,7 +38,7 @@ function memoryStore() {
 }
 
 const area = (id: number, name = `Area ${id}`) => ({ id, name, geojson: null, updatedAt: '2026-01-01T00:00:00.000000Z' })
-const stand = (id: number, areaId: number) => ({ id, areaId, number: String(id), lng: 10, lat: 50, updatedAt: '2026-01-01T00:00:00.000000Z' })
+const stand = (id: number, areaId: number) => ({ id, areaId, number: String(id), lng: 10, lat: 50, nickname: null, status: null, statusDate: null, updatedAt: '2026-01-01T00:00:00.000000Z' })
 const pullResult = (p: Partial<PullResult>): PullResult => ({ full: false, cursor: 'c1', areas: [], stands: [], deleted: [], ...p })
 const mutation = (id: string): OutboxItem & { status: 'pending' } => ({ id, type: 't', payload: {}, createdAt: '2026-01-01T00:00:00Z', attempts: 0, status: 'pending' })
 

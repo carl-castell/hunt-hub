@@ -1,6 +1,7 @@
 import { router } from '../../trpc'
 import { managerEstateRouter } from './estate'
 import { managerAreasRouter } from './areas'
+import { managerStandsRouter } from './stands'
 
 /**
  * API for the React manager area. Every procedure uses `managerProcedure`
@@ -10,4 +11,5 @@ import { managerAreasRouter } from './areas'
 export const managerRouter = router({
   estate: managerEstateRouter,
   areas: managerAreasRouter,
+  stands: managerStandsRouter,
 })

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { db } from '@/db'
+import type { StandStatus } from '@/shared/standStatus'
 
 /** Re-send changes from slightly before the cursor, so rows written by transactions that
  *  were still open when the previous pull ran are not missed. Upserts make this harmless. */
@@ -8,7 +9,11 @@ export const CURSOR_LOOKBACK = '5 minutes'
 export const TOMBSTONE_RETENTION_DAYS = 90
 
 export type PulledArea = { id: number; name: string; geojson: string | null; updatedAt: string }
-export type PulledStand = { id: number; areaId: number; number: string; lng: number | null; lat: number | null; updatedAt: string }
+export type PulledStand = {
+  id: number; areaId: number; number: string; lng: number | null; lat: number | null
+  nickname: string | null; status: StandStatus | null; statusDate: string | null
+  updatedAt: string
+}
 export type PulledDelete = { entity: 'area' | 'stand'; id: number }
 
 export type PullResult = {
@@ -46,6 +51,7 @@ export async function pullChanges(estateId: number, cursor: string | null): Prom
     const stands = await tx.execute<PulledStand>(sql`
       SELECT s.id, s.area_id AS "areaId", s.number,
              ST_X(s.location) AS lng, ST_Y(s.location) AS lat,
+             s.nickname, s.status, to_char(s.status_date, 'YYYY-MM-DD') AS "statusDate",
              to_char(s.updated_at AT TIME ZONE 'UTC', ${sql.raw(ISO)}) AS "updatedAt"
       FROM stands s
       JOIN areas a ON a.id = s.area_id
