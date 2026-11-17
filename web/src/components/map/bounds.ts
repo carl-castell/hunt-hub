@@ -14,12 +14,22 @@ function positionsOf(geometry: GeoJSON.Geometry): GeoJSON.Position[] {
   }
 }
 
+const isLngLat = ([lng, lat]: GeoJSON.Position) => Math.abs(lng) <= 180 && Math.abs(lat) <= 90
+
+/**
+ * Whether all coordinates are longitude/latitude. A boundary stored from a
+ * file in another system (e.g. UTM metres) isn't, and would break the map.
+ */
+export function hasLngLatCoordinates(geometry: GeoJSON.Geometry): boolean {
+  return positionsOf(geometry).every(isLngLat)
+}
+
 /**
  * The smallest box around all given geometries, as [southWest, northEast],
  * or null if there is nothing to show. Used to zoom the map to an area.
  */
 export function boundsOf(geometries: Array<GeoJSON.Geometry | null>): Bounds | null {
-  const positions = geometries.flatMap((g) => (g ? positionsOf(g) : []))
+  const positions = geometries.flatMap((g) => (g ? positionsOf(g) : [])).filter(isLngLat)
   if (positions.length === 0) return null
 
   const lngs = positions.map((p) => p[0])

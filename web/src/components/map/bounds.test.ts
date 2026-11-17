@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { boundsOf } from './bounds'
+import { boundsOf, hasLngLatCoordinates } from './bounds'
 
 const square: GeoJSON.MultiPolygon = {
   type: 'MultiPolygon',
@@ -25,5 +25,19 @@ describe('boundsOf', () => {
     const a: GeoJSON.Point = { type: 'Point', coordinates: [13.1, 52.05] }
     const b: GeoJSON.Point = { type: 'Point', coordinates: [13.15, 52.06] }
     expect(boundsOf([null, a, b])).toEqual([[13.1, 52.05], [13.15, 52.06]])
+  })
+})
+
+describe('coordinates that are not longitude/latitude', () => {
+  const utm: GeoJSON.Polygon = { type: 'Polygon', coordinates: [[[596900, 5510300], [597600, 5510300], [597600, 5511100], [596900, 5510300]]] }
+
+  it('are recognised', () => {
+    expect(hasLngLatCoordinates(square)).toBe(true)
+    expect(hasLngLatCoordinates(utm)).toBe(false)
+  })
+
+  it('are left out of the map frame', () => {
+    expect(boundsOf([utm])).toBeNull()
+    expect(boundsOf([utm, square])).toEqual([[13.0, 52.0], [13.2, 52.1]])
   })
 })

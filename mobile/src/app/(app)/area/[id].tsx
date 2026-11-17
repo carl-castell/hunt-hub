@@ -12,7 +12,7 @@ import { useEditMode } from '../../../edit/EditMode'
 import { promptRenameStand } from '../../../edit/renameStand'
 import { insideBoundary } from '../../../map/geometry'
 import { useQuery } from '../../../db/useQuery'
-import { bboxOf } from '../../../map/bbox'
+import { bboxOf, usableBoundary } from '../../../map/bbox'
 import { distanceBetween, formatAccuracy, formatAltitude, formatCoordinate } from '../../../map/coords'
 import { resolveBasemapId } from '../../../map/layerChoice'
 import { distanceRings, formatDistance, metresPerPoint } from '../../../map/scale'
@@ -60,7 +60,8 @@ export default function AreaMap() {
   )
   const imported = useQuery(listBasemaps, ['basemaps'])
 
-  const geometry = useMemo(() => (area?.geojson ? JSON.parse(area.geojson) : null), [area?.geojson])
+  // A boundary that can't be drawn (e.g. uploaded in UTM before the server converted it) is left out.
+  const { geometry, broken: brokenBoundary } = useMemo(() => usableBoundary(area?.geojson) as { geometry: any; broken: boolean }, [area?.geojson])
   const stands = useMemo(() => standMarkers(standRows), [standRows])
   // Without a boundary, frame the stands instead.
   const areaBox = useMemo(() => bboxOf(geometry) ?? standsBBox(stands), [geometry, stands])
@@ -328,7 +329,11 @@ export default function AreaMap() {
 
       {!geometry && (
         <View style={[styles.notice, { top: top + BUTTON + GAP, backgroundColor: t.card }]}>
-          <Text style={{ color: t.muted }}>No boundary has been uploaded for this area yet.</Text>
+          <Text style={{ color: brokenBoundary ? t.danger : t.muted }}>
+            {brokenBoundary
+              ? "The boundary can't be shown: its coordinates are not longitude/latitude. Upload the file again on the website."
+              : 'No boundary has been uploaded for this area yet.'}
+          </Text>
         </View>
       )}
 
