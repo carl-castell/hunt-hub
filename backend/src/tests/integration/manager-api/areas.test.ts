@@ -25,8 +25,9 @@ const query = (procedure: string, input?: unknown) =>
 const mutate = (procedure: string, input: unknown) =>
   agent.post(`${TRPC}/${procedure}`).send(input as object)
 
-const upload = (areaId: number | string, file: { path: string } | { buffer: Buffer; name: string }) => {
-  const req = agent.post(`${TRPC}/manager.areas.uploadBoundary`).field('areaId', String(areaId))
+const upload = (areaId: number | string, file: { path: string } | { buffer: Buffer; name: string }, crs?: string) => {
+  let req = agent.post(`${TRPC}/manager.areas.uploadBoundary`).field('areaId', String(areaId))
+  if (crs !== undefined) req = req.field('crs', crs)
   return 'path' in file ? req.attach('file', file.path) : req.attach('file', file.buffer, file.name)
 }
 
@@ -127,6 +128,56 @@ describe('manager.areas.uploadBoundary / clearBoundary', () => {
 
     const area = (await query('manager.areas.get', { id: northId })).body.result.data
     expect(area.boundary.type).toBe('MultiPolygon')
+  })
+
+  // A square of about 700 m in UTM zone 32N (metres), as German forestry data often comes.
+  const utmSquare = [[[596900, 5510300], [597600, 5510300], [597600, 5511100], [596900, 5511100], [596900, 5510300]]]
+  const utmFile = (withCrs: boolean) => Buffer.from(JSON.stringify({
+    type: 'FeatureCollection',
+    ...(withCrs ? { crs: { type: 'name', properties: { name: 'urn:ogc:def:crs:EPSG::25832' } } } : {}),
+    features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: utmSquare } }],
+  }))
+
+  it('converts a file in UTM (EPSG:25832) to longitude/latitude', async () => {
+    const res = await upload(northId, { buffer: utmFile(true), name: 'forest-utm.geojson' })
+    expect(res.status).toBe(200)
+
+    const area = (await query('manager.areas.get', { id: northId })).body.result.data
+    const [lng, lat] = area.boundary.coordinates[0][0][0]
+    expect(lng).toBeCloseTo(10.33, 1)
+    expect(lat).toBeCloseTo(49.74, 1)
+  })
+
+  it('refuses coordinates that are not longitude/latitude when the file names no coordinate system', async () => {
+    const res = await upload(northId, { buffer: utmFile(false), name: 'forest-unknown.geojson' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.message).toMatch(/not longitude\/latitude/)
+    expect(res.body.error.message).toMatch(/EPSG code/)
+  })
+
+  it('uses the EPSG code the user enters when the file names no coordinate system', async () => {
+    const res = await upload(northId, { buffer: utmFile(false), name: 'forest-unknown.geojson' }, '25832')
+    expect(res.status).toBe(200)
+    const area = (await query('manager.areas.get', { id: northId })).body.result.data
+    expect(area.boundary.coordinates[0][0][0][0]).toBeCloseTo(10.33, 1)
+  })
+
+  it('refuses a coordinate system PostGIS does not know, with a clear message', async () => {
+    const file = Buffer.from(JSON.stringify({
+      type: 'FeatureCollection',
+      crs: { type: 'name', properties: { name: 'EPSG:999999' } },
+      features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: utmSquare } }],
+    }))
+    const res = await upload(northId, { buffer: file, name: 'odd.geojson' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.message).toMatch(/doesn't know the file's coordinate system \(EPSG:999999\)/)
+  })
+
+  it('refuses a file without any area', async () => {
+    const line = { type: 'LineString', coordinates: [[10, 50], [10.1, 50.1]] }
+    const res = await upload(northId, { buffer: Buffer.from(JSON.stringify(line)), name: 'track.geojson' })
+    expect(res.status).toBe(400)
+    expect(res.body.error.message).toMatch(/no area/)
   })
 
   it('rejects an unsupported file type with a clear message', async () => {
