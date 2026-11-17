@@ -9,7 +9,8 @@ import { promptRenameStand } from '../../../edit/renameStand'
 import { useSync } from '../../../sync/SyncProvider'
 import { formatCoordinate } from '../../../map/coords'
 import { googleMapsUrl } from '../../../map/stands'
-import { updateStandDetailsLocal } from '../../../db/standEdits'
+import { deleteStandLocal, updateStandDetailsLocal } from '../../../db/standEdits'
+import { useAuth } from '../../../auth/AuthProvider'
 import { isStandStatus, standTitle, statusText } from '../../../stands/status'
 import { StandDetailsSheet } from '../../../ui/StandDetailsSheet'
 import { useTheme } from '../../../ui/theme'
@@ -28,6 +29,7 @@ export default function StandDetails() {
   const prefs = usePreferences()
   const { syncNow } = useSync()
   const [editingDetails, setEditingDetails] = useState(false)
+  const { user } = useAuth()
 
   const stand = useQuery(() => db.getFirstSync<StandDetail>(
     `SELECT s.id, s.number, s.lng, s.lat, s.updated_at, s.area_id, a.name AS area_name, s.nickname, s.status, s.status_date
@@ -52,6 +54,25 @@ export default function StandDetails() {
 
   // The pencil next to the number renames the stand (also outside edit mode).
   const rename = () => promptRenameStand(db, { id: stand.id, number: stand.number, areaId: stand.area_id }, () => void syncNow())
+
+  // Deleting is possible here also outside edit mode: edit mode only guards against moving or
+  // creating stands on the map by accident, and this asks for confirmation.
+  const confirmDelete = () => Alert.alert(
+    `Delete ${standTitle(stand)}?`,
+    "This can't be undone. The stand also disappears from the website and from other phones.",
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteStandLocal(db, stand.id)
+          void syncNow()
+          router.back()
+        },
+      },
+    ],
+  )
 
   const showOnMap = () => {
     // Back to the area's map (instead of opening a second one), which then flies to the stand.
@@ -102,6 +123,14 @@ export default function StandDetails() {
           <Pressable onPress={shareGoogleMaps} onLongPress={() => void copy('Google Maps link', googleMapsUrl(stand.lng!, stand.lat!))}
             style={styles.action} accessibilityHint="Long press to copy the link">
             <Text style={{ color: t.accent, fontSize: 16 }}>Share Google Maps link</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {user?.role === 'manager' && (
+        <View style={[styles.card, { backgroundColor: t.card, marginTop: 12 }]}>
+          <Pressable onPress={confirmDelete} style={styles.action} accessibilityRole="button">
+            <Text style={{ color: t.danger, fontSize: 16 }}>Delete stand</Text>
           </Pressable>
         </View>
       )}
