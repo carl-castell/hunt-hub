@@ -1,5 +1,5 @@
 import type { SyncHandler } from '../types'
-import { createStand, moveStand, renameStand, updateStand } from './stands'
+import { createStand, deleteStand, moveStand, renameStand, updateStand } from './stands'
 
 // Registry of mutation types the mobile app may push. To add an edit feature,
 // create a handler file here and register it below.
@@ -11,6 +11,7 @@ const handlers = new Map<string, SyncHandler<any>>([
   ['stand.rename', renameStand],
   ['stand.move', moveStand],
   ['stand.update', updateStand],
+  ['stand.delete', deleteStand],
 ])
 
 export function registerSyncHandler<P>(type: string, handler: SyncHandler<P>) {

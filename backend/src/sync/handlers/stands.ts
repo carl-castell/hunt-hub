@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { standDetailsSchema } from '@/schemas'
 import {
-  createStand as createStandInDb, moveStand as moveStandInDb, renameStand as renameStandInDb,
+  createStand as createStandInDb, deleteStand as deleteStandInDb, moveStand as moveStandInDb, renameStand as renameStandInDb,
   StandNotFoundError, StandNumberTakenError, updateStandDetails,
 } from '@/services/stands'
 import type { MutationResult, SyncHandler, SyncUser } from '../types'
 
 /**
- * Stand edits from the iPhone app (create, rename, move, details), pushed
+ * Stand edits from the iPhone app (create, rename, move, details, delete), pushed
  * through the sync outbox, so they also work offline. The rules live in
  * services/stands.ts (same as website and QGIS): own estate only, and a stand
  * number exists only once per area. A stand outside the area boundary is
@@ -23,6 +23,7 @@ const createPayload = standDetailsSchema.extend({ areaId: z.number().int().posit
 const renamePayload = z.object({ id: z.number().int().positive(), number: standNumber })
 const movePayload = z.object({ id: z.number().int().positive(), lng, lat })
 const updatePayload = standDetailsSchema.extend({ id: z.number().int().positive() })
+const deletePayload = z.object({ id: z.number().int().positive() })
 
 /** Editing stands is for managers; staff only see them. */
 function forbidden(user: SyncUser): MutationResult | null {
@@ -90,5 +91,18 @@ export const updateStand: SyncHandler<z.infer<typeof updatePayload>> = {
     return answer(async () => ({
       status: 'applied', data: { details: await updateStandDetails(tx, user.estateId, id, details) },
     }), 'stand_not_found')
+  },
+}
+
+/** Deletes a stand. A database trigger records it, so other phones remove it with their next sync. */
+export const deleteStand: SyncHandler<z.infer<typeof deletePayload>> = {
+  payload: deletePayload,
+  async apply(tx, p, user) {
+    const denied = forbidden(user)
+    if (denied) return denied
+    return answer(async () => {
+      await deleteStandInDb(tx, user.estateId, p.id)
+      return { status: 'applied' }
+    }, 'stand_not_found')
   },
 }
