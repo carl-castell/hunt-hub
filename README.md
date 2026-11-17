@@ -15,6 +15,8 @@ A platform for managing hunting estates, events, and guests.
 
 All use cases, who uses them and where they live (React app, server-rendered pages, iPhone app, QGIS), plus every route and API: **[docs/USECASES.md](docs/USECASES.md)**.
 
+Using Hunt Hub in QGIS, step by step: **[backend/src/qgis/README.md](backend/src/qgis/README.md)**.
+
 Hunt Hub started as a server-rendered web application. New and reworked screens are built in the React app, step by step, next to the existing pages; the iPhone app is an offline-first Expo app.
 
 Production: **https://hunt-hub-docker.onrender.com** (`/health` shows the deployed commit).

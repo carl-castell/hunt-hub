@@ -4,9 +4,10 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --dev-client",
-    "ios": "expo run:ios",
-    "ios:device": "expo run:ios --device",
+    "start": "APP_VARIANT=development expo start --dev-client",
+    "ios": "APP_VARIANT=development expo prebuild --clean --platform ios && APP_VARIANT=development expo run:ios",
+    "ios:device": "APP_VARIANT=development expo prebuild --clean --platform ios && APP_VARIANT=development expo run:ios --device",
+    "ios:device:release": "expo prebuild --clean --platform ios && expo run:ios --device --configuration Release",
     "typecheck": "tsc --noEmit",
     "test": "jest"
   },
@@ -28,8 +29,8 @@
     "expo-sqlite": "~58.0.14",
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
-    "react-native": "0.88.0",
-    "react-native-safe-area-context": "~5.10.1",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1",
     "react-native-screens": "~4.30.0"
   },
   "devDependencies": {

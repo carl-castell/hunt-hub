@@ -40,7 +40,7 @@ Hunting estate management platform. Managers organise events, build guest lists,
 | Public RSVP | `/rsvp/:publicId` | Guests (magic link, no login) |
 | RSVP preview | `/rsvp/preview/:eventId` | Managers |
 | tRPC API | `/api/v1/trpc` | React app (cookie) and iPhone app (bearer token) |
-| WFS endpoint | `/wfs` | QGIS / QField (token, OGC WFS-T 1.1.0) |
+| WFS endpoint | `/wfs` | QGIS / QField (token, OGC WFS-T 1.1.0), see [the QGIS guide](src/qgis/README.md) |
 | Health check | `/health` | Render, Docker, CI |
 
 Staff use the iPhone app only. The old server-rendered admin and login pages still exist but are no longer linked (HUN-51).
@@ -281,8 +281,8 @@ src/
 ├── index.ts                 # Startup checks (env), listen, graceful shutdown
 ├── app.ts                   # Middleware stack + route mounting
 ├── db/                      # Drizzle client, schema (one file per table), migrate, seed, reset
-├── routes/                  # Express routers (auth, manager, admin, rsvp, wfs, health, …)
-├── controllers/             # Server-rendered pages and form handlers (manager/, admin/, users/, rsvp, wfs, licenses, files, map)
+├── routes/                  # Express routers (auth, manager, admin, rsvp, health, …)
+├── controllers/             # Server-rendered pages and form handlers (manager/, admin/, users/, rsvp, licenses, files, map)
 ├── services/                # Business logic shared by pages and APIs
 │   ├── areas.ts             #   areas: list, get, create, rename, delete, boundary upload (estate-scoped, typed errors)
 │   ├── credentials.ts       #   email/password check with lockout (web and mobile login)
@@ -295,7 +295,8 @@ src/
 │   └── routers/             # One file per area (e.g. manager/areas.ts)
 ├── sync/                    # Mobile sync: pull (changes since cursor) and push (offline changes)
 ├── shared/managerNav.ts     # The manager menu, used by the EJS layout and the React app
-├── middlewares/             # csrf, requireRole, rateLimiter, serveWebApp (/app), trpcAuthLimits, trpcMultipart, requireWfsAuth
+├── qgis/                    # QGIS / QField (WFS-T at /wfs): router, controller, token check, README
+├── middlewares/             # csrf, requireRole, rateLimiter, serveWebApp (/app), trpcAuthLimits, trpcMultipart
 ├── utils/                   # logger (pino), logError, gracefulShutdown, redirectByRole, runWorker, geofile-parsers, url
 ├── workers/                 # geofile.worker.ts: parses GeoJSON/KML/GPX/SHP/GPKG off the event loop
 ├── schemas/                 # Shared Zod schemas

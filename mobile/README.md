@@ -46,8 +46,19 @@ On the free Render plan the first request after a quiet period can take up to a 
 
 1. Connect the phone by USB and enable Developer Mode on it (Settings → Privacy & Security).
 2. In `.env.local` set `EXPO_PUBLIC_API_URL` to your Mac's local IP (the phone can't reach `localhost`).
-3. `npm run ios:device`. The first time, Xcode asks you to pick a signing team; a free Apple ID works
+3. Build and install one or both variants. The first time, Xcode asks you to pick a signing team; a free Apple ID works
    (the app then needs re-installing every 7 days; a paid developer account removes that limit).
+
+Two variants can be installed side by side (`app.config.ts`):
+
+| Variant | Command | On the phone | JavaScript |
+|---|---|---|---|
+| Development | `npm run ios:device`, then `npm start` | "Hunt Hub Dev" | loaded from Metro on the Mac; live reload; doesn't start without the Mac |
+| Release | `npm run ios:device:release` | "Hunt Hub" | embedded in the app; starts offline; rebuild after every change |
+
+Use the release variant to test offline mode, and for testers and demos. Both commands regenerate the `ios/` folder
+(`expo prebuild --clean`), because the variants have different bundle identifiers. `EXPO_PUBLIC_API_URL` is built
+into the release app when you build it.
 
 To share builds without a cable later: `npx eas-cli@latest build --platform ios` (paid Apple developer account).
 

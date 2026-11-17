@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
-import { requireWfsAuth } from '@/middlewares/requireWfsAuth';
-import { wfsGet, wfsTransaction } from '@/controllers/wfs';
+import { requireWfsAuth } from './requireWfsAuth';
+import { wfsGet, wfsTransaction } from './controller';
 
 const wfsRouter: Router = express.Router();
 

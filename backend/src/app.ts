@@ -18,7 +18,7 @@ import { MANAGER_NAV, managerNavHref } from './shared/managerNav';
 
 import homeRouter from "./routes/home";
 import { createHealthRouter } from "./routes/health";
-import wfsRouter from "./routes/wfs";
+import wfsRouter from "./qgis/router";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
 import managerRouter from "./routes/manager";
