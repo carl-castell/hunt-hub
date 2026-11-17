@@ -1,9 +1,12 @@
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { useState } from 'react'
 import { deleteBasemap, listBasemaps, pickAndImportBasemap, type Basemap } from '../../basemaps/basemaps'
 import { BasemapError } from '../../basemaps/metadata'
 import { useAuth } from '../../auth/AuthProvider'
 import { getDb } from '../../db/database'
+import { setPreference, usePreferences } from '../../db/mapSettings'
+import type { CoordinateFormat } from '../../map/coords'
+import type { BoundaryStyle } from '../../map/style'
 import { useQuery } from '../../db/useQuery'
 import { useSync } from '../../sync/SyncProvider'
 import { formatAgo } from '../../ui/SyncBanner'
@@ -14,6 +17,31 @@ export default function Settings() {
   const { user, logout } = useAuth()
   const sync = useSync()
   const basemaps = useQuery(listBasemaps, ['basemaps'])
+  const prefs = usePreferences()
+  const formats: { id: CoordinateFormat; label: string }[] = [
+    { id: 'decimal', label: 'Decimal degrees' },
+    { id: 'utm', label: 'UTM' },
+  ]
+  const boundaryStyles: { id: BoundaryStyle; label: string }[] = [
+    { id: 'inverted', label: 'Inverted' },
+    { id: 'line', label: 'Line only' },
+  ]
+
+  function Segments<T extends string>({ options, value, onChange }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+    return (
+      <View style={[styles.segments, { borderColor: t.border }]}>
+        {options.map((o) => {
+          const active = value === o.id
+          return (
+            <Pressable key={o.id} onPress={() => onChange(o.id)} accessibilityRole="radio" accessibilityState={{ selected: active }}
+              style={[styles.segment, active && { backgroundColor: t.accent }]}>
+              <Text style={{ color: active ? t.accentText : t.text, fontSize: 13 }}>{o.label}</Text>
+            </Pressable>
+          )
+        })}
+      </View>
+    )
+  }
   const [importing, setImporting] = useState(false)
 
   const importBasemap = async () => {
@@ -51,7 +79,28 @@ export default function Settings() {
   )
 
   return (
-    <ScrollView style={{ backgroundColor: t.bg }} contentContainerStyle={styles.content}>
+    // automatic insets: on iOS 26 the top bar is see-through and the content would start behind it (see HUN-26).
+    <ScrollView style={{ backgroundColor: t.bg }} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+      <Text style={[styles.heading, { color: t.muted }]}>MAP</Text>
+      <View style={[styles.card, { backgroundColor: t.card }]}>
+        <View style={[styles.row, { borderColor: t.border }]}>
+          <Text style={{ color: t.text }}>Coordinates</Text>
+          <Segments options={formats} value={prefs.coordinateFormat} onChange={(v) => setPreference(getDb(), 'coordinateFormat', v)} />
+        </View>
+        <View style={[styles.row, { borderColor: t.border }]}>
+          <Text style={{ color: t.text }}>Boundary</Text>
+          <Segments options={boundaryStyles} value={prefs.boundaryStyle} onChange={(v) => setPreference(getDb(), 'boundaryStyle', v)} />
+        </View>
+        <View style={[styles.row, { borderColor: t.border }]}>
+          <Text style={{ color: t.text }}>Cross in the map centre</Text>
+          <Switch value={prefs.showCrosshair} onValueChange={(v) => setPreference(getDb(), 'showCrosshair', v)} />
+        </View>
+        <View style={[styles.row, { borderColor: t.border }]}>
+          <Text style={{ color: t.text }}>Distance rings</Text>
+          <Switch value={prefs.showRings} onValueChange={(v) => setPreference(getDb(), 'showRings', v)} />
+        </View>
+      </View>
+
       <Text style={[styles.heading, { color: t.muted }]}>BASEMAPS</Text>
       <View style={[styles.card, { backgroundColor: t.card }]}>
         {basemaps.length === 0 && (
@@ -106,5 +155,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: 12, overflow: 'hidden' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   action: { paddingHorizontal: 16, paddingVertical: 14 },
+  segments: { flexDirection: 'row', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  segment: { paddingHorizontal: 10, paddingVertical: 6 },
   hint: { paddingHorizontal: 16, paddingTop: 12, fontSize: 13, lineHeight: 18 },
 })

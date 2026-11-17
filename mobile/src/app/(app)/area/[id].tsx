@@ -1,66 +1,92 @@
-import { Camera, Map, Marker, UserLocation, type CameraRef } from '@maplibre/maplibre-react-native'
+import { Camera, Map, Marker, UserLocation, useCurrentPosition, type CameraRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native'
 import * as Location from 'expo-location'
-import { Stack, useLocalSearchParams } from 'expo-router'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { basemapFile, listBasemaps, type Basemap } from '../../../basemaps/basemaps'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Linking, StyleSheet, Text, View, type NativeSyntheticEvent } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { basemapFile, listBasemaps } from '../../../basemaps/basemaps'
 import { getDb } from '../../../db/database'
+import { getAreaMapSettings, saveAreaMapSettings, usePreferences, type AreaMapSettings } from '../../../db/mapSettings'
 import { useQuery } from '../../../db/useQuery'
-import { bboxContains, bboxOf, type BBox } from '../../../map/bbox'
+import { bboxOf } from '../../../map/bbox'
+import { formatAccuracy, formatCoordinate } from '../../../map/coords'
+import { resolveBasemapId } from '../../../map/layerChoice'
+import { distanceRings } from '../../../map/scale'
+import { ONLINE_BASEMAPS, onlineBasemap } from '../../../map/sources'
 import { standMarkers, standsBBox, type StandRow } from '../../../map/stands'
-import { buildAreaStyle, type BasemapChoice } from '../../../map/style'
+import { BOUNDARY_COLOR, buildAreaStyle, type BasemapChoice } from '../../../map/style'
 import { useSync } from '../../../sync/SyncProvider'
+import { LayerSheet } from '../../../ui/LayerSheet'
+import { CompassButton, Crosshair, DistanceRings, MapButton, MapInfoBar } from '../../../ui/MapOverlays'
 import { useTheme } from '../../../ui/theme'
 
-const PADDING = { top: 48, right: 32, bottom: 48, left: 32 }
+const PADDING = { top: 120, right: 70, bottom: 90, left: 40 }
+const BUTTON = 46
+const GAP = 10
 
-/** Offline, prefer an imported map that covers the area; online, the topo map. */
-function defaultChoice(online: boolean, basemaps: Basemap[], areaBox: BBox | null): string {
-  const covering = basemaps.find((b) => !areaBox || !b.bounds || bboxContains(b.bounds, areaBox))
-  if (!online && covering) return covering.id
-  if (online) return 'online'
-  return basemaps[0]?.id ?? 'none'
-}
+type View2D = { center: [number, number]; zoom: number; bearing: number }
 
 export default function AreaMap() {
   const t = useTheme()
   const { id } = useLocalSearchParams<{ id: string }>()
+  const areaId = Number(id)
   const { online } = useSync()
   const db = getDb()
   const cameraRef = useRef<CameraRef>(null)
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
+  // Own top bar: the back button, the area name and the map buttons all start at the same height.
+  const top = insets.top + 6
+  const prefs = usePreferences()
 
   const area = useQuery(
-    () => db.getFirstSync<{ id: number; name: string; geojson: string | null }>('SELECT id, name, geojson FROM areas WHERE id = ?', Number(id)),
-    ['areas'], [id],
+    () => db.getFirstSync<{ id: number; name: string; geojson: string | null }>('SELECT id, name, geojson FROM areas WHERE id = ?', areaId),
+    ['areas'], [areaId],
   )
   const standRows = useQuery(
-    () => db.getAllSync<StandRow>('SELECT id, number, lng, lat FROM stands WHERE area_id = ?', Number(id)),
-    ['stands'], [id],
+    () => db.getAllSync<StandRow>('SELECT id, number, lng, lat FROM stands WHERE area_id = ?', areaId),
+    ['stands'], [areaId],
   )
-  const basemaps = useQuery(listBasemaps, ['basemaps'])
+  const imported = useQuery(listBasemaps, ['basemaps'])
 
   const geometry = useMemo(() => (area?.geojson ? JSON.parse(area.geojson) : null), [area?.geojson])
   const stands = useMemo(() => standMarkers(standRows), [standRows])
   // Without a boundary, frame the stands instead.
   const areaBox = useMemo(() => bboxOf(geometry) ?? standsBBox(stands), [geometry, stands])
-  const [showStands, setShowStands] = useState(true)
 
-  const [choiceId, setChoiceId] = useState<string | null>(null)
-  useEffect(() => {
-    if (choiceId === null) setChoiceId(defaultChoice(online, basemaps, areaBox))
-  }, [choiceId, online, basemaps, areaBox])
-
-  const [showLocation, setShowLocation] = useState(false)
-  const [following, setFollowing] = useState(false)
+  // Layer choice, remembered per area.
+  const [settings, setSettings] = useState<AreaMapSettings>(() => getAreaMapSettings(db, areaId))
+  const updateSettings = useCallback((patch: Partial<AreaMapSettings>) => {
+    setSettings((s) => {
+      const next = { ...s, ...patch }
+      saveAreaMapSettings(db, areaId, next)
+      return next
+    })
+  }, [db, areaId])
+  const basemapId = resolveBasemapId(settings.basemapId, online, imported, areaBox)
 
   const choice: BasemapChoice = useMemo(() => {
-    const b = basemaps.find((x) => x.id === choiceId)
-    if (b) return { kind: 'mbtiles', filePath: basemapFile(b.fileName).uri, minzoom: b.minzoom, maxzoom: b.maxzoom, name: b.name }
-    return choiceId === 'none' ? { kind: 'none' } : { kind: 'online' }
-  }, [choiceId, basemaps])
+    const m = imported.find((x) => x.id === basemapId)
+    if (m) return { kind: 'mbtiles', filePath: basemapFile(m.fileName).uri, minzoom: m.minzoom, maxzoom: m.maxzoom, name: m.name }
+    const o = onlineBasemap(basemapId) ?? ONLINE_BASEMAPS[0]
+    return { kind: 'online', tiles: o.tiles, maxzoom: o.maxzoom, attribution: o.attribution }
+  }, [basemapId, imported])
 
-  const mapStyle = useMemo(() => buildAreaStyle(choice, geometry), [choice, geometry])
+  const mapStyle = useMemo(
+    () => buildAreaStyle(choice, geometry, settings.showBoundary, prefs.boundaryStyle),
+    [choice, geometry, settings.showBoundary, prefs.boundaryStyle],
+  )
+
+  const [layersOpen, setLayersOpen] = useState(false)
+
+  // Location: the GPS accuracy is shown whenever there is a position; the blue dot only when turned on.
+  const [locationAllowed, setLocationAllowed] = useState(false)
+  const [showLocation, setShowLocation] = useState(false)
+  const [following, setFollowing] = useState(false)
+  useEffect(() => {
+    Location.getForegroundPermissionsAsync().then((p) => setLocationAllowed(p.status === 'granted')).catch(() => {})
+  }, [])
+  const position = useCurrentPosition({ enabled: locationAllowed })
 
   const toggleLocation = async () => {
     if (showLocation) {
@@ -73,6 +99,7 @@ export default function AreaMap() {
         canAskAgain ? [{ text: 'OK' }] : [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }])
       return
     }
+    setLocationAllowed(true)
     setShowLocation(true)
     setFollowing(true)
   }
@@ -82,20 +109,36 @@ export default function AreaMap() {
     if (areaBox) cameraRef.current?.fitBounds(areaBox, { padding: PADDING, duration: 600 })
   }
 
+  // Map centre, zoom and rotation, for the coordinates, the distance rings and the compass.
+  const [view, setView] = useState<View2D | null>(null)
+  const onViewChange = useCallback((e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+    setView({ center: e.nativeEvent.center, zoom: e.nativeEvent.zoom, bearing: e.nativeEvent.bearing })
+  }, [])
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  const rotated = view !== null && Math.abs(view.bearing) > 0.5
+  const turnNorth = () => {
+    if (view) cameraRef.current?.easeTo({ center: view.center, bearing: 0, duration: 300 })
+  }
+
   if (!area) {
     return <View style={[styles.center, { backgroundColor: t.bg }]}><Text style={{ color: t.muted }}>This area no longer exists.</Text></View>
   }
 
-  const options = [
-    { id: 'online', label: online ? 'Topo (online)' : 'Topo (cached)' },
-    ...basemaps.map((b) => ({ id: b.id, label: b.name })),
-    { id: 'none', label: 'Outline only' },
+  const layerOptions = [
+    ...ONLINE_BASEMAPS.map((b) => ({ id: b.id, label: b.label })),
+    ...imported.map((b) => ({ id: b.id, label: b.name })),
   ]
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <Stack.Screen options={{ title: area.name }} />
-      <Map style={{ flex: 1 }} mapStyle={mapStyle} logo={false} compass scaleBar attributionPosition={{ bottom: 8, left: 8 }}>
+    <View style={{ flex: 1, backgroundColor: t.bg }} onLayout={(e) => setSize(e.nativeEvent.layout)}>
+      {/* No standard top bar: its area would swallow taps on the map buttons. Swiping back still works. */}
+      <Stack.Screen options={{ title: area.name, headerShown: false }} />
+      <Map
+        style={StyleSheet.absoluteFill} mapStyle={mapStyle}
+        // Own compass button; the map's copyright notice is shown in the layer menu.
+        logo={false} compass={false} attribution={false}
+        onRegionIsChanging={onViewChange} onRegionDidChange={onViewChange}
+      >
         <Camera
           ref={cameraRef}
           initialViewState={areaBox ? { bounds: areaBox, padding: PADDING } : { zoom: 5, center: [10.4, 51.1] }}
@@ -103,7 +146,7 @@ export default function AreaMap() {
           onTrackUserLocationChange={(e) => setFollowing(e.nativeEvent.trackUserLocation !== null)}
         />
         {showLocation && <UserLocation accuracy heading />}
-        {showStands && stands.map((s) => (
+        {settings.showStands && stands.map((s) => (
           <Marker key={s.id} id={`stand-${s.id}`} lngLat={s.lngLat}>
             <View style={styles.stand} accessibilityLabel={`Stand ${s.number}`}>
               <Text style={styles.standText} numberOfLines={1}>{s.number}</Text>
@@ -112,58 +155,61 @@ export default function AreaMap() {
         ))}
       </Map>
 
+      {prefs.showRings && view && size && (
+        <DistanceRings rings={distanceRings(view.center[1], view.zoom, Math.min(size.width, size.height) / 2 - 24)} />
+      )}
+      {prefs.showCrosshair && <Crosshair />}
+
+      <View style={[styles.topLeft, { top }]} pointerEvents="box-none">
+        <MapButton symbol="‹" label="Back to areas" onPress={() => router.back()} />
+        <View style={[styles.title, { backgroundColor: t.card }]}>
+          <Text style={[styles.titleText, { color: t.text }]} numberOfLines={1}>{area.name}</Text>
+        </View>
+      </View>
+
       {!geometry && (
-        <View style={[styles.notice, { backgroundColor: t.card }]}>
+        <View style={[styles.notice, { top: top + BUTTON + GAP, backgroundColor: t.card }]}>
           <Text style={{ color: t.muted }}>No boundary has been uploaded for this area yet.</Text>
         </View>
       )}
 
-      <View style={styles.fabs} pointerEvents="box-none">
-        {stands.length > 0 && (
-          <Pressable
-            style={[styles.fab, { backgroundColor: showStands ? t.accent : t.card }]}
-            onPress={() => setShowStands((v) => !v)}
-            accessibilityLabel={showStands ? 'Hide stands' : 'Show stands'}
-          >
-            <Text style={[styles.fabText, { color: showStands ? t.accentText : t.text }]}>#</Text>
-          </Pressable>
-        )}
-        <Pressable style={[styles.fab, { backgroundColor: t.card }]} onPress={fitArea} accessibilityLabel="Show whole area">
-          <Text style={[styles.fabText, { color: t.text }]}>⤢</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.fab, { backgroundColor: following ? t.accent : t.card }]}
-          onPress={toggleLocation} accessibilityLabel="Show my location"
-        >
-          <Text style={[styles.fabText, { color: following ? t.accentText : t.text }]}>◎</Text>
-        </Pressable>
+      <MapInfoBar
+        coordinate={view ? formatCoordinate(view.center[0], view.center[1], prefs.coordinateFormat) : null}
+        accuracy={position ? formatAccuracy(position.coords.accuracy) : null}
+        bottomInset={insets.bottom}
+      />
+
+      <View style={[styles.buttons, { top }]} pointerEvents="box-none">
+        <MapButton symbol="⧉" label={layersOpen ? 'Close layers' : 'Layers'} active={layersOpen} onPress={() => setLayersOpen((o) => !o)} />
+        <MapButton symbol="⚙" label="Settings" onPress={() => router.push('/settings')} />
+        <MapButton symbol="⤢" label="Show whole area" onPress={fitArea} />
+        <MapButton symbol="◎" label="Show my location" active={following} onPress={toggleLocation} />
+        {rotated && <CompassButton bearing={view.bearing} onPress={turnNorth} />}
       </View>
 
-      <SafeAreaView edges={['bottom']} style={{ backgroundColor: t.card }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {options.map((o) => {
-            const active = o.id === choiceId
-            return (
-              <Pressable key={o.id} onPress={() => setChoiceId(o.id)}
-                style={[styles.chip, { borderColor: active ? t.accent : t.border, backgroundColor: active ? t.accent : 'transparent' }]}>
-                <Text style={{ color: active ? t.accentText : t.text }} numberOfLines={1}>{o.label}</Text>
-              </Pressable>
-            )
-          })}
-        </ScrollView>
-      </SafeAreaView>
+      <LayerSheet
+        visible={layersOpen}
+        onClose={() => setLayersOpen(false)}
+        toggles={[
+          { id: 'stands', label: 'Stands', on: settings.showStands, onToggle: () => updateSettings({ showStands: !settings.showStands }) },
+          { id: 'boundary', label: 'Boundary', on: settings.showBoundary, onToggle: () => updateSettings({ showBoundary: !settings.showBoundary }) },
+        ]}
+        basemaps={layerOptions}
+        selectedBasemapId={basemapId}
+        onSelectBasemap={(basemapId) => updateSettings({ basemapId })}
+        attribution={choice.kind === 'online' ? choice.attribution : `Imported map: ${choice.name}`}
+      />
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  notice: { position: 'absolute', top: 12, left: 12, right: 12, padding: 12, borderRadius: 10 },
-  fabs: { position: 'absolute', right: 12, bottom: 90, gap: 10 },
-  fab: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  fabText: { fontSize: 22 },
-  stand: { minWidth: 26, height: 26, paddingHorizontal: 5, borderRadius: 13, backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#d9480f', alignItems: 'center', justifyContent: 'center' },
-  standText: { fontSize: 12, fontWeight: '700', color: '#d9480f' },
-  chips: { gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
-  chip: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 220 },
+  topLeft: { position: 'absolute', left: 12, right: 12 + BUTTON + GAP, flexDirection: 'row', alignItems: 'center', gap: GAP },
+  title: { flexShrink: 1, height: 36, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 18, opacity: 0.94 },
+  titleText: { fontSize: 17, fontWeight: '600' },
+  notice: { position: 'absolute', left: 12, right: 12 + BUTTON + GAP, padding: 12, borderRadius: 10 },
+  buttons: { position: 'absolute', right: 12, gap: GAP },
+  stand: { minWidth: 26, height: 26, paddingHorizontal: 5, borderRadius: 13, backgroundColor: '#ffffff', borderWidth: 2, borderColor: BOUNDARY_COLOR, alignItems: 'center', justifyContent: 'center' },
+  standText: { fontSize: 12, fontWeight: '700', color: BOUNDARY_COLOR },
 })

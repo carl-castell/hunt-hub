@@ -3,8 +3,9 @@
 React Native app built with Expo (development build). Managers and staff can:
 
 - log in (needs internet the first time only),
-- see their estate's areas and open each one on a zoomable map,
-- import a raster `.mbtiles` basemap from the Files app,
+- see their estate's areas and open each one on a map with its boundary and stands,
+- choose the base map (satellite, OpenTopoMap, OpenStreetMap or an imported `.mbtiles` file) per area,
+- read the coordinates of the map centre (decimal degrees or UTM), the GPS accuracy and distance rings,
 - show their location on the map,
 - keep using everything offline. Data syncs when the connection comes back.
 
@@ -71,6 +72,18 @@ To share builds without a cable later: `npx eas-cli@latest build --platform ios`
 - Login tokens are kept in the iOS Keychain. Being offline never logs you out. If the server rejects the session
   (expired after 60 days unused, or revoked), you're asked to log in again. Offline data and queued changes are kept.
 - Basemaps are stored in the app's Documents folder and are never synced.
+
+## The area map
+
+| Part | Where |
+|---|---|
+| Screen: buttons (layers, settings, whole area, location, compass), layer menu, info bar | `src/app/(app)/area/[id].tsx`, `src/ui/LayerSheet.tsx`, `src/ui/MapOverlays.tsx` |
+| Map style: base map, boundary inverted (red outside) or line only | `src/map/style.ts`, `src/map/mask.ts` (same as the website's) |
+| Base maps and the default per area | `src/map/sources.ts`, `src/map/layerChoice.ts` |
+| Coordinates (UTM), GPS accuracy, distance rings | `src/map/coords.ts`, `src/map/scale.ts` |
+| Saved choices: layers per area (`area_map_settings`), app settings (`preferences`, kept on logout) | `src/db/mapSettings.ts` |
+
+All of `src/map/` is plain TypeScript with unit tests.
 
 ### Adding an editable feature (e.g. moving stands)
 
