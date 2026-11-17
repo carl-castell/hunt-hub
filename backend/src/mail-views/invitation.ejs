@@ -60,6 +60,8 @@
       <p><%= eventName %></p>
     </div>
     <div class="body">
+      <% if (typeof reminder !== 'undefined' && reminder) { %><p><strong>Reminder:</strong> we haven't received your answer yet.</p><% } %>
+      <%# The message is escaped HTML from services/invitations.ts (personalMessage). %>
       <p><%- message %></p>
       <div style="text-align:center; margin:2rem 0;">
         <a href="<%= rsvpUrl %>"

@@ -5,24 +5,25 @@ import { eventsTable } from '../../db/schema/events';
 import { drivesTable } from '../../db/schema/drives';
 import { logError } from '@/utils/logError';
 import { eventSchema } from '@/schemas';
+import { createEvent } from '@/services/events';
+import { todayInGermany } from '@/services/stands';
 
 export async function getEvents(req: Request, res: Response) {
   try {
     const user = req.session.user!;
 
+    // Today's events count as upcoming (they used to be listed as past).
+    const today = todayInGermany();
     const allEvents = await db
       .select()
       .from(eventsTable)
       .where(eq(eventsTable.estateId, user.estateId!));
-
-    const now = new Date();
     const upcomingEvents = allEvents
-      .filter(e => new Date(e.date) >= now)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
+      .filter(e => e.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date));
     const pastEvents = allEvents
-      .filter(e => new Date(e.date) < now)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .filter(e => e.date < today)
+      .sort((a, b) => b.date.localeCompare(a.date));
 
     res.render('manager/events/list', { title: 'Events', user, upcomingEvents, pastEvents, breadcrumbs: [{ label: 'Events' }] });
   } catch (err) {
@@ -63,15 +64,12 @@ export async function postCreateEvent(req: Request, res: Response) {
     const result = eventSchema.safeParse(req.body);
     if (!result.success) return res.status(400).send(result.error.issues[0].message);
 
-    const [event] = await db
-      .insert(eventsTable)
-      .values({
-        eventName: result.data.eventName,
-        date:      result.data.date,
-        time:      result.data.time,
-        estateId:  user.estateId!,
-      })
-      .returning();
+    // Same as the React app: the event gets "Drive 1", which starts at the time given here.
+    const event = await createEvent(
+      user.estateId!,
+      { name: result.data.eventName, date: result.data.date, start: result.data.time.slice(0, 5) },
+      { userId: user.id, ip: req.ip },
+    );
 
     res.redirect(`/manager/events/${event.id}`);
   } catch (err) {
