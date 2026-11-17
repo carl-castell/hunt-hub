@@ -2,7 +2,7 @@ import { useKeepAwake } from 'expo-keep-awake'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useQuery } from '../../../db/useQuery'
-import { offlineDownloads, useSecondsLeft } from '../../../offline/downloader'
+import { offlineDownloads, TYPICAL_TILES_PER_SECOND, useSecondsLeft } from '../../../offline/downloader'
 import { formatBytes, formatDuration } from '../../../offline/eta'
 import { offlineSource } from '../../../offline/sources'
 import { deleteOfflineMap, getOfflineMap, type OfflineMap } from '../../../offline/store'
@@ -44,6 +44,16 @@ export default function OfflineMapPage() {
   const cancelPlan = () => { deleteOfflineMap(map.id); router.back() }
   const stop = () => remove('Stop the download?', 'The tiles downloaded so far are removed.', 'Stop and remove')
   const deleteMap = () => remove('Delete offline map?', `The offline map of "${map.areaName}" will be removed from this phone.`, 'Delete')
+
+  // Updating can take long, so it asks first and says what to expect.
+  const update = () => Alert.alert(
+    'Download this map again?',
+    `Newer aerial photos replace the stored ones: about ${formatBytes(map.bytes)}, roughly ${formatDuration(map.tilesTotal / TYPICAL_TILES_PER_SECOND).replace('about ', '')}. The map stays usable meanwhile.`,
+    [{ text: 'Cancel', style: 'cancel' }, { text: 'Update', onPress: () => offlineDownloads.update(map.id) }],
+  )
+  const updating = map.refreshBefore !== null
+  // The state surveys fly new photos about every two years.
+  const old = map.completedAt !== null && Date.now() - new Date(map.completedAt).getTime() > 2 * 365 * 24 * 3600 * 1000
 
   const Row = ({ label, value }: { label: string; value: string }) => (
     <View style={[styles.row, { borderColor: t.border }]}>
@@ -88,7 +98,9 @@ export default function OfflineMapPage() {
             <View style={[styles.fill, { backgroundColor: t.accent, width: `${Math.round(fraction * 100)}%` }]} />
           </View>
           <Text style={[styles.percent, { color: t.text }]}>
-            {Math.floor(fraction * 100)} % · {formatBytes(map.bytes)}{expected > 0 ? ` of about ${formatBytes(expected)}` : ''}
+            {updating
+              ? `Updating: ${Math.floor(fraction * 100)} %`
+              : `${Math.floor(fraction * 100)} % · ${formatBytes(map.bytes)}${expected > 0 ? ` of about ${formatBytes(expected)}` : ''}`}
           </Text>
           <Text style={{ color: t.muted }}>
             {map.status === 'paused' ? 'Paused.'
@@ -104,7 +116,11 @@ export default function OfflineMapPage() {
 
       {map.status === 'failed' && <Text style={[styles.note, { color: t.danger, paddingHorizontal: 4 }]}>{map.error ?? 'The download failed.'}</Text>}
       {map.status === 'complete' && (
-        <Text style={[styles.note, { color: t.muted, paddingHorizontal: 4 }]}>This map is stored on the phone and works without internet.</Text>
+        <Text style={[styles.note, { color: t.muted, paddingHorizontal: 4 }]}>
+          {old
+            ? 'This map is stored on the phone and works without internet. It is more than two years old; newer aerial photos may be available: tap Update.'
+            : 'This map is stored on the phone and works without internet.'}
+        </Text>
       )}
 
       <View style={styles.buttons}>
@@ -114,18 +130,21 @@ export default function OfflineMapPage() {
         </>}
         {map.status === 'estimating' && <Button label="Cancel" onPress={cancelPlan} />}
         {map.status === 'downloading' && <>
-          <Button label="Stop" kind="danger" onPress={stop} />
+          {!updating && <Button label="Stop" kind="danger" onPress={stop} />}
           <Button label="Pause" onPress={() => offlineDownloads.pause(map.id)} />
         </>}
         {map.status === 'paused' && <>
-          <Button label="Stop" kind="danger" onPress={stop} />
+          {!updating && <Button label="Stop" kind="danger" onPress={stop} />}
           <Button label="Resume" kind="primary" onPress={() => offlineDownloads.start(map.id)} />
         </>}
         {map.status === 'failed' && <>
           <Button label="Remove" kind="danger" onPress={cancelPlan} />
           <Button label="Try again" kind="primary" onPress={() => retry(map)} />
         </>}
-        {map.status === 'complete' && <Button label="Delete offline map" kind="danger" onPress={deleteMap} />}
+        {map.status === 'complete' && <>
+          <Button label="Delete" kind="danger" onPress={deleteMap} />
+          <Button label="Update" onPress={update} />
+        </>}
       </View>
 
       {source && <Text style={[styles.note, { color: t.muted, paddingHorizontal: 4 }]}>{source.attribution} · Licence: {source.licence}</Text>}

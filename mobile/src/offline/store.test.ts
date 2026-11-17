@@ -34,7 +34,7 @@ jest.mock('../db/database', () => ({ getDb: () => mockAppDb }))
 import { MIGRATIONS } from '../db/migrations'
 import { OFFLINE_SOURCES } from './sources'
 import {
-  deleteOfflineMap, getOfflineMap, getTileDb, listOfflineMaps, missingTiles, planOfflineMap, refreshProgress, saveTile, setStatus,
+  deleteOfflineMap, getOfflineMap, getTileDb, listOfflineMaps, markForUpdate, missingTiles, planOfflineMap, refreshProgress, saveTile, setStatus,
 } from './store'
 
 const source = OFFLINE_SOURCES[0]
@@ -51,7 +51,9 @@ const download = (mapId: string) => {
 }
 
 beforeAll(() => {
-  mockAppDb.execSync(MIGRATIONS[MIGRATIONS.length - 1])
+  // The two migrations that create and extend offline_maps.
+  mockAppDb.execSync(MIGRATIONS[3])
+  mockAppDb.execSync(MIGRATIONS[4])
 })
 
 describe('offline map storage', () => {
@@ -95,6 +97,23 @@ describe('offline map storage', () => {
     const before = tileCount()
     download(second)
     expect(tileCount()).toBe(before + missing)
+  })
+
+  it('updating a map downloads all its tiles again and keeps it usable meanwhile', () => {
+    const total = getOfflineMap(second)!.tilesTotal
+    const stored = tileCount()
+    markForUpdate(second, new Date(Date.now() + 1000)) // every stored tile is older than this
+    expect(getOfflineMap(second)).toMatchObject({ tilesDone: 0 })
+    expect(missingTiles(second, 1000)).toHaveLength(total)
+    expect(tileCount()).toBe(stored) // the old tiles are still there
+
+    // The tiles arrive after the update began.
+    jest.useFakeTimers().setSystemTime(Date.now() + 5000)
+    expect(download(second).done).toBe(total)
+    jest.useRealTimers()
+    setStatus(second, 'complete')
+    expect(getOfflineMap(second)).toMatchObject({ refreshBefore: null, tilesDone: total })
+    expect(tileCount()).toBe(stored)
   })
 
   it('deleting a map keeps the tiles the other map needs', () => {

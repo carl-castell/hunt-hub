@@ -1,4 +1,5 @@
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
+import { OfflineManager } from '@maplibre/maplibre-react-native'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { deleteBasemap, listBasemaps, pickAndImportBasemap, type Basemap } from '../../basemaps/basemaps'
@@ -21,7 +22,7 @@ function offlineMapSummary(m: OfflineMap): string {
   const percent = m.tilesTotal > 0 ? Math.floor((m.tilesDone / m.tilesTotal) * 100) : 0
   switch (m.status) {
     case 'complete': return `Aerial photo · ${formatBytes(m.bytes)}`
-    case 'downloading': return `Downloading… ${percent} %`
+    case 'downloading': return m.refreshBefore ? `Updating… ${percent} %` : `Downloading… ${percent} %`
     case 'paused': return `Paused at ${percent} %`
     case 'failed': return m.error ?? 'Download failed'
     default: return 'Not downloaded yet'
@@ -79,6 +80,22 @@ export default function Settings() {
     { text: 'Cancel', style: 'cancel' },
     { text: 'Delete', style: 'destructive', onPress: () => deleteBasemap(b) },
   ])
+
+  // Tiles the map engine keeps from browsing online maps. Offline maps and imported files are not touched.
+  const clearMapCache = () => Alert.alert(
+    'Clear the map cache?',
+    'Map tiles kept from browsing online maps are removed and loaded again when needed. Offline maps and imported files stay.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: () => void OfflineManager.clearAmbientCache()
+          .then(() => Alert.alert('Map cache cleared'))
+          .catch(() => Alert.alert('The map cache could not be cleared.')),
+      },
+    ],
+  )
 
   const confirmLogout = () => {
     const warn = sync.pending > 0
@@ -163,8 +180,11 @@ export default function Settings() {
         <Pressable onPress={() => router.push('/offline/new')} style={[styles.action, { borderBottomWidth: StyleSheet.hairlineWidth, borderColor: t.border }]}>
           <Text style={{ color: t.accent, fontSize: 16 }}>Download offline map for an area</Text>
         </Pressable>
-        <Pressable onPress={importBasemap} disabled={importing} style={styles.action}>
+        <Pressable onPress={importBasemap} disabled={importing} style={[styles.action, { borderBottomWidth: StyleSheet.hairlineWidth, borderColor: t.border }]}>
           <Text style={{ color: t.accent, fontSize: 16 }}>{importing ? 'Importing…' : 'Import .mbtiles file'}</Text>
+        </Pressable>
+        <Pressable onPress={clearMapCache} style={styles.action}>
+          <Text style={{ color: t.danger, fontSize: 16 }}>Clear map cache</Text>
         </Pressable>
       </View>
 

@@ -40,6 +40,8 @@ const EMPTY_STYLE: maplibregl.StyleSpecification = { version: 8, sources: {}, la
 const FIT_OPTIONS = { padding: 40, maxZoom: 17 }
 /** In edit mode every stand is drawn as a full circle, so it can be grabbed (same as the iPhone app). */
 const EDIT_ZOOM = 20
+/** The zoom must rest this long before the stand markers change size. */
+const MARKER_SETTLE_MS = 120
 
 /**
  * Map of one area: a base map, the boundary (everything outside shaded red)
@@ -130,17 +132,31 @@ export function AreaMap({
     markerByStand.current = new Map(placed.map((stand, i) => [stand.id, markers[i]]))
     if (highlighted.current !== null) markerByStand.current.get(highlighted.current)?.getElement().classList.add('stand-highlight')
 
-    // Restyle only when the zoom crosses a step.
-    const onZoom = () => {
+    // Restyle only when the zoom crosses a step, and not in the middle of a zoom: resizing
+    // every marker while the map animates makes it stutter. So the markers change when the
+    // zoom rests for a moment or ends (same as the iPhone app).
+    const restyle = () => {
       const next = lookFor()
       if (next.size === look.size) return
       look = next
       markers.forEach((marker, i) => applyStandMarkerStyle(marker.getElement(), placed[i].number, look))
     }
+    let settle: ReturnType<typeof setTimeout> | undefined
+    const onZoom = () => {
+      clearTimeout(settle)
+      settle = setTimeout(restyle, MARKER_SETTLE_MS)
+    }
+    const onZoomEnd = () => {
+      clearTimeout(settle)
+      restyle()
+    }
     map.on('zoom', onZoom)
+    map.on('zoomend', onZoomEnd)
     markersRef.current = markers
     return () => {
+      clearTimeout(settle)
       map.off('zoom', onZoom)
+      map.off('zoomend', onZoomEnd)
       markers.forEach((marker) => marker.remove())
       markersRef.current = []
       markerByStand.current = new Map()

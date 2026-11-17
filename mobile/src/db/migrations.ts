@@ -81,4 +81,8 @@ export const MIGRATIONS: string[] = [
     completed_at TEXT
   );
   `,
+  `
+  -- Updating an offline map: tiles fetched before this moment are downloaded again.
+  ALTER TABLE offline_maps ADD COLUMN refresh_before TEXT;
+  `,
 ]

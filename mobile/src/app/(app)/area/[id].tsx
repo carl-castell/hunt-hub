@@ -1,7 +1,7 @@
 import { Camera, Map, Marker, UserLocation, ViewAnnotation, useCurrentPosition, type CameraRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native'
 import * as Location from 'expo-location'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Linking, Pressable, StyleSheet, Text, View, type NativeSyntheticEvent } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { basemapFile, listBasemaps } from '../../../basemaps/basemaps'
@@ -14,11 +14,14 @@ import { insideBoundary } from '../../../map/geometry'
 import { useQuery } from '../../../db/useQuery'
 import { bboxOf, usableBoundary } from '../../../map/bbox'
 import { distanceBetween, formatAccuracy, formatAltitude, formatCoordinate } from '../../../map/coords'
-import { resolveBasemapId } from '../../../map/layerChoice'
+import { AERIAL_BASEMAP_ID, resolveBasemapId, shouldOfferOfflineMap } from '../../../map/layerChoice'
 import { distanceRings, formatDistance, metresPerPoint } from '../../../map/scale'
 import { ONLINE_BASEMAPS, onlineBasemap } from '../../../map/sources'
-import { standMarkerStyle, standMarkers, standsBBox, type StandRow } from '../../../map/stands'
+import { standMarkerStyle, standMarkers, standsBBox, type StandMarker, type StandMarkerStyle, type StandRow } from '../../../map/stands'
 import { BOUNDARY_COLOR, buildAreaStyle, type BasemapChoice } from '../../../map/style'
+import { offlineSource, sourceForArea, tileUrlTemplate } from '../../../offline/sources'
+import { offlineMapOfArea, offlineTilesFile } from '../../../offline/store'
+import { MAX_ZOOM, MIN_ZOOM, TILE_SIZE } from '../../../offline/tiles'
 import { isStandStatus } from '../../../stands/status'
 import { useSync } from '../../../sync/SyncProvider'
 import { LayerSheet } from '../../../ui/LayerSheet'
@@ -75,14 +78,44 @@ export default function AreaMap() {
       return next
     })
   }, [db, areaId])
-  const basemapId = resolveBasemapId(settings.basemapId, online, imported, areaBox)
+  // The state survey's aerial photo: online where a source covers the area, and from the
+  // phone where an offline map of this area was downloaded (Settings → Offline maps).
+  const offlineMap = useQuery(() => offlineMapOfArea(areaId), ['offline_maps'], [areaId])
+  const aerialSource = useMemo(
+    () => (offlineMap ? offlineSource(offlineMap.sourceId) : null) ?? sourceForArea(areaBox),
+    [offlineMap, areaBox],
+  )
+  const hasStoredMap = offlineMap !== null && offlineMap.tilesDone > 0
+  const offlineForLong = useOfflineForLong(online)
+  const aerial = { available: aerialSource !== null, stored: hasStoredMap }
+  const basemapId = resolveBasemapId(settings.basemapId, online, imported, areaBox, aerial)
+
+  // Without a connection the map is never switched silently: ask once per
+  // offline period whether to use the offline map of this area.
+  const offered = useRef(false)
+  const offer = shouldOfferOfflineMap(basemapId, offlineForLong, aerial)
+  useEffect(() => {
+    if (!offlineForLong) offered.current = false
+    if (!offer || offered.current) return
+    offered.current = true
+    Alert.alert('No internet connection', 'An offline map of this area is stored on this phone. Switch to it?', [
+      { text: 'No', style: 'cancel' },
+      { text: 'Yes', onPress: () => updateSettings({ basemapId: AERIAL_BASEMAP_ID }) },
+    ])
+  }, [offer, offlineForLong, updateSettings])
 
   const choice: BasemapChoice = useMemo(() => {
     const m = imported.find((x) => x.id === basemapId)
     if (m) return { kind: 'mbtiles', filePath: basemapFile(m.fileName).uri, minzoom: m.minzoom, maxzoom: m.maxzoom, name: m.name }
+    if (basemapId === AERIAL_BASEMAP_ID && aerialSource) {
+      const stored = hasStoredMap ? { filePath: offlineTilesFile().uri, tileSize: TILE_SIZE, minzoom: MIN_ZOOM, maxzoom: MAX_ZOOM } : undefined
+      // Without a connection only the stored tiles are drawn; with one, the online photo fills in everything else.
+      if (stored && offlineForLong) return { kind: 'mbtiles', ...stored, name: aerialSource.label }
+      return { kind: 'online', tiles: [tileUrlTemplate(aerialSource)], tileSize: TILE_SIZE, maxzoom: 18, attribution: `${aerialSource.attribution} (${aerialSource.licence})`, stored }
+    }
     const o = onlineBasemap(basemapId) ?? ONLINE_BASEMAPS[0]
     return { kind: 'online', tiles: o.tiles, maxzoom: o.maxzoom, attribution: o.attribution }
-  }, [basemapId, imported])
+  }, [basemapId, imported, aerialSource, hasStoredMap, offlineForLong])
 
   const mapStyle = useMemo(
     () => buildAreaStyle(choice, geometry, settings.showBoundary, prefs.boundaryStyle),
@@ -185,7 +218,7 @@ export default function AreaMap() {
     })
   }
 
-  const onStandDragged = (stand: SheetStand, lngLat: [number, number]) => {
+  const onStandDragged = useCallback((stand: SheetStand, lngLat: [number, number]) => {
     const cancel = () => setDragVersion((v) => v + 1)
     const save = () => {
       moveStandLocal(db, stand.id, { lng: lngLat[0], lat: lngLat[1] })
@@ -196,27 +229,39 @@ export default function AreaMap() {
       { text: 'Cancel', style: 'cancel', onPress: cancel },
       { text: outside ? 'Save anyway' : 'Save', onPress: save },
     ])
-  }
-
-  // "Show on map" from a stand's page: fly to it, and make sure stands are visible.
-  useEffect(() => {
-    const target = stands.find((s) => String(s.id) === focus)
-    if (!target) return
-    if (!settings.showStands) updateSettings({ showStands: true })
-    setFollowing(false)
-    cameraRef.current?.flyTo({ center: target.lngLat, zoom: 17, duration: 800 })
-    // Only when a new stand is requested, not on every change of the stands.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus])
+  }, [db, geometry, syncNow])
+  const openStand = useCallback((standId: number) => {
+    setLayersOpen(false)
+    setSelectedStandId(standId)
+  }, [])
 
   // Map centre, zoom and rotation, for the coordinates, the distance rings and the compass.
   const [view, setView] = useState<View2D | null>(null)
-  const onViewChange = useCallback((e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
-    setView({ center: e.nativeEvent.center, zoom: e.nativeEvent.zoom, bearing: e.nativeEvent.bearing })
+  // Marker look by zoom step (a circle with the number, or an ever smaller dot).
+  const [markerLook, setMarkerLook] = useState<StandMarkerStyle>(() => standMarkerStyle(15))
+  const lookTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const applyLook = useCallback((zoom: number) => {
+    const next = standMarkerStyle(zoom)
+    // The same object while the step is the same, so the markers aren't touched.
+    setMarkerLook((look) => (look.size === next.size ? look : next))
   }, [])
+  // While the map moves: only the numbers (coordinates, rings, compass) follow every frame.
+  // Resizing every marker in the middle of a pinch makes the zoom stutter, so the markers
+  // change when the zoom pauses or the gesture ends.
+  const onViewChanging = useCallback((e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+    const { center, zoom, bearing } = e.nativeEvent
+    setView({ center, zoom, bearing })
+    if (lookTimer.current) clearTimeout(lookTimer.current)
+    lookTimer.current = setTimeout(() => applyLook(zoom), MARKER_SETTLE_MS)
+  }, [applyLook])
+  const onViewChanged = useCallback((e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+    const { center, zoom, bearing } = e.nativeEvent
+    setView({ center, zoom, bearing })
+    if (lookTimer.current) clearTimeout(lookTimer.current)
+    applyLook(zoom)
+  }, [applyLook])
+  useEffect(() => () => { if (lookTimer.current) clearTimeout(lookTimer.current) }, [])
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
-  // Marker look by zoom step: the native markers only get new values when a step changes.
-  const markerLook = standMarkerStyle(view?.zoom ?? 15)
   const rotated = view !== null && Math.abs(view.bearing) > 0.5
   const turnNorth = () => {
     if (view) cameraRef.current?.easeTo({ center: view.center, bearing: 0, duration: 300 })
@@ -230,7 +275,7 @@ export default function AreaMap() {
   const rings = prefs.showRings && view && size
     ? distanceRings(view.center[1], view.zoom, Math.min(size.width, size.height) / 2 - 24)
     : []
-  const ringColors = basemapId === 'satellite' ? RINGS_ON_DARK : RINGS_ON_LIGHT
+  const ringColors = basemapId === 'satellite' || basemapId === AERIAL_BASEMAP_ID ? RINGS_ON_DARK : RINGS_ON_LIGHT
 
   // Info bar. Cross on: the cross's coordinates, its distance from you and the GPS accuracy.
   // Cross off: your GPS position, its accuracy and the height above sea level.
@@ -253,6 +298,7 @@ export default function AreaMap() {
 
   const layerOptions = [
     ...ONLINE_BASEMAPS.map((b) => ({ id: b.id, label: b.label })),
+    ...(aerialSource ? [{ id: AERIAL_BASEMAP_ID, label: hasStoredMap ? `${aerialSource.label} · offline map` : aerialSource.label }] : []),
     ...imported.map((b) => ({ id: b.id, label: b.name })),
   ]
 
@@ -264,7 +310,7 @@ export default function AreaMap() {
         style={StyleSheet.absoluteFill} mapStyle={mapStyle}
         // Own compass button; the map's copyright notice is shown in the layer menu.
         logo={false} compass={false} attribution={false}
-        onRegionIsChanging={onViewChange} onRegionDidChange={onViewChange}
+        onRegionIsChanging={onViewChanging} onRegionDidChange={onViewChanged}
         onLongPress={(e) => onMapLongPress(e.nativeEvent.lngLat)}
       >
         <Camera
@@ -274,32 +320,10 @@ export default function AreaMap() {
           onTrackUserLocationChange={(e) => setFollowing(e.nativeEvent.trackUserLocation !== null)}
         />
         {showLocation && <UserLocation accuracy heading />}
-        {settings.showStands && stands.map((s) => {
-          // Zoomed out: a dot without number. While editing, always full size, so stands are easy to grab.
-          const look = editStands ? standMarkerStyle(Infinity) : markerLook
-          const label = (
-            <View
-              style={[styles.stand, { width: look.size, height: look.size, borderRadius: look.size / 2 },
-                look.fontSize === null && styles.standDot, editStands && styles.standEditable]}
-              accessibilityLabel={`Stand ${s.number}`}
-            >
-              {/* Up to three characters fit at full size; only longer numbers shrink to stay inside the circle. */}
-              {look.fontSize !== null && (
-                <Text style={[styles.standText, { fontSize: look.fontSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{s.number}</Text>
-              )}
-            </View>
-          )
-          const open = () => { setLayersOpen(false); setSelectedStandId(s.id) }
-          // While editing, a stand can be dragged (long press, then move); otherwise it's a plain marker.
-          return editStands ? (
-            <ViewAnnotation key={`${s.id}-${dragVersion}`} id={`stand-${s.id}`} lngLat={s.lngLat} draggable
-              onPress={open} onDragEnd={(e) => onStandDragged(s, e.nativeEvent.lngLat)}>
-              {label}
-            </ViewAnnotation>
-          ) : (
-            <Marker key={s.id} id={`stand-${s.id}`} lngLat={s.lngLat} onPress={open}>{label}</Marker>
-          )
-        })}
+        {settings.showStands && (
+          <StandMarkers stands={stands} look={markerLook} editable={editStands} dragVersion={dragVersion}
+            onOpen={openStand} onDragged={onStandDragged} />
+        )}
         {/* Where the new stand will go, while the form is open. */}
         {newStandAt && (
           <Marker id="new-stand" lngLat={newStandAt} anchor="bottom">
@@ -358,7 +382,9 @@ export default function AreaMap() {
         basemaps={layerOptions}
         selectedBasemapId={basemapId}
         onSelectBasemap={(basemapId) => updateSettings({ basemapId })}
-        attribution={choice.kind === 'online' ? choice.attribution : `Imported map: ${choice.name}`}
+        attribution={choice.kind === 'online' ? choice.attribution
+          : basemapId === AERIAL_BASEMAP_ID && aerialSource ? `Offline map: ${aerialSource.attribution} (${aerialSource.licence})`
+          : `Imported map: ${choice.name}`}
       />
 
       <StandSheet
@@ -400,6 +426,67 @@ export default function AreaMap() {
       />
     </View>
   )
+}
+
+/** The zoom must rest this long during a gesture before the stand markers change size. */
+const MARKER_SETTLE_MS = 120
+
+/**
+ * The stands on the map. Memoised: the screen re-renders on every frame while
+ * the map moves, but the markers only change with the stands, the zoom step
+ * or edit mode.
+ */
+const StandMarkers = memo(function StandMarkers({ stands, look: zoomLook, editable, dragVersion, onOpen, onDragged }: {
+  stands: StandMarker[]
+  look: StandMarkerStyle
+  editable: boolean
+  /** Changes when a drag was cancelled, so the marker jumps back. */
+  dragVersion: number
+  onOpen: (standId: number) => void
+  onDragged: (stand: StandMarker, lngLat: [number, number]) => void
+}) {
+  // Zoomed out: a dot without number. While editing, always full size, so stands are easy to grab.
+  const look = editable ? standMarkerStyle(Infinity) : zoomLook
+  return stands.map((s) => {
+    const label = (
+      <View
+        style={[styles.stand, { width: look.size, height: look.size, borderRadius: look.size / 2 },
+          look.fontSize === null && styles.standDot, editable && styles.standEditable]}
+        accessibilityLabel={`Stand ${s.number}`}
+      >
+        {/* Up to three characters fit at full size; only longer numbers shrink to stay inside the circle. */}
+        {look.fontSize !== null && (
+          <Text style={[styles.standText, { fontSize: look.fontSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{s.number}</Text>
+        )}
+      </View>
+    )
+    // While editing, a stand can be dragged (long press, then move); otherwise it's a plain marker.
+    return editable ? (
+      <ViewAnnotation key={`${s.id}-${dragVersion}`} id={`stand-${s.id}`} lngLat={s.lngLat} draggable
+        onPress={() => onOpen(s.id)} onDragEnd={(e) => onDragged(s, e.nativeEvent.lngLat)}>
+        {label}
+      </ViewAnnotation>
+    ) : (
+      <Marker key={s.id} id={`stand-${s.id}`} lngLat={s.lngLat} onPress={() => onOpen(s.id)}>{label}</Marker>
+    )
+  })
+})
+
+/** How long the phone must be without a connection before the map switches to the offline map. */
+const OFFLINE_SWITCH_MS = 5000
+
+/** True once the phone has been offline for a while; a short gap (or the app just starting) doesn't count. */
+function useOfflineForLong(online: boolean): boolean {
+  const [long, setLong] = useState(false)
+  useEffect(() => {
+    if (online) {
+      setLong(false)
+      return
+    }
+    const timer = setTimeout(() => setLong(true), OFFLINE_SWITCH_MS)
+    return () => clearTimeout(timer)
+  }, [online])
+  return long
 }
 
 const styles = StyleSheet.create({

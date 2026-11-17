@@ -3,7 +3,7 @@ import { enqueue } from '../sync/outbox'
 import { todayIso, type StandStatus } from '../stands/status'
 
 /**
- * Stand edits on the phone. Each one changes the local database at once
+ * Stand edits on the phone (create, rename, move, details, delete). Each one changes the local database at once
  * (the map shows it immediately, also offline) and queues the change for the
  * server in the same transaction. The server checks it on the next sync; if it
  * refuses, `applyStandPushResult` undoes the local change.
@@ -93,7 +93,26 @@ export function updateStandDetailsLocal(db: SQLiteDatabase, id: number, changes:
   })
 }
 
-type PushResult = { status: string; data?: unknown }
+/**
+ * Deletes a stand on the phone and queues the deletion. The whole row is kept
+ * with the queued change, so it can be put back if the server refuses.
+ * A stand that hasn't reached the server yet is simply dropped.
+ */
+export function deleteStandLocal(db: SQLiteDatabase, id: number) {
+  const previous = db.getFirstSync<Record<string, unknown>>('SELECT * FROM stands WHERE id = ?', id)
+  if (!previous) return
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM stands WHERE id = ?', id)
+    if (id < 0) {
+      const create = pendingCreate(db, id)
+      if (create) db.runSync('DELETE FROM outbox WHERE id = ?', create.id)
+      return
+    }
+    enqueue(db, 'stand.delete', { id, previous })
+  })
+}
+
+type PushResult = { status: string; data?: unknown; reason?: string }
 
 /**
  * After the server answered a stand change: a confirmed new stand gets its
@@ -113,6 +132,13 @@ export function applyStandPushResult(db: SQLiteDatabase, type: string, payload: 
     db.runSync('UPDATE stands SET number = ? WHERE id = ?', payload.previousNumber, payload.id)
   } else if (type === 'stand.move' && refused && payload.previous) {
     db.runSync('UPDATE stands SET lng = ?, lat = ? WHERE id = ?', payload.previous.lng, payload.previous.lat, payload.id)
+  } else if (type === 'stand.delete' && refused && payload.previous && result.reason !== 'stand_not_found') {
+    // Put the stand back (unless it is gone on the server anyway).
+    const columns = Object.keys(payload.previous)
+    db.runSync(
+      `INSERT OR IGNORE INTO stands (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+      ...columns.map((c) => payload.previous[c]),
+    )
   } else if (type === 'stand.update' && refused && payload.previous) {
     const p = payload.previous as StandDetails
     db.runSync('UPDATE stands SET nickname = ?, status = ?, status_date = ? WHERE id = ?', p.nickname, p.status, p.statusDate, payload.id)

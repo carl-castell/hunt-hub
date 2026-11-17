@@ -168,3 +168,22 @@ describe('stand.update (nickname and status)', () => {
     expect(await push('stand.update', { id: data!.id, status: 'ok' }, staffToken)).toEqual({ status: 'rejected', reason: 'forbidden' })
   })
 })
+
+describe('stand.delete', () => {
+  it('deletes a stand and tells other phones with the next pull', async () => {
+    const { data } = await push('stand.create', { areaId, number: '40', lng: 10.05, lat: 50.05 })
+    const before = (await trpcQuery('mobile.sync.pull', { cursor: null }, managerToken)).body.result.data.cursor
+    expect(await push('stand.delete', { id: data!.id })).toEqual({ status: 'applied' })
+    expect(await stand(data!.id!)).toBeUndefined()
+
+    const pulled = (await trpcQuery('mobile.sync.pull', { cursor: before }, managerToken)).body.result.data
+    expect(pulled.deleted).toContainEqual({ entity: 'stand', id: data!.id })
+  })
+
+  it('rejects unknown stands and staff', async () => {
+    const { data } = await push('stand.create', { areaId, number: '41', lng: 10.05, lat: 50.05 })
+    expect(await push('stand.delete', { id: 999999999 })).toEqual({ status: 'rejected', reason: 'stand_not_found' })
+    expect(await push('stand.delete', { id: data!.id }, staffToken)).toEqual({ status: 'rejected', reason: 'forbidden' })
+    expect(await stand(data!.id!)).toBeDefined()
+  })
+})

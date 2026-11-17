@@ -24,6 +24,13 @@ describe('buildAreaStyle', () => {
     expect(style.sources.base).toEqual({ type: 'raster', url: 'mbtiles:///docs/a.mbtiles', tileSize: 256, minzoom: 8, maxzoom: 16 })
   })
 
+  it('online with the same map stored offline: the stored tiles lie below the online ones', () => {
+    const style = buildAreaStyle({ ...online, tileSize: 512, stored: { filePath: 'file:///docs/offline.mbtiles', tileSize: 512, minzoom: 10, maxzoom: 17 } }, geo)
+    expect(style.layers.map((l) => l.id)).toEqual(['background', 'stored', 'base', 'outside-shade', 'area-line'])
+    expect(style.sources.stored).toEqual({ type: 'raster', url: 'mbtiles:///docs/offline.mbtiles', tileSize: 512, minzoom: 10, maxzoom: 17 })
+    expect(style.sources.base).toMatchObject({ tileSize: 512 })
+  })
+
   it('line style: only the boundary line, no shade', () => {
     const style = buildAreaStyle(online, geo, true, 'line')
     expect(style.layers.map((l) => l.id)).toEqual(['background', 'base', 'area-line'])

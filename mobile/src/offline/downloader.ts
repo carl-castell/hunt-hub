@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { AppState } from 'react-native'
 import { addSample, secondsLeft, type RateSample } from './eta'
 import { offlineSource, tileUrl, type OfflineSource } from './sources'
-import { getOfflineMap, getTileDb, listOfflineMaps, missingTiles, refreshProgress, saveTile, setStatus } from './store'
+import { getOfflineMap, getTileDb, listOfflineMaps, markForUpdate, missingTiles, refreshProgress, saveTile, setStatus } from './store'
 import { sampleTiles, type Tile } from './tiles'
 
 /**
@@ -21,6 +21,8 @@ const BATCH = 8
 const TRIES = 3
 const SAMPLE_TILES = 8
 const WAIT_MS = 3000
+/** Tiles per second on a normal connection, for a rough time before a download has started. */
+export const TYPICAL_TILES_PER_SECOND = 6
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -102,6 +104,12 @@ class OfflineDownloads {
   start(mapId: string) {
     setStatus(mapId, 'downloading')
     void this.run()
+  }
+
+  /** Downloads a finished map again (newer aerial photos). The stored tiles are replaced one by one. */
+  update(mapId: string) {
+    markForUpdate(mapId)
+    this.start(mapId)
   }
 
   pause(mapId: string) {
