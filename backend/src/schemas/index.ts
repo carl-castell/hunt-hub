@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STAND_NICKNAME_MAX, STAND_STATUSES } from '@/shared/standStatus';
 
 export const loginSchema = z.object({
   email:    z.email('Please enter a valid email address.'),
@@ -119,3 +120,25 @@ export const sendInvitationSchema = z.object({
     z.array(z.coerce.number().int().positive())
   ),
 });
+
+/** A calendar date like 2026-11-17 that exists (not 2026-02-31). */
+export const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the format YYYY-MM-DD.')
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00Z`);
+    return !isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, 'This date does not exist.');
+
+/**
+ * Nickname, status and status date of a stand. Every field is optional:
+ * a missing field stays as it is, null clears it. An empty nickname counts
+ * as no nickname.
+ */
+export const standDetailsSchema = z.object({
+  nickname: z.string().trim().max(STAND_NICKNAME_MAX)
+    .transform((value) => value === '' ? null : value)
+    .nullable().optional(),
+  status: z.enum(STAND_STATUSES).nullable().optional(),
+  statusDate: isoDateSchema.optional(),
+});
+
+export type StandDetailsInput = z.infer<typeof standDetailsSchema>;
