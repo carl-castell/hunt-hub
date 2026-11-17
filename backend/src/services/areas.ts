@@ -1,5 +1,6 @@
 import { and, asc, count, eq, sql } from 'drizzle-orm';
 import path from 'path';
+import { LruCache } from '@/utils/lruCache';
 import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
 import { standsTable } from '@/db/schema/stands';
@@ -68,20 +69,42 @@ export type AreaWithBoundary = AreaSummary & {
   boundaryGeoJson: string | null;
 };
 
+/**
+ * Boundaries as GeoJSON, cached per app instance. A real forest boundary can
+ * have thousands of points: converting and sending it is the expensive part of
+ * the area page (see the load test). The key contains the area's updated_at,
+ * which a database trigger bumps on every change, so a cached boundary is
+ * never stale, also with several instances. At most 100 areas or ~50 MB.
+ */
+export const boundaryCache = new LruCache<string | null>(100, 50_000_000, (geoJson) => geoJson?.length ?? 0);
+
 /** The area with its boundary. Throws AreaNotFoundError for unknown or foreign areas. */
 export async function getAreaWithBoundary(estateId: number, areaId: number): Promise<AreaWithBoundary> {
+  // Cheap first: the area and its version, without the geometry.
   const [area] = await db
     .select({
       id: areasTable.id,
       name: areasTable.name,
       estateId: areasTable.estateId,
-      boundaryGeoJson: sql<string | null>`ST_AsGeoJSON(${areasTable.geofile})`,
+      version: sql<string>`${areasTable.updatedAt}::text`,
     })
     .from(areasTable)
     .where(and(eq(areasTable.id, areaId), eq(areasTable.estateId, estateId)))
     .limit(1);
   if (!area) throw new AreaNotFoundError();
-  return area;
+
+  const key = `${area.id}@${area.version}`;
+  let boundaryGeoJson = boundaryCache.get(key);
+  if (boundaryGeoJson === undefined) {
+    const [row] = await db
+      .select({ geoJson: sql<string | null>`ST_AsGeoJSON(${areasTable.geofile})` })
+      .from(areasTable)
+      .where(eq(areasTable.id, area.id));
+    boundaryGeoJson = row?.geoJson ?? null;
+    boundaryCache.set(key, boundaryGeoJson);
+  }
+
+  return { id: area.id, name: area.name, estateId: area.estateId, boundaryGeoJson };
 }
 
 export type AreaListItem = AreaSummary & { standCount: number; hasBoundary: boolean };

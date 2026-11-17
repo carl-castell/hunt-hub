@@ -115,6 +115,7 @@ docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrat
 | `SESSION_SECRET` | Yes | Random string for session signing | `change-me-32-chars-min` |
 | `DOMAIN` | Yes | Base URL used in email links and RSVP URLs | `http://localhost:3000` |
 | `SKIP_TOTP` | No | Skip admin TOTP — dev/test only, **throws at startup if set in production** | `true` |
+| `LOAD_TEST` | No | Load test mode: rate limiting off (see "Load test and caching"). Local only, **throws at startup in production or with any database other than `DB_PROVIDER=local`** | `true` |
 | `DEV_LOGIN` | No | Dev login: the React login page lists all active admins and managers; one click logs in as that user, without password or TOTP. Local development only, **throws at startup in production or with any database other than `DB_PROVIDER=local`** (see below) | `true` |
 | `WEB_DIST_DIR` | No | Where the built React app is (default `../web/dist`) | `/app/web/dist` |
 | `LOG_LEVEL` | No | `trace` … `fatal`, or `silent` (default `info`; silent in tests) | `info` |
@@ -220,6 +221,37 @@ Safeguards (`src/utils/devLogin.ts`, `src/trpc/routers/dev.ts`):
 | `npm run test:coverage` | Run all tests with v8 coverage report |
 
 ---
+
+## Load test and caching
+
+`scripts/load-test.ts` measures the area page's API call, `manager.areas.get` (area + boundary as GeoJSON + stands), with [autocannon](https://github.com/mcollina/autocannon).
+
+```bash
+npx tsx scripts/load-test.ts setup                                   # local DB: test estate, manager, area with a 10,000-point boundary, 300 stands
+npm run build
+LOAD_TEST=true LOG_LEVEL=warn PORT=3002 node dist/src/index.js         # built server, rate limiting off (see below)
+npx tsx scripts/load-test.ts run                                     # 20 connections, 20 s (DURATION, CONNECTIONS, VERTICES, STANDS)
+```
+
+`LOAD_TEST=true` turns rate limiting off, so the test measures the server and not the limiter. Like `DEV_LOGIN`, the server refuses to start with it in production or with any database other than `DB_PROVIDER=local` (`src/utils/devLogin.ts`).
+
+**Where the time went** (before the cache): the database converts the boundary in ~2.5 ms (warm), but every request then moves ~232 KB of GeoJSON from Postgres to Node (~4 ms round trip), parses it (~1.4 ms) and serialises the response (~1.4 ms). With 20 parallel requests one Node CPU core was the limit.
+
+**The cache** (`boundaryCache` in `src/services/areas.ts`, `src/utils/lruCache.ts`): the boundary GeoJSON is kept in memory per instance, keyed by area id **and `updated_at`**. A cheap query (no geometry) reads the version on every request, and a database trigger bumps `updated_at` on every change, so a cached boundary is never stale, also with several instances and without shared invalidation. Limited to 100 areas / ~50 MB (least recently used are dropped). Integration tests check that a changed or removed boundary is returned right away.
+
+**Result** (MacBook M1, Node 22, local Postgres, 20 connections, 20 s, response ~261 KB):
+
+| | Before | With cache | Change |
+|---|---|---|---|
+| Requests/s | 88 | 171 | +94 % |
+| Latency p50 | 184 ms | 109 ms | −41 % |
+| Latency p97.5 | 673 ms | 179 ms | −73 % |
+| Latency p99 | 1,472 ms | 208 ms | −86 % |
+| Errors / non-2xx | 0 | 0 | |
+
+Single runs on a laptop: the numbers show the order of magnitude, not exact capacity on Render.
+
+**Next steps, not done yet:** HTTP caching (`ETag` + `304 Not Modified`) so unchanged boundaries aren't sent again at all; a simplified boundary for small zoom levels (`ST_SimplifyPreserveTopology`); gzip/brotli for the large JSON responses. Scaling out works now: sessions and rate-limit counters are in Postgres, and the cache needs no coordination between instances.
 
 ## Database
 
