@@ -84,20 +84,9 @@ describe('GET /manager/events/:eventId/drives/:id', () => {
     driveId = drive.id;
   });
 
-  it('returns 200 for a drive in the manager estate', async () => {
+  it("sends a drive page to the React event page's drives tab", async () => {
     const res = await setup.agent.get(`/manager/events/${eventId}/drives/${driveId}`);
-    expect(res.status).toBe(200);
-  });
-
-  it('returns 404 for a drive belonging to another estate event', async () => {
-    const [otherDrive] = await db
-      .insert(drivesTable)
-      .values({ eventId: otherEventId, name: 'Other Drive', startTime: '09:00', endTime: '11:00' })
-      .returning();
-
-    const res = await setup.agent.get(`/manager/events/${otherEventId}/drives/${otherDrive.id}`);
-    expect(res.status).toBe(404);
-
-    await db.delete(drivesTable).where(eq(drivesTable.id, otherDrive.id));
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/app/manager/events/${eventId}?tab=drives`);
   });
 });

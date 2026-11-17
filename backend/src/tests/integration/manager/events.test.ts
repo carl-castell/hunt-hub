@@ -67,15 +67,18 @@ describe('POST /manager/events', () => {
   });
 });
 
-describe('GET /manager/events/:id', () => {
-  it('returns 200 for an event in own estate', async () => {
-    const res = await setup.agent.get(`/manager/events/${eventId}`);
-    expect(res.status).toBe(200);
+describe('GET /manager/events and /manager/events/:id', () => {
+  // The pages live in the React app now (HUN-88); its API checks the estate.
+  it('sends the events list to the React app', async () => {
+    const res = await setup.agent.get('/manager/events');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/app/manager/events');
   });
 
-  it('returns 404 for an event in another estate', async () => {
-    const res = await setup.agent.get(`/manager/events/${otherEventId}`);
-    expect(res.status).toBe(404);
+  it('sends an event page to the React app', async () => {
+    const res = await setup.agent.get(`/manager/events/${eventId}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/app/manager/events/${eventId}`);
   });
 });
 

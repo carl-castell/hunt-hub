@@ -16,7 +16,7 @@ const { mockDb } = vi.hoisted(() => ({
 vi.mock('@/db', () => ({ db: mockDb }));
 vi.mock('@/utils/logError', () => ({ logError: vi.fn() }));
 
-import { postCreateDrive, getDrive } from '@/controllers/manager/drives';
+import { postCreateDrive } from '@/controllers/manager/drives';
 
 const sessionUser = { id: 1, role: 'manager' as const, estateId: 5 };
 const fakeEvent = { id: 7, eventName: 'Autumn Hunt', estateId: 5, date: '2099-11-01', time: '09:00' };
@@ -95,52 +95,6 @@ describe('postCreateDrive', () => {
     const res = mockRes();
 
     await postCreateDrive(mockReq({ body: validDriveBody }) as Request, res as Response);
-
-    expect(res.status).toHaveBeenCalledWith(500);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getDrive
-// ---------------------------------------------------------------------------
-
-describe('getDrive', () => {
-  it('renders the drive page when found', async () => {
-    mockDb.limit
-      .mockResolvedValueOnce([fakeEvent])  // resolveEvent
-      .mockResolvedValueOnce([fakeDrive]); // drive query
-    const res = mockRes();
-
-    await getDrive(mockReq({ params: { eventId: '7', id: '3' } }) as Request, res as Response);
-
-    expect(res.render).toHaveBeenCalledWith('manager/events/drive', expect.objectContaining({ drive: fakeDrive }));
-  });
-
-  it('returns 404 when the drive does not exist', async () => {
-    mockDb.limit
-      .mockResolvedValueOnce([fakeEvent])
-      .mockResolvedValueOnce([]);
-    const res = mockRes();
-
-    await getDrive(mockReq({ params: { eventId: '7', id: '99' } }) as Request, res as Response);
-
-    expect(res.status).toHaveBeenCalledWith(404);
-  });
-
-  it('returns 404 when the event does not exist', async () => {
-    mockDb.limit.mockResolvedValueOnce([]);
-    const res = mockRes();
-
-    await getDrive(mockReq({ params: { eventId: '99', id: '3' } }) as Request, res as Response);
-
-    expect(res.status).toHaveBeenCalledWith(404);
-  });
-
-  it('returns 500 when the DB throws', async () => {
-    mockDb.limit.mockRejectedValueOnce(new Error('DB error'));
-    const res = mockRes();
-
-    await getDrive(mockReq({ params: { eventId: '7', id: '3' } }) as Request, res as Response);
 
     expect(res.status).toHaveBeenCalledWith(500);
   });

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { drivesTable } from '../../db/schema/drives';
 import { eventsTable } from '../../db/schema/events';
@@ -32,30 +32,6 @@ export async function postCreateDrive(req: Request, res: Response) {
       .returning();
 
     res.redirect(`/manager/events/${eventId}/drives/${drive.id}`);
-  } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
-  }
-}
-
-export async function getDrive(req: Request, res: Response) {
-  try {
-    const user = req.session.user!;
-    const eventId = Number(req.params.eventId);
-    const driveId = Number(req.params.id);
-
-    const event = await resolveEvent(eventId, user.estateId!);
-    if (!event) return res.status(404).send('Event not found');
-
-    const [drive] = await db
-      .select()
-      .from(drivesTable)
-      .where(and(eq(drivesTable.id, driveId), eq(drivesTable.eventId, eventId)))
-      .limit(1);
-
-    if (!drive) return res.status(404).send('Drive not found');
-
-    res.render('manager/events/drive', { title: drive.name, user, event, drive, breadcrumbs: [{ label: 'Events', href: '/manager/events' }, { label: event.eventName, href: `/manager/events/${event.id}` }, { label: drive.name }] });
   } catch (err) {
     logError('[error]', err);
     res.status(500).send('Server error');
