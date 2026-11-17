@@ -6,7 +6,7 @@ The React app (Vite, TypeScript, Tailwind, shadcn/ui, tRPC + React Query). It is
 |---|---|---|
 | Login and two-factor login | `/app/login`, `/app/totp…` | everyone uses it (`/` and `/login` redirect here) |
 | Admin area | `/app/admin` | complete |
-| Manager pages | `/app/manager/areas…` | Areas (list, satellite map, boundary upload); more screens move here step by step |
+| Manager pages | `/app/manager/areas…` | Areas (list; each area as a full-page map with layers, legend, stands panel and settings); more screens move here step by step |
 
 ## How old and new pages fit together
 
@@ -42,11 +42,11 @@ Open **http://localhost:5173/app/** (or `/login`). Vite serves `/app` with hot r
 ## Tests and build
 
 ```bash
-npm test          # Vitest: roles, map framing, boundary mask
+npm test          # Vitest: roles, map framing, boundary mask, map style, stand search
 npm run build     # type check + production build -> dist/
 ```
 
 ## Notes
 
 - **UI components:** shadcn/ui in `src/components/ui/`. Add new ones with `npx shadcn@latest add <name>`; the `@/` alias in `tsconfig.json` makes the CLI write to `src/`.
-- **Map:** MapLibre GL (`src/components/map/`). Its web worker is registered explicitly in `maplibre.ts`, so it also loads after Vite's bundling; satellite imagery only.
+- **Map:** MapLibre GL (`src/components/map/`). Its web worker is registered explicitly in `maplibre.ts`, so it also loads after Vite's bundling. Base maps: satellite (default), OpenTopoMap, OpenStreetMap (`areaStyle.ts`). The map is created once per area; switching the base map or layers only updates its style, so the view stays put.
