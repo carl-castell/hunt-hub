@@ -9,6 +9,7 @@ import { contactsTable } from '../../db/schema/contacts';
 import { guestGroupMembersTable, guestGroupsTable } from '../../db/schema/guest_groups';
 import { huntingLicensesTable, trainingCertificatesTable } from '../../db/schema/licenses';
 import { renderTemplate, sendMail } from '@/services/mail';
+import { personalMessage } from '@/services/invitations';
 import { getBaseUrl } from '@/utils/url';
 import { audit } from '@/services/audit';
 import crypto from 'crypto';
@@ -350,9 +351,7 @@ export async function getPreviewInvitation(req: Request, res: Response) {
     if (!event) return res.status(404).send('Event not found');
 
     const rawMessage = typeof req.query.message === 'string' ? req.query.message : '';
-    const personalised = rawMessage
-      .replace(/\{\{firstName\}\}/g, 'Max')
-      .replace(/\{\{lastName\}\}/g, 'Mustermann');
+    const personalised = personalMessage(rawMessage, { firstName: 'Max', lastName: 'Mustermann' });
 
     const baseUrl = getBaseUrl(req);
     const html = await renderTemplate('invitation', {
@@ -460,9 +459,8 @@ export async function postSendInvitations(req: Request, res: Response) {
 
       if (!row) continue;
 
-      const personalised = message
-        .replace(/\{\{firstName\}\}/g, row.firstName)
-        .replace(/\{\{lastName\}\}/g, row.lastName);
+      // Escaped: names and message are plain text, not HTML.
+      const personalised = personalMessage(message, row);
 
       try {
         const baseUrl = getBaseUrl(req);
