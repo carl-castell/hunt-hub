@@ -18,3 +18,16 @@ export function standsBBox(markers: StandMarker[]): BBox | null {
   const lats = markers.map((m) => m.lngLat[1])
   return [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)]
 }
+
+/** Stands in natural number order, filtered by a search for their number. */
+export function searchStands<T extends { number: string }>(stands: T[], query: string): T[] {
+  const q = query.trim().toLowerCase()
+  return stands
+    .filter((s) => s.number.toLowerCase().includes(q))
+    .sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }))
+}
+
+/** A Google Maps link to a point; opens the app or the website on any device. */
+export function googleMapsUrl(lng: number, lat: number): string {
+  return `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`
+}
