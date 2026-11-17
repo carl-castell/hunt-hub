@@ -19,3 +19,4 @@ export * from './guest_groups';
 export * from './totp_backup_codes';
 export * from './mobile_sessions';
 export * from './sync';
+export * from './rate_limits';

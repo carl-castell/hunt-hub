@@ -29,6 +29,7 @@ import rsvpRouter from './routes/rsvp';
 import totpRouter from './routes/totp';
 
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
+import { errorHandler, notFound } from './middlewares/errorHandler';
 import { appRouter } from './trpc/router';
 import { createContext } from './trpc/context';
 
@@ -158,5 +159,9 @@ app.use("/manager", requireManager, managerRouter);
 app.use('/users', requireAuth, usersRouter);
 app.use('/activate', activateRouter);
 app.use('/rsvp', rsvpRouter);
+
+// Anything not handled above: one consistent 404, then the central error handler (keep these last).
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;
