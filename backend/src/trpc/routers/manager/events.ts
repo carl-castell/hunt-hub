@@ -5,8 +5,10 @@ import {
   EventNotFoundError, getEvent, listEvents, updateDrive, updateEvent,
 } from '@/services/events'
 import {
-  listInvitations, previewEmail, removeInvitations, searchGuests, sendEmails, stageInvitations, updateInvitations,
+  guestOfInvitation, invitationDetails, listInvitations, previewEmail, removeInvitations, searchGuests, sendEmails,
+  stageInvitations, updateInvitations,
 } from '@/services/invitations'
+import { checkCertificate, checkLicence, DocumentNotFoundError } from '@/services/guestDocuments'
 import { INVITATION_RESPONSES, INVITATION_STATUSES } from '@/shared/invitationStates'
 import { isoDateSchema } from '@/schemas'
 import { getBaseUrl } from '@/utils/url'
@@ -17,7 +19,7 @@ const eventProcedure = managerProcedure.use(async ({ next }) => {
   const result = await next()
   if (!result.ok) {
     const cause = result.error.cause
-    if (cause instanceof EventNotFoundError || cause instanceof DriveNotFoundError) {
+    if (cause instanceof EventNotFoundError || cause instanceof DriveNotFoundError || cause instanceof DocumentNotFoundError) {
       throw new TRPCError({ code: 'NOT_FOUND', message: cause.message })
     }
     if (cause instanceof DriveRuleError) throw new TRPCError({ code: 'BAD_REQUEST', message: cause.message })
@@ -70,6 +72,20 @@ const emailInput = z.object({
 
 export const managerInvitationsRouter = router({
   list: eventProcedure.input(z.object({ eventId: id })).query(({ ctx, input }) => listInvitations(ctx.estateId, input.eventId)),
+
+  /** One invitation with the guest's contact details, licence and certificate. */
+  get: eventProcedure
+    .input(z.object({ eventId: id, invitationId: id }))
+    .query(({ ctx, input }) => invitationDetails(ctx.estateId, input.eventId, input.invitationId)),
+
+  /** Marks the guest's licence or certificate as checked (older ones are deleted). */
+  checkDocument: eventProcedure
+    .input(z.object({ eventId: id, invitationId: id, kind: z.enum(['licence', 'certificate']), documentId: id }))
+    .mutation(async ({ ctx, input }) => {
+      const guestId = await guestOfInvitation(ctx.estateId, input.eventId, input.invitationId)
+      const check = input.kind === 'licence' ? checkLicence : checkCertificate
+      await check(ctx.estateId, guestId, input.documentId, actorOf(ctx))
+    }),
 
   /** Guests not invited yet (by name or group name) and the estate's guest groups. */
   searchGuests: eventProcedure
