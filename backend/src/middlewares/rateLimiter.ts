@@ -32,6 +32,8 @@ export const authLimiter = rateLimit({
 
 export const rsvpUploadLimiter = rateLimit({
   store: new PostgresRateLimitStore('rsvpUpload'),
+  // Counted once per call in a tRPC batch on purpose (see trpcAuthLimits.ts).
+  validate: { singleCount: false },
   windowMs: 60 * 60 * 1000,  // 1 hour
   max: isTest ? 0 : 50,
   skip: () => skipLimits,
@@ -64,6 +66,8 @@ export const activationLimiter = rateLimit({
 
 export const rsvpLimiter = rateLimit({
   store: new PostgresRateLimitStore('rsvp'),
+  // Counted once per call in a tRPC batch on purpose (see trpcAuthLimits.ts).
+  validate: { singleCount: false },
   windowMs: 15 * 60 * 1000,
   max: isTest ? 0 : 100,
   skip: () => skipLimits,

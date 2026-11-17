@@ -19,6 +19,9 @@ describe('sanitizeUrl', () => {
 
   it("hides a guest's RSVP magic link but keeps the action", () => {
     expect(sanitizeUrl('/rsvp/9f2c1e/respond')).toBe('/rsvp/[redacted]/respond');
+    // The React answer page (HUN-90).
+    expect(sanitizeUrl('/app/rsvp/9f2c1e')).toBe('/app/rsvp/[redacted]');
+    expect(sanitizeUrl('/app/rsvp/preview/12')).toBe('/app/rsvp/preview/12');
   });
 
   it("keeps the manager's RSVP preview (no secret)", () => {
