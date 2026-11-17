@@ -14,7 +14,7 @@ const { mockDb } = vi.hoisted(() => {
 
 vi.mock('@/db', () => ({ db: mockDb }));
 
-import { requireWfsAuth } from '@/middlewares/requireWfsAuth';
+import { requireWfsAuth } from '@/qgis/requireWfsAuth';
 
 function mockReq(overrides: Partial<Request> = {}): Partial<Request> {
   return { query: {}, headers: {}, ...overrides };

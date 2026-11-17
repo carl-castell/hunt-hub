@@ -5,7 +5,7 @@ vi.mock('@/db', () => ({ db: {} }));
 vi.mock('@/services/audit', () => ({ audit: vi.fn() }));
 vi.mock('@/utils/logError', () => ({ logError: vi.fn() }));
 
-import { describeFeatureType, wfsGet } from '@/controllers/wfs';
+import { describeFeatureType, wfsGet } from '@/qgis/controller';
 
 function mockReq(query: Record<string, string> = {}): Partial<Request> {
   return {
