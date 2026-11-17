@@ -14,8 +14,6 @@ import {
   guestSchema,
   areaNameSchema,
   deleteConfirmSchema,
-  updateInvitationSchema,
-  sendInvitationSchema,
 } from '@/schemas';
 
 describe('loginSchema', () => {
@@ -423,63 +421,5 @@ describe('deleteConfirmSchema', () => {
 
   it('fails with missing confirm field', () => {
     expect(deleteConfirmSchema.safeParse({}).success).toBe(false);
-  });
-});
-
-describe('updateInvitationSchema', () => {
-  const valid = { status: 'staged' as const, response: 'open' as const };
-
-  it('passes with valid status and response', () => {
-    expect(updateInvitationSchema.safeParse(valid).success).toBe(true);
-  });
-
-  it('passes with all valid status values', () => {
-    for (const status of ['staged', 'sent_email', 'sent_manually', 'waitlist', 'archived'] as const) {
-      expect(updateInvitationSchema.safeParse({ ...valid, status }).success).toBe(true);
-    }
-  });
-
-  it('fails with an invalid status', () => {
-    expect(updateInvitationSchema.safeParse({ ...valid, status: 'pending' }).success).toBe(false);
-  });
-
-  it('fails with an invalid response', () => {
-    expect(updateInvitationSchema.safeParse({ ...valid, response: 'maybe' }).success).toBe(false);
-  });
-});
-
-describe('sendInvitationSchema', () => {
-  const base = { message: 'You are invited to the estate.', invitationIds: [1, 2, 3] };
-
-  it('passes with an array of invitation IDs', () => {
-    // preprocess: Array.isArray(val) → true → val passed through as-is
-    expect(sendInvitationSchema.safeParse(base).success).toBe(true);
-  });
-
-  it('passes with a single invitation ID string (wrapped into array)', () => {
-    // preprocess: not array, not null/empty → [val]
-    expect(sendInvitationSchema.safeParse({ ...base, invitationIds: '1' }).success).toBe(true);
-  });
-
-  it('passes with null invitationIds (preprocessed to empty array)', () => {
-    // preprocess: not array, val == null → []
-    expect(sendInvitationSchema.safeParse({ ...base, invitationIds: null }).success).toBe(true);
-  });
-
-  it('passes with empty string invitationIds (preprocessed to empty array)', () => {
-    // preprocess: not array, val === '' → []
-    expect(sendInvitationSchema.safeParse({ ...base, invitationIds: '' }).success).toBe(true);
-  });
-
-  it('fails with an empty message', () => {
-    expect(sendInvitationSchema.safeParse({ ...base, message: '' }).success).toBe(false);
-  });
-
-  it('fails with a message exceeding 5000 characters', () => {
-    expect(sendInvitationSchema.safeParse({ ...base, message: 'a'.repeat(5001) }).success).toBe(false);
-  });
-
-  it('passes with an optional respondBy field', () => {
-    expect(sendInvitationSchema.safeParse({ ...base, respondBy: '2026-06-01' }).success).toBe(true);
   });
 });

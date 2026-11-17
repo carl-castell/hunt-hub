@@ -107,19 +107,6 @@ export const deleteConfirmSchema = z.object({
   confirm: z.string(),
 });
 
-export const updateInvitationSchema = z.object({
-  status:   z.enum(['staged', 'sent_email', 'sent_manually', 'waitlist', 'archived']),
-  response: z.enum(['open', 'yes', 'no']),
-});
-
-export const sendInvitationSchema = z.object({
-  message:       z.string().min(1, 'Message is required').max(5000),
-  respondBy:     z.string().optional(),
-  invitationIds: z.preprocess(
-    (val) => (Array.isArray(val) ? val : val != null && val !== '' ? [val] : []),
-    z.array(z.coerce.number().int().positive())
-  ),
-});
 
 /** A calendar date like 2026-11-17 that exists (not 2026-02-31). */
 export const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the format YYYY-MM-DD.')

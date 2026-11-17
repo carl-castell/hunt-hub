@@ -35,7 +35,7 @@ export function createLogger(destination?: pino.DestinationStream, level?: pino.
 export const logger = createLogger();
 
 /** Path segments right after these prefixes are secrets (activation token, RSVP magic link). */
-const SECRET_PATH_PREFIXES = ['/activate/', '/rsvp/'];
+const SECRET_PATH_PREFIXES = ['/activate/', '/rsvp/', '/app/rsvp/'];
 /** Query parameters that carry secrets (e.g. the QGIS/WFS access token). */
 const SECRET_QUERY_PARAMS = ['token', 'access_token', 'key'];
 

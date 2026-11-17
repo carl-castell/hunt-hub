@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { authLimiter, backupCodeLimiter } from './rateLimiter';
+import { authLimiter, backupCodeLimiter, rsvpLimiter, rsvpUploadLimiter } from './rateLimiter';
 
 /**
- * Brute-force protection for the tRPC login procedures, with the same limits
- * as the server-rendered login and two-factor forms.
+ * Brute-force protection for the tRPC login procedures and the guests'
+ * public answer page, with the same limits as the old server-rendered forms.
  */
 export const TRPC_AUTH_LIMITS: Record<string, RequestHandler> = {
   'auth.login': authLimiter,
@@ -11,6 +11,11 @@ export const TRPC_AUTH_LIMITS: Record<string, RequestHandler> = {
   'auth.confirmTotpSetup': authLimiter,
   'auth.useBackupCode': backupCodeLimiter,
   'mobile.auth.login': authLimiter,
+  'rsvp.open': rsvpLimiter,
+  'rsvp.respond': rsvpLimiter,
+  'rsvp.uploadLicence': rsvpUploadLimiter,
+  'rsvp.uploadCertificate': rsvpUploadLimiter,
+  'rsvp.saveDetails': rsvpUploadLimiter,
 };
 
 /** The procedures of a tRPC request; a batch looks like "/auth.login,auth.me". */
