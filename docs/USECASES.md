@@ -37,7 +37,7 @@ What Hunt Hub does, for whom, and where each use case lives. Hunt Hub is a hybri
 | Dashboard | ✅ | 🖥️ | [Manager – Estate](#manager--estate) |
 | Manage the estate | ✅ | 🖥️ | [Manager – Estate](#manager--estate) |
 | **Manage hunting areas** (list, create, rename, delete, upload boundary file) | ✅ | ⚛️ | [Manager – Areas](#manager--areas-react-app) |
-| **See an area on a satellite map** with its boundary and stands | ✅ | ⚛️ | [Manager – Areas](#manager--areas-react-app) |
+| **See an area on a map** (satellite, OpenTopoMap or OpenStreetMap) with its boundary and stands | ✅ | ⚛️ | [Manager – Areas](#manager--areas-react-app) |
 | Manage guests | ✅ | 🖥️ | [Manager – Guests](#manager--guests) |
 | Verify guest documents (licences & certificates) | ✅ | 🖥️ | [Manager – Document Verification](#manager--document-verification) |
 | Manage guest groups | ✅ | 🖥️ | [Manager – Guest Groups](#manager--guest-groups) |
@@ -140,7 +140,7 @@ Staff have no area in the web app; logging in there shows a hint to use the iPho
 | Page | Description |
 |------|-------------|
 | `/app/manager/areas` | List of areas: name, number of stands, boundary status; create a new area |
-| `/app/manager/areas/:id` | Satellite map (boundary in red, everything outside shaded), rename, upload or remove the boundary file (GeoJSON, KML, GPX, Shapefile zip, GeoPackage; max 20 MB), stand list, delete with name confirmation |
+| `/app/manager/areas/:id` | Full-page map: base map menu (satellite by default), legend with stands and boundary on/off, whole-area and zoom buttons, stands panel with search (click flies to the stand). Settings window: boundary inverted or line only (saved in the browser), rename, upload, replace or remove the boundary file (GeoJSON, KML, GPX, Shapefile zip, GeoPackage; max 20 MB), delete in a danger zone with name confirmation |
 
 The old server-rendered area pages still exist until they are retired (HUN-49):
 
