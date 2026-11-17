@@ -188,6 +188,26 @@ describe('invitations', () => {
     expect(annaNow.respondedAt).not.toBeNull()
   })
 
+  it("shows a guest's documents and checks the licence (older ones are deleted)", async () => {
+    const list = data(await query('invitations.list', { eventId }))
+    const benRow = list.find((r: { guest: { id: number } }) => r.guest.id === ben)
+    const details = data(await query('invitations.get', { eventId, invitationId: benRow.id }))
+    expect(details.documents).toMatchObject({ licenceState: 'unchecked', certificateState: 'missing', certificate: null })
+    expect(details.documents.licence).toMatchObject({ checked: false, expiryDate: '2100-03-31', files: [] })
+
+    // An older licence of Ben's that goes when the newer one is checked.
+    await db.insert(huntingLicensesTable).values({ estateId, userId: ben, checked: false, expiryDate: '2099-01-01', uploadDate: new Date('2020-01-01') })
+    const res = await mutate('invitations.checkDocument', { eventId, invitationId: benRow.id, kind: 'licence', documentId: details.documents.licence.id })
+    expect(res.status).toBe(200)
+    const after = data(await query('invitations.get', { eventId, invitationId: benRow.id }))
+    expect(after.documents.licenceState).toBe('valid')
+    expect(await db.select().from(huntingLicensesTable).where(eq(huntingLicensesTable.userId, ben))).toHaveLength(1)
+
+    // A document of another guest can't be checked through this invitation.
+    const annaLicence = (await db.select().from(huntingLicensesTable).where(eq(huntingLicensesTable.userId, anna)))[0]
+    expect((await mutate('invitations.checkDocument', { eventId, invitationId: benRow.id, kind: 'licence', documentId: annaLicence.id })).status).toBe(404)
+  })
+
   it('removing reports how many links were already sent', async () => {
     const ids = data(await query('invitations.list', { eventId })).map((r: { id: number }) => r.id)
     expect(data(await mutate('invitations.remove', { eventId, ids }))).toEqual({ removed: 3, sentLinks: 2 })

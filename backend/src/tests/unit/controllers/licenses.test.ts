@@ -36,6 +36,17 @@ vi.mock('@/services/storage', () => ({
 }));
 vi.mock('@/services/audit', () => ({ audit: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/utils/logError', () => ({ logError: vi.fn() }));
+// Checking a document lives in the service (tested against the database in manager-api/events.test.ts).
+const { mockCheckLicence, mockCheckCertificate, MockNotFound } = vi.hoisted(() => ({
+  mockCheckLicence: vi.fn(),
+  mockCheckCertificate: vi.fn(),
+  MockNotFound: class extends Error {},
+}));
+vi.mock('@/services/guestDocuments', () => ({
+  checkLicence: mockCheckLicence,
+  checkCertificate: mockCheckCertificate,
+  DocumentNotFoundError: MockNotFound,
+}));
 
 import {
   getHuntingLicense,
@@ -253,42 +264,15 @@ describe('postCreateHuntingLicense', () => {
 });
 
 describe('postCheckHuntingLicense', () => {
-  it('marks the license as checked and redirects (no old licenses to delete)', async () => {
-    // where calls: getGuestRow (non-terminal), license fetch (non-terminal), allLicenses (terminal)
-    mockDb.where
-      .mockReturnValueOnce(mockDb)
-      .mockReturnValueOnce(mockDb)
-      .mockResolvedValueOnce([fakeLicense]);
-    mockDb.limit
-      .mockResolvedValueOnce([fakeGuestDbRow])
-      .mockResolvedValueOnce([fakeLicense]);
+  it('checks the license through the service and redirects', async () => {
+    mockDb.limit.mockResolvedValueOnce([fakeGuestDbRow]);
+    mockCheckLicence.mockResolvedValueOnce(undefined);
 
-    const req = makeReq({ body: { licenseId: 10 } });
     const res = makeRes();
-    await postCheckHuntingLicense(req, res);
+    await postCheckHuntingLicense(makeReq({ body: { licenseId: 10 } }), res);
 
-    expect(mockDb.transaction).toHaveBeenCalled();
+    expect(mockCheckLicence).toHaveBeenCalledWith(1, 5, 10, expect.objectContaining({ userId: expect.any(Number) }));
     expect(res.redirect).toHaveBeenCalledWith('/manager/guests/5');
-  });
-
-  it('deletes old licenses and their S3 files when checking in a new license', async () => {
-    const { deleteFile } = await import('@/services/storage');
-    const fakeOldLicense = { id: 9, userId: 5, estateId: 1, expiryDate: '2020-01-01' };
-    mockDb.where
-      .mockReturnValueOnce(mockDb)
-      .mockReturnValueOnce(mockDb)
-      .mockResolvedValueOnce([fakeLicense, fakeOldLicense])
-      .mockResolvedValueOnce([{ key: 's3/old.pdf' }]);
-    mockDb.limit
-      .mockResolvedValueOnce([fakeGuestDbRow])
-      .mockResolvedValueOnce([fakeLicense]);
-
-    const req = makeReq({ body: { licenseId: 10 } });
-    const res = makeRes();
-    await postCheckHuntingLicense(req, res);
-
-    expect(mockTx.delete).toHaveBeenCalled();
-    expect(vi.mocked(deleteFile)).toHaveBeenCalledWith('s3/old.pdf');
   });
 
   it('returns 404 when the guest is not found', async () => {
@@ -298,6 +282,7 @@ describe('postCheckHuntingLicense', () => {
     await postCheckHuntingLicense(makeReq({ body: { licenseId: 10 } }), res);
 
     expect(res.status).toHaveBeenCalledWith(404);
+    expect(mockCheckLicence).not.toHaveBeenCalled();
   });
 
   it('returns 400 when licenseId is missing from the body', async () => {
@@ -309,14 +294,9 @@ describe('postCheckHuntingLicense', () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it('returns 404 when the license belongs to a different user', async () => {
-    const wrongLicense = { ...fakeLicense, userId: 99 };
-    mockDb.where
-      .mockReturnValueOnce(mockDb)
-      .mockReturnValueOnce(mockDb);
-    mockDb.limit
-      .mockResolvedValueOnce([fakeGuestDbRow])
-      .mockResolvedValueOnce([wrongLicense]);
+  it('returns 404 when the license is not the guest\'s', async () => {
+    mockDb.limit.mockResolvedValueOnce([fakeGuestDbRow]);
+    mockCheckLicence.mockRejectedValueOnce(new MockNotFound());
 
     const res = makeRes();
     await postCheckHuntingLicense(makeReq({ body: { licenseId: 10 } }), res);
@@ -515,20 +495,14 @@ describe('postCreateTrainingCertificate', () => {
 });
 
 describe('postCheckTrainingCertificate', () => {
-  it('marks the certificate as checked and redirects', async () => {
-    mockDb.where
-      .mockReturnValueOnce(mockDb)
-      .mockReturnValueOnce(mockDb)
-      .mockResolvedValueOnce([fakeCert]);
-    mockDb.limit
-      .mockResolvedValueOnce([fakeGuestDbRow])
-      .mockResolvedValueOnce([fakeCert]);
+  it('checks the certificate through the service and redirects', async () => {
+    mockDb.limit.mockResolvedValueOnce([fakeGuestDbRow]);
+    mockCheckCertificate.mockResolvedValueOnce(undefined);
 
-    const req = makeReq({ body: { certId: 20 } });
     const res = makeRes();
-    await postCheckTrainingCertificate(req, res);
+    await postCheckTrainingCertificate(makeReq({ body: { certId: 20 } }), res);
 
-    expect(mockDb.transaction).toHaveBeenCalled();
+    expect(mockCheckCertificate).toHaveBeenCalledWith(1, 5, 20, expect.objectContaining({ userId: expect.any(Number) }));
     expect(res.redirect).toHaveBeenCalledWith('/manager/guests/5');
   });
 

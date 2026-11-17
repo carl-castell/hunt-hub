@@ -27,6 +27,8 @@ type AuditEvent =
   | 'license_deleted'
   | 'certificate_uploaded'
   | 'certificate_deleted'
+  | 'license_checked'
+  | 'certificate_checked'
   | 'geofile_uploaded'
   | 'geofile_deleted'
   | 'area_deleted'

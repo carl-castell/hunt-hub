@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { audit } from '@/services/audit';
 import { EventNotFoundError } from '@/services/events';
+import { guestDocuments } from '@/services/guestDocuments';
 import { renderTemplate, sendMail } from '@/services/mail';
 import {
   certificateState, licenceState, linkSent,
@@ -176,6 +177,28 @@ export async function removeInvitations(estateId: number, eventId: number, ids: 
   const res = await db.execute<{ status: InvitationStatus }>(sql`
     DELETE FROM invitations WHERE event_id = ${eventId} AND id = ANY(${idList(ids)}) RETURNING status`);
   return { removed: res.rows.length, sentLinks: res.rows.filter((r) => linkSent(r.status)).length };
+}
+
+/** One invitation with the guest's contact details and documents, for the guest drawer. */
+export async function invitationDetails(estateId: number, eventId: number, invitationId: number) {
+  const event = await requireEvent(estateId, eventId);
+  const invitation = (await listInvitations(estateId, eventId)).find((i) => i.id === invitationId);
+  if (!invitation) throw new EventNotFoundError();
+  const contact = await db.execute<{ date_of_birth: string | null }>(sql`
+    SELECT to_char(date_of_birth, 'YYYY-MM-DD') AS date_of_birth FROM contacts WHERE user_id = ${invitation.guest.id}`);
+  return {
+    ...invitation,
+    dateOfBirth: contact.rows[0]?.date_of_birth ?? null,
+    documents: await guestDocuments(estateId, invitation.guest.id, event.date),
+  };
+}
+
+/** The guest an invitation belongs to (for checking their documents). */
+export async function guestOfInvitation(estateId: number, eventId: number, invitationId: number): Promise<number> {
+  await requireEvent(estateId, eventId);
+  const res = await db.execute<{ user_id: number }>(sql`SELECT user_id FROM invitations WHERE id = ${invitationId} AND event_id = ${eventId}`);
+  if (!res.rows[0]) throw new EventNotFoundError();
+  return res.rows[0].user_id;
 }
 
 // ── Emails ──────────────────────────────────────────────────────────────────
