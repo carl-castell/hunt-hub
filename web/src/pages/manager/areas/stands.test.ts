@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { searchStands, standPosition } from './stands'
+import { formatStatusDate, searchStands, standPosition, standTitle, todayIso } from './stands'
 
 const stands = [
   { id: 1, number: '10', location: null },
@@ -21,7 +21,38 @@ describe('searchStands', () => {
 
 describe('standPosition', () => {
   it('returns the coordinates of a point, null otherwise', () => {
-    expect(standPosition({ id: 1, number: '1', location: { type: 'Point', coordinates: [13, 52] } })).toEqual([13, 52])
-    expect(standPosition({ id: 1, number: '1', location: null })).toBeNull()
+    expect(standPosition({ location: { type: 'Point', coordinates: [13, 52] } })).toEqual([13, 52])
+    expect(standPosition({ location: null })).toBeNull()
+  })
+})
+
+describe('search by nickname', () => {
+  const named = [
+    { number: '1', nickname: 'Eiche' },
+    { number: '2', nickname: null },
+    { number: '3', nickname: 'Am Bach' },
+  ]
+
+  it('finds stands whose nickname contains the search, ignoring case', () => {
+    expect(searchStands(named, 'eich').map((s) => s.number)).toEqual(['1'])
+    expect(searchStands(named, 'BACH').map((s) => s.number)).toEqual(['3'])
+  })
+})
+
+describe('standTitle', () => {
+  it('adds the nickname when there is one', () => {
+    expect(standTitle({ number: '12', nickname: 'Eiche' })).toBe('Stand 12 · Eiche')
+    expect(standTitle({ number: '12', nickname: null })).toBe('Stand 12')
+  })
+})
+
+describe('dates', () => {
+  it('formats a status date for the reader', () => {
+    expect(formatStatusDate('2026-11-17', 'en-GB')).toBe('17 Nov 2026')
+    expect(formatStatusDate('2026-11-17', 'de-DE')).toBe('17. Nov. 2026')
+  })
+
+  it("gives today's local date as YYYY-MM-DD", () => {
+    expect(todayIso(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05')
   })
 })

@@ -4,7 +4,8 @@ import { boundsOf } from './bounds'
 import { areaStyle, type BasemapId, type BoundaryStyle } from './areaStyle'
 import { applyStandMarkerStyle, standMarkerStyle } from './standMarker'
 
-export type MapStand = { id: number; number: string; location: GeoJSON.Point | null }
+/** `title` is the tooltip, e.g. "Stand 12 · Eiche (Broken)". */
+export type MapStand = { id: number; number: string; title: string; location: GeoJSON.Point | null }
 
 /** What the page can do with the map: its own zoom buttons, "whole area" and "fly to stand". */
 export type AreaMapHandle = {
@@ -63,7 +64,7 @@ export function AreaMap({ boundary, stands, basemapId, showBoundary, boundarySty
     let look = standMarkerStyle(map.getZoom())
     const markers = placedStands.map((stand) => {
       const element = document.createElement('div')
-      element.title = `Stand ${stand.number}`
+      element.title = stand.title
       applyStandMarkerStyle(element, stand.number, look)
       return new maplibregl.Marker({ element }).setLngLat(stand.location.coordinates as [number, number]).addTo(map)
     })

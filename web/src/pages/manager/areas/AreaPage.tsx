@@ -16,7 +16,10 @@ import { Label } from '@/components/ui/label'
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { searchStands, standPosition, type ApiStand } from './stands'
+import {
+  formatStatusDate, searchStands, standPosition, standTitle, STAND_STATUS_LABELS, todayIso, type ApiStand,
+} from './stands'
+import { STAND_STATUSES, type StandStatus } from '@hunt-hub/backend/src/shared/standStatus'
 
 /** File types the server can read a boundary from. */
 const BOUNDARY_FILE_TYPES = '.geojson,.json,.kml,.gpx,.zip,.gpkg'
@@ -59,6 +62,7 @@ function AreaMapPage({ area }: { area: Area }) {
 
   const mapStands = useMemo<MapStand[]>(() => area.stands.map((s) => ({
     id: s.id, number: s.number, location: s.location?.type === 'Point' ? s.location : null,
+    title: s.status ? `${standTitle(s)} (${STAND_STATUS_LABELS[s.status]})` : standTitle(s),
   })), [area.stands])
 
   return (
@@ -107,6 +111,7 @@ function AreaMapPage({ area }: { area: Area }) {
         </div>
 
         <StandsPanel
+          areaId={area.id}
           open={standsOpen} stands={area.stands} onClose={() => setStandsOpen(false)}
           onSelect={(position) => mapRef.current?.flyTo(position)}
         />
@@ -169,10 +174,11 @@ function LayerMenu({ value, onChange, onClose }: { value: BasemapId; onChange: (
   )
 }
 
-function StandsPanel({ open, stands, onClose, onSelect }: {
-  open: boolean; stands: ApiStand[]; onClose: () => void; onSelect: (position: [number, number]) => void
+function StandsPanel({ areaId, open, stands, onClose, onSelect }: {
+  areaId: number; open: boolean; stands: ApiStand[]; onClose: () => void; onSelect: (position: [number, number]) => void
 }) {
   const [query, setQuery] = useState('')
+  const [editing, setEditing] = useState<ApiStand | null>(null)
   const found = searchStands(stands, query)
 
   return (
@@ -197,30 +203,135 @@ function StandsPanel({ open, stands, onClose, onSelect }: {
       </div>
       <div className="relative border-b border-border p-3">
         <MagnifyingGlassIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search number…"
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search number or name…"
           aria-label="Search stands" className="pl-8" tabIndex={open ? 0 : -1} />
       </div>
       <ul className="flex-1 overflow-y-auto p-1">
         {found.map((stand) => {
           const position = standPosition(stand)
           return (
-            <li key={stand.id}>
+            <li key={stand.id} className="group flex items-start gap-1 rounded hover:bg-muted">
               <button type="button" disabled={!position} tabIndex={open ? 0 : -1}
                 onClick={() => position && onSelect(position)}
-                className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent">
-                <span className="font-medium">{stand.number}</span>
-                {!position && <span className="text-xs text-muted-foreground">not placed</span>}
+                className="flex min-w-0 flex-1 flex-col gap-1 px-3 py-2 text-left text-sm disabled:cursor-default">
+                <span className="flex w-full items-baseline gap-2">
+                  <span className="font-medium">{stand.number}</span>
+                  {stand.nickname && <span className="truncate text-muted-foreground">{stand.nickname}</span>}
+                  {!position && <span className="ml-auto shrink-0 text-xs text-muted-foreground">not placed</span>}
+                </span>
+                {stand.status && <StandStatusLine status={stand.status} date={stand.statusDate} />}
               </button>
+              <Button type="button" variant="ghost" size="icon" tabIndex={open ? 0 : -1}
+                aria-label={`Edit ${standTitle(stand)}`} title="Edit name and status"
+                className="mt-1 mr-1 text-muted-foreground opacity-60 group-hover:opacity-100"
+                onClick={() => setEditing(stand)}>
+                <PencilSimpleIcon />
+              </Button>
             </li>
           )
         })}
         {found.length === 0 && (
           <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-            {stands.length === 0 ? 'No stands yet. Stands are placed in QGIS for now.' : 'No stand with this number.'}
+            {stands.length === 0 ? 'No stands yet. Stands are placed in QGIS for now.' : 'No stand matches this search.'}
           </li>
         )}
       </ul>
+      {editing && (
+        <StandDetailsDialog key={editing.id} areaId={areaId} stand={editing} onClose={() => setEditing(null)} />
+      )}
     </aside>
+  )
+}
+
+/** Colour per status: green = usable, amber = needs work, red = not usable, grey = gone. */
+const STATUS_DOT: Record<StandStatus, string> = {
+  ok: 'bg-green-600',
+  needs_repair: 'bg-amber-500',
+  broken: 'bg-red-600',
+  removed: 'bg-zinc-400',
+}
+
+function StandStatusLine({ status, date }: { status: StandStatus; date: string | null }) {
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className={`size-2 shrink-0 rounded-full ${STATUS_DOT[status]}`} aria-hidden />
+      <span className="text-foreground">{STAND_STATUS_LABELS[status]}</span>
+      {date && <span>· since {formatStatusDate(date)}</span>}
+    </span>
+  )
+}
+
+/** Nickname and status of one stand. Changing the status sets the date to today; it can be corrected. */
+function StandDetailsDialog({ areaId, stand, onClose }: { areaId: number; stand: ApiStand; onClose: () => void }) {
+  const invalidate = useInvalidateArea(areaId)
+  const [nickname, setNickname] = useState(stand.nickname ?? '')
+  const [status, setStatus] = useState<StandStatus | ''>(stand.status ?? '')
+  const [statusDate, setStatusDate] = useState(stand.statusDate ?? todayIso())
+  const update = trpc.manager.stands.update.useMutation({
+    onSuccess: () => {
+      invalidate()
+      toast.success(`${standTitle({ number: stand.number, nickname: nickname.trim() || null })} saved`)
+      onClose()
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  const changeStatus = (next: StandStatus | '') => {
+    setStatus(next)
+    // A new status gets today's date; going back to the saved status restores its date.
+    setStatusDate(next === stand.status && stand.statusDate ? stand.statusDate : todayIso())
+  }
+
+  const save = (e: React.FormEvent) => {
+    e.preventDefault()
+    update.mutate({
+      id: stand.id,
+      nickname: nickname.trim() || null,
+      status: status || null,
+      ...(status ? { statusDate } : {}),
+    })
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Stand {stand.number}</DialogTitle>
+          <DialogDescription>Name and condition of the stand. The number is changed in QGIS or the iPhone app.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={save} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="stand-nickname">Nickname (optional)</Label>
+            <Input id="stand-nickname" value={nickname} maxLength={64} placeholder="e.g. Eiche"
+              onChange={(e) => setNickname(e.target.value)} />
+          </div>
+          <fieldset className="space-y-1.5">
+            <legend className="text-xs font-medium">Status</legend>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(['', ...STAND_STATUSES] as const).map((code) => (
+                <label key={code || 'none'}
+                  className="flex cursor-pointer items-center gap-2 border border-input px-2.5 py-1.5 text-xs has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <input type="radio" name="stand-status" value={code} checked={status === code}
+                    onChange={() => changeStatus(code)} className="accent-primary" />
+                  {code ? <><span className={`size-2 rounded-full ${STATUS_DOT[code]}`} aria-hidden />{STAND_STATUS_LABELS[code]}</> : 'Not checked'}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {status && (
+            <div className="space-y-1.5">
+              <Label htmlFor="stand-status-date">Status since</Label>
+              <Input id="stand-status-date" type="date" required value={statusDate} max={todayIso()}
+                onChange={(e) => setStatusDate(e.target.value)} />
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={update.isPending}>{update.isPending ? 'Saving…' : 'Save'}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
