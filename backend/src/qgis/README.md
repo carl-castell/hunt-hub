@@ -8,7 +8,7 @@ Estate managers can work with their areas and stands in **QGIS**, next to their 
 |---|---|---|
 | See on the map | ✅ | ✅ |
 | Add | ✅ (only if the area has no boundary yet) | ✅ |
-| Move / change | ✅ | ✅ (position and number) |
+| Move / change | ✅ | ✅ (position, number, nickname, status) |
 | Delete | – | ✅ |
 
 New areas are created in the web app, not in QGIS.
@@ -57,6 +57,7 @@ Select the layer **"Stands – area name"** and click the **pencil** (Toggle Edi
 | **Add a stand** | **Add Point Feature**, click inside the boundary, enter a **number** (e.g. `1`, `2`, `12a`) |
 | **Move a stand** | **Vertex Tool**, drag the point |
 | **Change a number** | Open the attribute table (F6) and edit the number |
+| **Set a nickname or status** | In the attribute table, fill in `nickname`, `status` and (optionally) `status_date` |
 | **Delete a stand** | Select it, then **Delete Selected** |
 
 **Then click Save Layer Edits** (the disk icon next to the pencil). Nothing is sent to Hunt Hub before you save.
@@ -65,6 +66,13 @@ Rules:
 - Each stand number may exist **only once per area**.
 - A stand must lie **inside the area boundary**. To place one outside on purpose, enter `1` in the field `force_outside_area`.
 - A stand belongs to the area whose layer you add it to.
+
+**Nickname and status**
+- `nickname`: optional name, e.g. `Eiche`. It may be used more than once; the number identifies the stand.
+- `status`: the stand's condition. Exactly one of `ok`, `needs_repair`, `broken`, `removed`, or empty (not checked yet). Anything else is refused when you save.
+- `status_date`: the day the status changed (`YYYY-MM-DD`). Leave it empty and Hunt Hub sets today's date when the status changes. Emptying the status also empties the date.
+- Tip: to pick the status from a list instead of typing it, open the layer's **Properties → Attributes Form**, select `status` and choose the widget **Value Map** with the four values.
+- Layers added before 17 Nov 2026 don't show these columns yet: remove the stands layer and add it again.
 
 ## 4. Check the result
 
@@ -83,6 +91,7 @@ Rules:
 | "Invalid or inactive token" | The key was regenerated or deleted, or your account is inactive. Generate a new key and update the connection's URL. |
 | Layers appear in the wrong place | Tick **Invert axis orientation** in the connection (see step 2). |
 | Error when saving a new stand | The number already exists in this area, or the stand is outside the boundary. |
+| "Unknown status" when saving | Use one of `ok`, `needs_repair`, `broken`, `removed`, or leave it empty. |
 | QGIS waits a long time on Connect | The live server is starting up. Wait a minute and try again. |
 
 ---
@@ -97,7 +106,7 @@ QGIS talks to Hunt Hub through the standard **OGC WFS-T 1.1.0** interface at `/w
 | `requireWfsAuth.ts` | Checks the key (`?token=` or `Authorization: Bearer`): active **manager** with an estate. Sets `req.wfsUser` |
 | `controller.ts` | `GetCapabilities`, `DescribeFeatureType`, `GetFeature` and `Transaction` (Insert / Update / Delete), GML ↔ PostGIS |
 
-- **Feature types:** `area_<id>` (MultiPolygon boundary) and `stands_<id>` (points with `number` and `force_outside_area`), only for the key owner's estate. Coordinates in EPSG:4326.
+- **Feature types:** `area_<id>` (MultiPolygon boundary) and `stands_<id>` (points with `number`, `nickname`, `status`, `status_date` and `force_outside_area`), only for the key owner's estate. Coordinates in EPSG:4326.
 - **Keys** are created on the manager Account page (`src/controllers/manager/account.ts`) and stored in `accounts.wfs_token`.
 - **iPhone sync:** database triggers update `updated_at` and record deletions (migration `0011_mobile_sync`), so QGIS changes reach the app with the next sync without any extra code.
 - **Tests:** `src/tests/integration/wfs.test.ts` (whole flow against PostGIS), `src/tests/unit/controllers/wfs.test.ts`, `src/tests/unit/middleware/wfs-auth.test.ts`.

@@ -200,6 +200,65 @@ describe('POST /wfs — Transaction: stand operations', () => {
   });
 });
 
+describe('WFS stand attributes: nickname, status, status date', () => {
+  const post = (body: string) => request(app).post(`/wfs?token=${WFS_TOKEN}`).set('Content-Type', 'text/xml').send(body);
+  const tx = (inner: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<wfs:Transaction version="1.1.0" service="WFS"
+  xmlns:wfs="http://www.opengis.net/wfs"
+  xmlns:ogc="http://www.opengis.net/ogc"
+  xmlns:ms="http://mapserver.gis.umn.edu/mapserver">${inner}</wfs:Transaction>`;
+  let id: number;
+
+  it('describes the new columns', async () => {
+    const res = await request(app).get(`/wfs?request=DescribeFeatureType&typeName=stands_${areaId}&token=${WFS_TOKEN}`);
+    expect(res.text).toContain('name="nickname"');
+    expect(res.text).toContain('name="status"');
+    expect(res.text).toContain('name="status_date"');
+  });
+
+  it('inserts a stand with nickname and status', async () => {
+    const res = await post(tx(`<wfs:Insert><ms:stands_${areaId}>
+      <ms:number>A1</ms:number><ms:nickname>Eiche</ms:nickname><ms:status>broken</ms:status>
+    </ms:stands_${areaId}></wfs:Insert>`));
+    expect(res.status).toBe(200);
+    id = Number(res.text.match(/fid="stands_\d+\.(\d+)"/)![1]);
+    const [row] = await db.select().from(standsTable).where(eq(standsTable.id, id));
+    expect(row).toMatchObject({ nickname: 'Eiche', status: 'broken' });
+    expect(row.statusDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('returns them in GetFeature', async () => {
+    const res = await request(app).get(`/wfs?request=GetFeature&typeName=stands_${areaId}&token=${WFS_TOKEN}`);
+    expect(res.text).toContain('<ms:nickname>Eiche</ms:nickname>');
+    expect(res.text).toContain('<ms:status>broken</ms:status>');
+    expect(res.text).toMatch(/<ms:status_date>\d{4}-\d{2}-\d{2}<\/ms:status_date>/);
+  });
+
+  it('updates the status with a date and clears the nickname', async () => {
+    const res = await post(tx(`<wfs:Update typeName="ms:stands_${areaId}">
+      <wfs:Property><wfs:Name>status</wfs:Name><wfs:Value>ok</wfs:Value></wfs:Property>
+      <wfs:Property><wfs:Name>status_date</wfs:Name><wfs:Value>2026-11-03Z</wfs:Value></wfs:Property>
+      <wfs:Property><wfs:Name>nickname</wfs:Name></wfs:Property>
+      <ogc:Filter><ogc:FeatureId fid="stands_${areaId}.${id}"/></ogc:Filter>
+    </wfs:Update>`));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<wfs:totalUpdated>1</wfs:totalUpdated>');
+    const [row] = await db.select().from(standsTable).where(eq(standsTable.id, id));
+    expect(row).toMatchObject({ nickname: null, status: 'ok', statusDate: '2026-11-03' });
+  });
+
+  it('refuses an unknown status and names the allowed ones', async () => {
+    const res = await post(tx(`<wfs:Update typeName="ms:stands_${areaId}">
+      <wfs:Property><wfs:Name>status</wfs:Name><wfs:Value>kaputt</wfs:Value></wfs:Property>
+      <ogc:Filter><ogc:FeatureId fid="stands_${areaId}.${id}"/></ogc:Filter>
+    </wfs:Update>`));
+    expect(res.text).toContain('ExceptionReport');
+    expect(res.text).toContain('ok, needs_repair, broken, removed');
+    const [row] = await db.select().from(standsTable).where(eq(standsTable.id, id));
+    expect(row.status).toBe('ok');
+  });
+});
+
 describe('POST /wfs — Transaction: area polygon operations', () => {
   it('sets area geofile via WFS Insert and reports totalInserted=1', async () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>

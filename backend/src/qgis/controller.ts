@@ -5,6 +5,9 @@ import { db } from '@/db';
 import { areasTable } from '@/db/schema/areas';
 import { standsTable } from '@/db/schema/stands';
 import { audit } from '@/services/audit';
+import { standDetailsSchema, type StandDetailsInput } from '@/schemas';
+import { updateStandDetails } from '@/services/stands';
+import { isStandStatus, STAND_STATUSES } from '@/shared/standStatus';
 import { logError } from '@/utils/logError';
 
 const WFS_NS  = 'http://www.opengis.net/wfs';
@@ -288,6 +291,9 @@ export function describeFeatureType(req: Request, res: Response) {
       <xs:extension base="gml:AbstractFeatureType">
         <xs:sequence>
           <xs:element name="number"             type="xs:string"/>
+          <xs:element name="nickname"           type="xs:string" minOccurs="0"/>
+          <xs:element name="status"             type="xs:string" minOccurs="0"/>
+          <xs:element name="status_date"        type="xs:date" minOccurs="0"/>
           <xs:element name="location"           type="gml:PointPropertyType" minOccurs="0"/>
           <xs:element name="force_outside_area" type="xs:integer" minOccurs="0"/>
         </xs:sequence>
@@ -376,6 +382,9 @@ export async function getFeature(req: Request, res: Response) {
         .select({
           id: standsTable.id,
           number: standsTable.number,
+          nickname: standsTable.nickname,
+          status: standsTable.status,
+          statusDate: standsTable.statusDate,
           gml: sql<string | null>`ST_AsGML(3, location, 8, 17)`,
         })
         .from(standsTable)
@@ -386,6 +395,9 @@ export async function getFeature(req: Request, res: Response) {
   <gml:featureMember>
     <ms:${escapeXml(typeNames)} gml:id="${escapeXml(typeNames)}.${row.id}" xmlns:ms="http://mapserver.gis.umn.edu/mapserver">
       <ms:number>${escapeXml(row.number)}</ms:number>
+      ${row.nickname ? `<ms:nickname>${escapeXml(row.nickname)}</ms:nickname>` : ''}
+      ${row.status ? `<ms:status>${row.status}</ms:status>` : ''}
+      ${row.statusDate ? `<ms:status_date>${row.statusDate}</ms:status_date>` : ''}
       ${row.gml ? `<ms:location>${row.gml}</ms:location>` : ''}
       <ms:force_outside_area>0</ms:force_outside_area>
     </ms:${escapeXml(typeNames)}>
@@ -495,6 +507,31 @@ class WfsException extends Error {
   constructor(public code: string, message: string) { super(message); }
 }
 
+/**
+ * Nickname, status and status date as sent by QGIS. `undefined` = the
+ * attribute was not sent (stays as it is), `null` = sent empty (cleared).
+ */
+type StandAttributes = { nickname?: string | null; status?: string | null; status_date?: string | null };
+
+function standDetailsFromAttributes(attrs: StandAttributes): StandDetailsInput {
+  const status = attrs.status?.trim() || (attrs.status === undefined ? undefined : null);
+  if (status && !isStandStatus(status)) {
+    throw new WfsException(
+      'InvalidParameterValue',
+      `Unknown status "${status}". Allowed values: ${STAND_STATUSES.join(', ')}, or empty.`,
+    );
+  }
+  // QGIS may send a date with a time or time zone (2026-11-17Z); only the day counts.
+  const statusDate = attrs.status_date?.trim().match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  const parsed = standDetailsSchema.safeParse({ nickname: attrs.nickname, status, statusDate });
+  if (!parsed.success) {
+    throw new WfsException('InvalidParameterValue', parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' '));
+  }
+  return parsed.data;
+}
+
+const hasDetails = (d: StandDetailsInput) => d.nickname !== undefined || d.status !== undefined || d.statusDate !== undefined;
+
 // ── Insert ────────────────────────────────────────────────────────────────────
 
 async function handleInsert(op: Element, estateId: number, userId: number, ip: string | undefined): Promise<{ count: number; features: { typeName: string; id: number }[] }> {
@@ -549,6 +586,12 @@ async function handleInsert(op: Element, estateId: number, userId: number, ip: s
       const number = getChildText(featureEl, 'number');
       if (!number?.trim()) throw new WfsException('MissingParameter', 'Stand number is required.');
 
+      const details = standDetailsFromAttributes({
+        nickname: getChildText(featureEl, 'nickname') ?? undefined,
+        status: getChildText(featureEl, 'status') ?? undefined,
+        status_date: getChildText(featureEl, 'status_date') ?? undefined,
+      });
+
       const forceRaw = getChildText(featureEl, 'force_outside_area');
       const force = forceRaw === '1' || forceRaw === 'true';
 
@@ -578,6 +621,7 @@ async function handleInsert(op: Element, estateId: number, userId: number, ip: s
           ...(pointGml ? { location: sql`ST_GeomFromGML(${pointGml})` } : {}),
         })
         .returning({ id: standsTable.id });
+      if (hasDetails(details)) await updateStandDetails(db, estateId, stand.id, details);
 
       await audit({ userId, event: 'stand_created', ip, metadata: { standId: stand.id, areaId, source: 'wfs' } });
       features.push({ typeName, id: stand.id });
@@ -602,11 +646,16 @@ async function handleUpdate(op: Element, estateId: number, userId: number, ip: s
   if (isNaN(featureId)) throw new WfsException('InvalidParameter', `Invalid feature id: ${fid}`);
 
   const props: Record<string, Element> = {};
+  const propNames: Record<string, true> = {};
   const propertyEls = getElementsByLocalName(op, 'Property');
   for (const prop of propertyEls) {
     const nameEl = getChildElement(prop, 'Name');
     const valueEl = getChildElement(prop, 'Value');
-    if (nameEl?.textContent) props[stripNs(nameEl.textContent.trim())] = valueEl!;
+    if (nameEl?.textContent) {
+      const name = stripNs(nameEl.textContent.trim());
+      propNames[name] = true;
+      if (valueEl) props[name] = valueEl;
+    }
   }
 
   const areaPolygonId = parseAreaPolygonId(typeName);
@@ -657,6 +706,10 @@ async function handleUpdate(op: Element, estateId: number, userId: number, ip: s
   const updates: Record<string, unknown> = {};
   if (props['number']) updates.number = props['number'].textContent?.trim();
 
+  // A Property without a Value (or an empty one) clears the attribute.
+  const sent = (name: string) => (name in propNames ? (props[name]?.textContent?.trim() || null) : undefined);
+  const details = standDetailsFromAttributes({ nickname: sent('nickname'), status: sent('status'), status_date: sent('status_date') });
+
   const forceRaw = props['force_outside_area']?.textContent?.trim();
   const force = forceRaw === '1' || forceRaw === 'true';
 
@@ -684,6 +737,9 @@ async function handleUpdate(op: Element, estateId: number, userId: number, ip: s
 
   if (Object.keys(updates).length > 0) {
     await db.update(standsTable).set(updates).where(eq(standsTable.id, featureId));
+  }
+  if (hasDetails(details)) await updateStandDetails(db, estateId, featureId, details);
+  if (Object.keys(updates).length > 0 || hasDetails(details)) {
     await audit({ userId, event: 'stand_updated', ip, metadata: { standId: featureId, areaId, source: 'wfs' } });
   }
   return 1;
