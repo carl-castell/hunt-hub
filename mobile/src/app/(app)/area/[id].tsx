@@ -1,23 +1,28 @@
-import { Camera, Map, Marker, UserLocation, useCurrentPosition, type CameraRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native'
+import { Camera, Map, Marker, UserLocation, ViewAnnotation, useCurrentPosition, type CameraRef, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native'
 import * as Location from 'expo-location'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Linking, StyleSheet, Text, View, type NativeSyntheticEvent } from 'react-native'
+import { Alert, Linking, Pressable, StyleSheet, Text, View, type NativeSyntheticEvent } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { basemapFile, listBasemaps } from '../../../basemaps/basemaps'
 import { getDb } from '../../../db/database'
 import { getAreaMapSettings, saveAreaMapSettings, usePreferences, type AreaMapSettings } from '../../../db/mapSettings'
+import { createStandLocal, moveStandLocal, numberExists } from '../../../db/standEdits'
+import { useEditMode } from '../../../edit/EditMode'
+import { promptRenameStand } from '../../../edit/renameStand'
+import { insideBoundary } from '../../../map/geometry'
 import { useQuery } from '../../../db/useQuery'
 import { bboxOf } from '../../../map/bbox'
 import { distanceBetween, formatAccuracy, formatAltitude, formatCoordinate } from '../../../map/coords'
 import { resolveBasemapId } from '../../../map/layerChoice'
-import { distanceRings, formatDistance } from '../../../map/scale'
+import { distanceRings, formatDistance, metresPerPoint } from '../../../map/scale'
 import { ONLINE_BASEMAPS, onlineBasemap } from '../../../map/sources'
-import { standMarkers, standsBBox, type StandRow } from '../../../map/stands'
+import { standMarkerStyle, standMarkers, standsBBox, type StandRow } from '../../../map/stands'
 import { BOUNDARY_COLOR, buildAreaStyle, type BasemapChoice } from '../../../map/style'
 import { useSync } from '../../../sync/SyncProvider'
 import { LayerSheet } from '../../../ui/LayerSheet'
-import { StandSheet } from '../../../ui/StandSheet'
+import { StandFormSheet } from '../../../ui/StandFormSheet'
+import { StandSheet, type SheetStand } from '../../../ui/StandSheet'
 import { CompassButton, Crosshair, MapButton, MapInfoBar, DistanceRings, RINGS_ON_DARK, RINGS_ON_LIGHT } from '../../../ui/MapOverlays'
 import { useTheme } from '../../../ui/theme'
 
@@ -33,7 +38,8 @@ export default function AreaMap() {
   // `focus`: a stand to fly to, set by "Show on map" on the stand's page.
   const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>()
   const areaId = Number(id)
-  const { online } = useSync()
+  const { online, syncNow } = useSync()
+  const { editStands, setEditStands } = useEditMode()
   const db = getDb()
   const cameraRef = useRef<CameraRef>(null)
   const router = useRouter()
@@ -84,6 +90,13 @@ export default function AreaMap() {
   // The stand tapped on the map, shown in the panel at the bottom.
   const [selectedStandId, setSelectedStandId] = useState<number | null>(null)
 
+  // Editing stands (only while "Edit stands" is on in the settings).
+  // A new stand being created: where the map was pressed, and whether the GPS position is used instead.
+  const [newStand, setNewStand] = useState<{ pressed: [number, number]; atGps: boolean } | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  // Bumped after a cancelled move, so the dragged marker jumps back to its saved position.
+  const [dragVersion, setDragVersion] = useState(0)
+
   // Location: the GPS accuracy is shown whenever there is a position; the blue dot only when turned on.
   const [locationAllowed, setLocationAllowed] = useState(false)
   const [showLocation, setShowLocation] = useState(false)
@@ -92,6 +105,7 @@ export default function AreaMap() {
     Location.getForegroundPermissionsAsync().then((p) => setLocationAllowed(p.status === 'granted')).catch(() => {})
   }, [])
   const position = useCurrentPosition({ enabled: locationAllowed })
+  const gps: [number, number] | null = position ? [position.coords.longitude, position.coords.latitude] : null
 
   const toggleLocation = async () => {
     if (showLocation) {
@@ -114,6 +128,72 @@ export default function AreaMap() {
     if (areaBox) cameraRef.current?.fitBounds(areaBox, { padding: PADDING, duration: 600 })
   }
 
+  /** Asks before saving a stand outside the boundary (a warning, not an error). */
+  const confirmIfOutside = (lngLat: [number, number], title: string, onConfirm: () => void, onCancel?: () => void) => {
+    if (insideBoundary(lngLat, geometry)) return onConfirm()
+    Alert.alert(title, 'This position is outside the area boundary. Save it anyway?', [
+      { text: 'Cancel', style: 'cancel', onPress: onCancel },
+      { text: 'Save anyway', onPress: onConfirm },
+    ])
+  }
+
+  /** Where the new stand would go: the pressed point, or the GPS position if chosen. */
+  const newStandAt: [number, number] | null = newStand ? (newStand.atGps && gps ? gps : newStand.pressed) : null
+
+  /**
+   * Shows a point in the middle of the map area that stays visible above the
+   * panel and the keyboard, by moving the map centre a little south of it.
+   */
+  const showAboveSheet = (lngLat: [number, number]) => {
+    if (!view || !size) return
+    const hiddenBelow = Math.min(size.height * 0.62, 560) // panel + keyboard
+    const shiftPoints = hiddenBelow / 2
+    const shiftDegrees = (shiftPoints * metresPerPoint(lngLat[1], view.zoom)) / 111320
+    setFollowing(false)
+    cameraRef.current?.easeTo({ center: [lngLat[0], lngLat[1] - shiftDegrees], duration: 300 })
+  }
+
+  const onMapLongPress = (lngLat: [number, number]) => {
+    if (!editStands) return
+    setLayersOpen(false)
+    setSelectedStandId(null)
+    setFormError(null)
+    setNewStand({ pressed: lngLat, atGps: false })
+    showAboveSheet(lngLat)
+  }
+
+  const chooseGps = (atGps: boolean) => {
+    if (!newStand) return
+    setNewStand({ ...newStand, atGps })
+    showAboveSheet(atGps && gps ? gps : newStand.pressed)
+  }
+
+  const saveNewStand = (number: string) => {
+    if (!newStand || !newStandAt) return
+    if (numberExists(db, areaId, number)) {
+      setFormError(`Stand ${number.trim()} already exists in this area.`)
+      return
+    }
+    confirmIfOutside(newStandAt, 'Stand outside the area', () => {
+      createStandLocal(db, areaId, number, { lng: newStandAt[0], lat: newStandAt[1] })
+      setNewStand(null)
+      void syncNow()
+    })
+  }
+
+  const onStandDragged = (stand: SheetStand, lngLat: [number, number]) => {
+    const cancel = () => setDragVersion((v) => v + 1)
+    const save = () => {
+      moveStandLocal(db, stand.id, { lng: lngLat[0], lat: lngLat[1] })
+      void syncNow()
+    }
+    const outside = !insideBoundary(lngLat, geometry)
+    Alert.alert(`Move stand ${stand.number}?`, outside ? 'The new position is outside the area boundary.' : undefined, [
+      { text: 'Cancel', style: 'cancel', onPress: cancel },
+      { text: outside ? 'Save anyway' : 'Save', onPress: save },
+    ])
+  }
+
   // "Show on map" from a stand's page: fly to it, and make sure stands are visible.
   useEffect(() => {
     const target = stands.find((s) => String(s.id) === focus)
@@ -131,6 +211,8 @@ export default function AreaMap() {
     setView({ center: e.nativeEvent.center, zoom: e.nativeEvent.zoom, bearing: e.nativeEvent.bearing })
   }, [])
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  // Marker look by zoom step: the native markers only get new values when a step changes.
+  const markerLook = standMarkerStyle(view?.zoom ?? 15)
   const rotated = view !== null && Math.abs(view.bearing) > 0.5
   const turnNorth = () => {
     if (view) cameraRef.current?.easeTo({ center: view.center, bearing: 0, duration: 300 })
@@ -148,7 +230,6 @@ export default function AreaMap() {
 
   // Info bar. Cross on: the cross's coordinates, its distance from you and the GPS accuracy.
   // Cross off: your GPS position, its accuracy and the height above sea level.
-  const gps: [number, number] | null = position ? [position.coords.longitude, position.coords.latitude] : null
   const join = (parts: (string | null)[]) => parts.filter(Boolean).join('  ·  ') || null
   const info = prefs.showCrosshair
     ? {
@@ -180,6 +261,7 @@ export default function AreaMap() {
         // Own compass button; the map's copyright notice is shown in the layer menu.
         logo={false} compass={false} attribution={false}
         onRegionIsChanging={onViewChange} onRegionDidChange={onViewChange}
+        onLongPress={(e) => onMapLongPress(e.nativeEvent.lngLat)}
       >
         <Camera
           ref={cameraRef}
@@ -188,13 +270,41 @@ export default function AreaMap() {
           onTrackUserLocationChange={(e) => setFollowing(e.nativeEvent.trackUserLocation !== null)}
         />
         {showLocation && <UserLocation accuracy heading />}
-        {settings.showStands && stands.map((s) => (
-          <Marker key={s.id} id={`stand-${s.id}`} lngLat={s.lngLat} onPress={() => { setLayersOpen(false); setSelectedStandId(s.id) }}>
-            <View style={styles.stand} accessibilityLabel={`Stand ${s.number}`}>
-              <Text style={styles.standText} numberOfLines={1}>{s.number}</Text>
+        {settings.showStands && stands.map((s) => {
+          // Zoomed out: a dot without number. While editing, always full size, so stands are easy to grab.
+          const look = editStands ? standMarkerStyle(Infinity) : markerLook
+          const label = (
+            <View
+              style={[styles.stand, { width: look.size, height: look.size, borderRadius: look.size / 2 },
+                look.fontSize === null && styles.standDot, editStands && styles.standEditable]}
+              accessibilityLabel={`Stand ${s.number}`}
+            >
+              {/* Up to three characters fit at full size; only longer numbers shrink to stay inside the circle. */}
+              {look.fontSize !== null && (
+                <Text style={[styles.standText, { fontSize: look.fontSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{s.number}</Text>
+              )}
+            </View>
+          )
+          const open = () => { setLayersOpen(false); setSelectedStandId(s.id) }
+          // While editing, a stand can be dragged (long press, then move); otherwise it's a plain marker.
+          return editStands ? (
+            <ViewAnnotation key={`${s.id}-${dragVersion}`} id={`stand-${s.id}`} lngLat={s.lngLat} draggable
+              onPress={open} onDragEnd={(e) => onStandDragged(s, e.nativeEvent.lngLat)}>
+              {label}
+            </ViewAnnotation>
+          ) : (
+            <Marker key={s.id} id={`stand-${s.id}`} lngLat={s.lngLat} onPress={open}>{label}</Marker>
+          )
+        })}
+        {/* Where the new stand will go, while the form is open. */}
+        {newStandAt && (
+          <Marker id="new-stand" lngLat={newStandAt} anchor="bottom">
+            <View style={styles.newPin} accessibilityLabel="New stand position">
+              <View style={styles.newPinHead}><Text style={styles.newPinPlus}>+</Text></View>
+              <View style={styles.newPinStem} />
             </View>
           </Marker>
-        ))}
+        )}
       </Map>
 
       {rings.length > 0 && <DistanceRings rings={rings} colors={ringColors} />}
@@ -203,9 +313,14 @@ export default function AreaMap() {
 
       <View style={[styles.topLeft, { top }]} pointerEvents="box-none">
         <MapButton symbol="‹" label="Back to areas" onPress={() => router.back()} />
-        <View style={[styles.title, { backgroundColor: t.card }]}>
-          <Text style={[styles.titleText, { color: t.text }]} numberOfLines={1}>{area.name}</Text>
-        </View>
+        {/* While stands can be edited, the title says so instead of the area name; a tap ends edit mode. */}
+        <Pressable disabled={!editStands} onPress={() => setEditStands(false)}
+          accessibilityRole={editStands ? 'button' : undefined} accessibilityHint={editStands ? 'Turns edit mode off' : undefined}
+          style={[styles.title, { backgroundColor: editStands ? t.accent : t.card }]}>
+          <Text style={[styles.titleText, { color: editStands ? t.accentText : t.text }]} numberOfLines={1}>
+            {editStands ? 'Edit mode on ✕' : area.name}
+          </Text>
+        </Pressable>
       </View>
 
       {!geometry && (
@@ -241,16 +356,25 @@ export default function AreaMap() {
       <StandSheet
         stand={stands.find((s) => s.id === selectedStandId) ?? null}
         areaName={area.name}
-        coordinateFormat={prefs.coordinateFormat}
         distance={(() => {
           const s = stands.find((x) => x.id === selectedStandId)
           return s && gps ? `${formatDistance(distanceBetween(gps, s.lngLat))} from you` : null
         })()}
         onClose={() => setSelectedStandId(null)}
+        onRename={editStands ? (s) => promptRenameStand(db, { id: s.id, number: s.number, areaId }, () => void syncNow()) : undefined}
         onDetails={(standId) => {
           setSelectedStandId(null)
           router.push({ pathname: '/stand/[id]', params: { id: String(standId) } })
         }}
+      />
+
+      <StandFormSheet
+        visible={newStand !== null}
+        title="Create new stand"
+        location={newStand ? { atGps: newStand.atGps, hasGps: gps !== null, gpsAccuracy: position?.coords.accuracy, onChange: chooseGps } : undefined}
+        error={formError}
+        onSave={saveNewStand}
+        onCancel={() => setNewStand(null)}
       />
     </View>
   )
@@ -263,6 +387,14 @@ const styles = StyleSheet.create({
   titleText: { fontSize: 17, fontWeight: '600' },
   notice: { position: 'absolute', left: 12, right: 12 + BUTTON + GAP, padding: 12, borderRadius: 10 },
   buttons: { position: 'absolute', right: 12, gap: GAP },
-  stand: { minWidth: 26, height: 26, paddingHorizontal: 5, borderRadius: 13, backgroundColor: '#ffffff', borderWidth: 2, borderColor: BOUNDARY_COLOR, alignItems: 'center', justifyContent: 'center' },
-  standText: { fontSize: 12, fontWeight: '700', color: BOUNDARY_COLOR },
+  // Size per zoom step (standMarkerStyle): the same circle for every stand, three digits fit at the same font size.
+  stand: { backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: BOUNDARY_COLOR, alignItems: 'center', justifyContent: 'center' },
+  standDot: { backgroundColor: BOUNDARY_COLOR, borderColor: '#ffffff', borderWidth: 1 },
+  newPin: { alignItems: 'center' },
+  newPinHead: { width: 30, height: 30, borderRadius: 15, backgroundColor: BOUNDARY_COLOR, borderWidth: 2.5, borderColor: '#ffffff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
+  newPinPlus: { color: '#ffffff', fontSize: 20, fontWeight: '700', lineHeight: 22 },
+  newPinStem: { width: 2.5, height: 12, backgroundColor: BOUNDARY_COLOR },
+  // Dashed border while editing: the stand can be moved.
+  standEditable: { borderStyle: 'dashed', borderWidth: 2 },
+  standText: { fontWeight: '700', color: BOUNDARY_COLOR, fontVariant: ['tabular-nums'], letterSpacing: -0.3 },
 })

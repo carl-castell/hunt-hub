@@ -31,3 +31,18 @@ export function searchStands<T extends { number: string }>(stands: T[], query: s
 export function googleMapsUrl(lng: number, lat: number): string {
   return `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`
 }
+
+/** How a stand marker looks: its circle size and the number's font size (null: just a dot). */
+export type StandMarkerStyle = { size: number; fontSize: number | null }
+
+/**
+ * Stand markers by zoom level, in steps: zoomed in, a circle with the number;
+ * zoomed out, an ever smaller dot, so many stands don't clutter the map.
+ * Steps instead of a smooth scale, so markers only redraw when a step changes.
+ */
+export function standMarkerStyle(zoom: number): StandMarkerStyle {
+  if (zoom >= 14.5) return { size: 26, fontSize: 10 }
+  if (zoom >= 13.5) return { size: 20, fontSize: 8 }
+  if (zoom >= 12.5) return { size: 10, fontSize: null }
+  return { size: 6, fontSize: null }
+}

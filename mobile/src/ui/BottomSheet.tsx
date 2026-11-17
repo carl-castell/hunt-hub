@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Animated, Dimensions, PanResponder, Pressable, StyleSheet, View } from 'react-native'
+import { Animated, Dimensions, KeyboardAvoidingView, PanResponder, Pressable, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTheme } from './theme'
 
@@ -44,7 +44,9 @@ export function BottomSheet({ visible, onClose, closeLabel, children }: {
   if (!mounted) return null
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    // The panel sits at the bottom in the normal layout flow (not absolutely positioned),
+    // so the keyboard's padding pushes it up and text fields in it stay visible.
+    <KeyboardAvoidingView style={[StyleSheet.absoluteFill, styles.container]} behavior="padding" pointerEvents="box-none">
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={closeLabel} />
       <Animated.View {...pan.panHandlers} style={[styles.sheet, { backgroundColor: t.card, transform: [{ translateY }] }]}>
         <SafeAreaView edges={['bottom']}>
@@ -52,13 +54,14 @@ export function BottomSheet({ visible, onClose, closeLabel, children }: {
           {children}
         </SafeAreaView>
       </Animated.View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
+  container: { justifyContent: 'flex-end' },
   sheet: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    borderTopLeftRadius: 16, borderTopRightRadius: 16,
     shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: -2 },
   },
   handleArea: { alignItems: 'center', paddingVertical: 10 },
