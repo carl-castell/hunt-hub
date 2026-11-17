@@ -1,8 +1,12 @@
 import rateLimit from 'express-rate-limit';
+import { PostgresRateLimitStore } from './postgresRateLimitStore';
+
+// All limiters count in Postgres (shared by every app instance), see postgresRateLimitStore.ts.
 
 const isTest = process.env.NODE_ENV === 'test';
 
 export const generalLimiter = rateLimit({
+  store: new PostgresRateLimitStore('general'),
   windowMs: 15 * 60 * 1000,
   max: isTest ? 0 : 500,        // 0 = unlimited
   skip: () => isTest,
@@ -12,6 +16,7 @@ export const generalLimiter = rateLimit({
 });
 
 export const authLimiter = rateLimit({
+  store: new PostgresRateLimitStore('auth'),
   // Counted once per login call in a tRPC batch on purpose (see trpcAuthLimits.ts).
   validate: { singleCount: false },
   windowMs: 15 * 60 * 1000,
@@ -23,6 +28,7 @@ export const authLimiter = rateLimit({
 });
 
 export const rsvpUploadLimiter = rateLimit({
+  store: new PostgresRateLimitStore('rsvpUpload'),
   windowMs: 60 * 60 * 1000,  // 1 hour
   max: isTest ? 0 : 50,
   skip: () => isTest,
@@ -32,6 +38,7 @@ export const rsvpUploadLimiter = rateLimit({
 });
 
 export const backupCodeLimiter = rateLimit({
+  store: new PostgresRateLimitStore('backupCode'),
   // Counted once per login call in a tRPC batch on purpose (see trpcAuthLimits.ts).
   validate: { singleCount: false },
   windowMs: 60 * 60 * 1000,
@@ -43,6 +50,7 @@ export const backupCodeLimiter = rateLimit({
 });
 
 export const activationLimiter = rateLimit({
+  store: new PostgresRateLimitStore('activation'),
   windowMs: 60 * 60 * 1000,
   max: isTest ? 0 : 20,
   skip: () => isTest,
@@ -52,6 +60,7 @@ export const activationLimiter = rateLimit({
 });
 
 export const rsvpLimiter = rateLimit({
+  store: new PostgresRateLimitStore('rsvp'),
   windowMs: 15 * 60 * 1000,
   max: isTest ? 0 : 100,
   skip: () => isTest,
