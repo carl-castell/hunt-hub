@@ -20,7 +20,7 @@ What Hunt Hub does, for whom, and where each use case lives. Hunt Hub is a hybri
 
 | Use case | Status | Where | Details |
 |---|---|---|---|
-| Respond to an event invitation and upload documents | ✅ | ✉️ 🖥️ | [RSVP – Guest Response](#rsvp--guest-response) |
+| Answer an invitation to a hunt and upload licence, certificate and contact details (one page) | ✅ | ✉️ ⚛️ | [RSVP – Guest answer page](#rsvp--guest-answer-page-react-app) |
 
 ### Admin
 
@@ -41,14 +41,15 @@ What Hunt Hub does, for whom, and where each use case lives. Hunt Hub is a hybri
 | Manage guests | ✅ | 🖥️ | [Manager – Guests](#manager--guests) |
 | Verify guest documents (licences & certificates) | ✅ | 🖥️ | [Manager – Document Verification](#manager--document-verification) |
 | Manage guest groups | ✅ | 🖥️ | [Manager – Guest Groups](#manager--guest-groups) |
-| Manage hunting events | ✅ | 🖥️ | [Manager – Events](#manager--events) |
-| Invite guests to events (email, status tracking) | ✅ | 🖥️ | [Manager – Invitations](#manager--invitations) |
-| Manage drives per event | ✅ | 🖥️ | [Manager – Drives](#manager--drives) |
+| **Plan hunts**: events with their drives (start, length, end) | ✅ | ⚛️ | [Manager – Events](#manager--events-react-app) |
+| **Invite guests** (single or whole groups), send invitations and reminders by email with a preview, follow the answers | ✅ | ⚛️ | [Manager – Events](#manager--events-react-app) |
+| Check a guest's licence and certificate from the event | ✅ | ⚛️ | [Manager – Events](#manager--events-react-app) |
 | Manage staff | ✅ | 🖥️ | [Manager – Staff & People](#manager--staff--people) |
-| Preview the RSVP form | ✅ | 🖥️ | [RSVP – Manager Preview](#rsvp--manager-preview) |
+| Preview the guests' answer page | ✅ | ⚛️ | [RSVP – Guest answer page](#rsvp--guest-answer-page-react-app) |
 | Edit area boundaries and stands in QGIS / QField | ✅ | 🗺️ | [WFS – GIS Integration](#wfs--gis-integration) |
 | Own account and password | ✅ | 🖥️ | [Manager – Account Settings](#manager--account-settings) |
-| Move stands in the web app | 🚧 | ⚛️ | planned |
+| Add, move, rename and delete stands, set nickname and status | ✅ | ⚛️ | [Manager – Areas](#manager--areas-react-app) |
+| Choose stands per drive, drive templates (HUN-91) | 🚧 | ⚛️ | planned |
 
 ### Manager and staff in the field
 
@@ -223,46 +224,19 @@ The old server-rendered area pages still exist until they are retired (HUN-49):
 
 ---
 
-## Manager – Events
+## Manager – Events (React app)
 
-> Requires `requireManager`. Create and manage hunting events.
+> In the React app (HUN-86). Pages call the [Manager API](#manager-api-trpc); the rules live in [`backend/src/services/events.ts`](../backend/src/services/events.ts), [`invitations.ts`](../backend/src/services/invitations.ts) and [`guestDocuments.ts`](../backend/src/services/guestDocuments.ts).
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/manager/events` | List all events |
-| POST | `/manager/events` | Create a new event |
-| GET | `/manager/events/:id` | View event details |
-| POST | `/manager/events/:id/update` | Update event details |
-| POST | `/manager/events/:id/delete` | Delete an event |
+| Page | Description |
+|------|-------------|
+| `/app/manager/events` | Upcoming hunts (today included) and past ones, each with date, start, number of drives and the guests' answers (coming, not coming, no answer, not sent). "New event": name and date |
+| `/app/manager/events/:id` | One hunt with tabs (kept in the URL, `?tab=`): **Guests**, **Drives**, **Details** |
+| Guests tab | Filters by answer with counts; guest list with invitation state, answer, licence and certificate state; select several to set the answer or invitation state, or remove them (warns about links already sent). "Invite guests": side panel with search and whole groups. "Send invitations" / "Remind": dialog with message, answer-by date, recipients, live email preview and the result per guest. A guest's drawer: answer, contact details, licence and certificate with files, "Mark as checked" |
+| Drives tab | Every hunt has at least one drive. A new event gets "Drive 1" (09:00 / 2 h the first time, afterwards like the first drive of the last event); new drives are "Drive 2", "Drive 3", … and their time list opens at the next full hour after the previous drive. Start (15-minute steps), length in hours (30-minute steps), end shown; the hunt's start is its first drive's start |
+| Details tab | Name and date; delete the hunt with its drives and invitations (warns when invitation links were already sent) |
 
----
-
-## Manager – Invitations
-
-> Requires `requireManager`. Invite guests to events and manage their invitation status.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/manager/events/:eventId/invitations` | List invitations for an event |
-| GET | `/manager/events/:eventId/invitations/new` | Select guests to invite |
-| POST | `/manager/events/:eventId/invitations` | Stage invitations for sending |
-| GET | `/manager/events/:eventId/invitations/send` | Review staged invitations before sending |
-| POST | `/manager/events/:eventId/invitations/send` | Send staged invitations |
-| GET | `/manager/events/:eventId/invitations/preview` | Preview the invitation email/page |
-| GET | `/manager/events/:eventId/invitations/:invitationId` | View a specific invitation |
-| POST | `/manager/events/:eventId/invitations/:invitationId/update` | Update invitation status or response |
-| POST | `/manager/events/:eventId/invitations/:invitationId/remove` | Cancel / remove an invitation |
-
----
-
-## Manager – Drives
-
-> Requires `requireManager`. Manage drives (sub-hunts) within an event.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/manager/events/:eventId/drives` | Create a drive for an event |
-| GET | `/manager/events/:eventId/drives/:id` | View drive details |
+Old addresses redirect to these pages: `/manager/events` → `/app/manager/events`, `/manager/events/:id` → `/app/manager/events/:id`, `/manager/events/:id/drives/:driveId` → `…?tab=drives`, `/manager/events/:id/invitations…` → `…?tab=guests`. The old form handlers `POST /manager/events`, `/manager/events/:id/update`, `/manager/events/:id/delete` and `POST /manager/events/:id/drives` still exist, but no page uses them any more.
 
 ---
 
@@ -294,31 +268,16 @@ The old server-rendered area pages still exist until they are retired (HUN-49):
 
 ---
 
-## RSVP – Guest Response
+## RSVP – Guest answer page (React app)
 
-> Public. Guests use a unique link to view and respond to their event invitation, and upload required documents.
+> Public: the invitation's id in the email link is the only key (no account). In the React app (HUN-90); the rules live in [`backend/src/services/rsvp.ts`](../backend/src/services/rsvp.ts).
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/rsvp/:publicId` | Display the RSVP form |
-| POST | `/rsvp/:publicId/respond` | Submit RSVP response (accept / decline) |
-| POST | `/rsvp/:publicId/upload/license` | Upload hunting license files (up to 4) |
-| POST | `/rsvp/:publicId/upload/certificate` | Upload training certificate files (up to 2) |
-| POST | `/rsvp/:publicId/upload/details` | Upload additional guest details |
+| Page | Description |
+|------|-------------|
+| `/app/rsvp/:publicId` | One page: the hunt with date, start and drives; "I'm coming" / "I can't come" (can be changed until the answer-by date). After "I'm coming": hunting licence, training certificate and contact on the hunt day, each saved on its own; documents on file are shown as checked or to be checked. Answers are refused for invitations never sent, archived ones, past hunts and passed answer-by dates |
+| `/app/rsvp/preview/:eventId` | For managers: the same page for an example guest; nothing is saved |
 
----
-
-## RSVP – Manager Preview
-
-> Requires `requireManager`. Allows managers to preview and test the RSVP flow for an event.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/rsvp/preview/:eventId` | Preview the RSVP form as a manager |
-| POST | `/rsvp/preview/:eventId/respond` | Test RSVP response submission |
-| POST | `/rsvp/preview/:eventId/upload/license` | Test hunting license upload |
-| POST | `/rsvp/preview/:eventId/upload/certificate` | Test training certificate upload |
-| POST | `/rsvp/preview/:eventId/upload/details` | Test details upload |
+`/rsvp/:publicId` (the address in invitation emails, also in emails sent before the move) and `/rsvp/preview/:eventId` redirect to these pages. The link's id is redacted in the logs.
 
 ---
 
@@ -382,6 +341,36 @@ The old server-rendered area pages still exist until they are retired (HUN-49):
 | `manager.stands.update` | mutation | Nickname and status (`ok`, `needs_repair`, `broken`, `removed`) with date; a changed status gets today's date |
 
 Errors: unknown or foreign areas → `NOT_FOUND`, invalid input or wrong confirmation → `BAD_REQUEST`.
+
+**Events, drives and invitations**
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `manager.events.list` | query | Upcoming (today included) and past events with guest counts |
+| `manager.events.get` | query | One event with its drives, guest counts, the next drive's suggested start and how many invitation links were sent |
+| `manager.events.defaultStart` | query | The start a new event will get |
+| `manager.events.create` / `update` / `delete` | mutation | Create (with Drive 1), rename or move to another date, delete |
+| `manager.drives.create` / `update` / `delete` | mutation | Drives with start and length in minutes; must end before midnight; the last drive can't be deleted |
+| `manager.invitations.list` | query | Guest list with groups, invitation state, answer, licence and certificate state |
+| `manager.invitations.get` | query | One invitation with contact details and the guest's documents and files |
+| `manager.invitations.searchGuests` | query | Guests not invited yet (name or group) and the estate's groups with how many can still be invited |
+| `manager.invitations.add` | mutation | Add guests and whole groups (not sent yet) |
+| `manager.invitations.update` / `remove` | mutation | Set answer or invitation state of several invitations; remove them (reports links already sent) |
+| `manager.invitations.preview` | query | The email for an example guest (subject and HTML) |
+| `manager.invitations.send` | mutation | `kind: invitation` (not sent yet) or `reminder` (sent, no answer yet); a few at a time; sent and failed per guest. Names and message are escaped |
+| `manager.invitations.checkDocument` | mutation | Mark the guest's licence or certificate as checked; older ones are deleted with their files |
+
+## RSVP API (tRPC)
+
+> Public, used by the guests' answer page. Every procedure takes the invitation's `publicId`. Rate-limited per call (`middlewares/trpcAuthLimits.ts`).
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `rsvp.open` | mutation | The page's content; records the first visit. A mutation so the id is not in a request URL |
+| `rsvp.respond` | mutation | `yes` or `no` |
+| `rsvp.uploadLicence` / `uploadCertificate` | mutation | FormData (`publicId`, date, `files`): one PDF or up to 4 (licence) / 2 (certificate) photos, 10 MB each; expiry date not in the past, issue date not in the future |
+| `rsvp.saveDetails` | mutation | Phone and date of birth |
+| `rsvp.preview` | query | Managers only: the page for an example guest |
 
 ---
 
