@@ -131,3 +131,19 @@
     @apply font-mono;
     }
 }
+/* A stand chosen in the stand list: a pulsing yellow ring, drawn above the other stands. */
+.stand-highlight {
+  z-index: 10;
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+  animation: stand-highlight-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes stand-highlight-pulse {
+  0%, 100% { outline-offset: 2px; outline-color: #facc15; }
+  50% { outline-offset: 6px; outline-color: rgb(250 204 21 / 0.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stand-highlight { animation: none; }
+}

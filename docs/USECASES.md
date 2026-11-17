@@ -140,7 +140,7 @@ Staff have no area in the web app; logging in there shows a hint to use the iPho
 | Page | Description |
 |------|-------------|
 | `/app/manager/areas` | List of areas: name, number of stands, boundary status; create a new area |
-| `/app/manager/areas/:id` | Full-page map: base map menu (satellite by default), legend with stands and boundary on/off, whole-area and zoom buttons, stands panel with search (click flies to the stand). Settings window: boundary inverted or line only (saved in the browser), rename, upload, replace or remove the boundary file (GeoJSON, KML, GPX, Shapefile zip, GeoPackage; max 20 MB), delete in a danger zone with name confirmation |
+| `/app/manager/areas/:id` | Full-page map: base map menu (satellite by default), legend with stands and boundary on/off, whole-area and zoom buttons, stands panel with search (click flies to the stand). "Edit stands": add (button or right-click; without a number the stand becomes NOT-NAMED-n), drag to move with confirmation, change number, nickname and status, delete. Settings window: boundary inverted or line only (saved in the browser), rename, upload, replace or remove the boundary file (GeoJSON, KML, GPX, Shapefile zip, GeoPackage; max 20 MB; any coordinate system is converted to WGS 84, with an optional EPSG code for files that don't state theirs), delete in a danger zone with name confirmation |
 
 The old server-rendered area pages still exist until they are retired (HUN-49):
 
