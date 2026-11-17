@@ -398,6 +398,8 @@ Errors: unknown or foreign areas → `NOT_FOUND`, invalid input or wrong confirm
 
 ## WFS – GIS Integration
 
+Step-by-step guide for managers, and the code: [backend/src/qgis/](../backend/src/qgis/README.md).
+
 > Token-authenticated (`?token=`). OGC WFS-T 1.1.0 endpoint for QGIS and QField. The token is scoped to a user and estate and is managed via the manager dashboard.
 >
 > All requests go to `/wfs` — the `REQUEST` query parameter selects the operation.
