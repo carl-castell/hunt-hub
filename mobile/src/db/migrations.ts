@@ -60,4 +60,25 @@ export const MIGRATIONS: string[] = [
   -- on the server, so an ordinary sync would never send their new fields.
   DELETE FROM sync_state WHERE key = 'cursor';
   `,
+  `
+  -- Offline maps downloaded for an area (HUN-68). The tiles themselves are in a
+  -- separate MBTiles file that all maps share (src/offline/store.ts).
+  -- status: 'estimating' | 'estimated' | 'downloading' | 'paused' | 'complete' | 'failed'
+  CREATE TABLE offline_maps (
+    id TEXT PRIMARY KEY,
+    area_id INTEGER NOT NULL,
+    area_name TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    area_ha REAL NOT NULL,
+    tiles_total INTEGER NOT NULL,
+    tiles_done INTEGER NOT NULL DEFAULT 0,
+    bytes INTEGER NOT NULL DEFAULT 0,
+    estimated_bytes INTEGER,
+    bounds TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+  );
+  `,
 ]
