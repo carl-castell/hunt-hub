@@ -1,9 +1,11 @@
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { standDetailsSchema } from '@/schemas'
+import { StandNotFoundError, updateStandDetails } from '@/services/stands'
 import type { MutationResult, SyncHandler, SyncUser, Tx } from '../types'
 
 /**
- * Stand edits from the iPhone app (create, rename, move), pushed through the
+ * Stand edits from the iPhone app (create, rename, move, details), pushed through the
  * sync outbox, so they also work offline. Same rules as the website and QGIS:
  * own estate only, and a stand number exists only once per area. A stand
  * outside the area boundary is accepted (the app warns before saving) and
@@ -14,9 +16,11 @@ const standNumber = z.string().trim().min(1).max(32)
 const lng = z.number().min(-180).max(180)
 const lat = z.number().min(-90).max(90)
 
-const createPayload = z.object({ areaId: z.number().int().positive(), number: standNumber, lng, lat })
+// Nickname and status are optional, so older app versions keep working.
+const createPayload = standDetailsSchema.extend({ areaId: z.number().int().positive(), number: standNumber, lng, lat })
 const renamePayload = z.object({ id: z.number().int().positive(), number: standNumber })
 const movePayload = z.object({ id: z.number().int().positive(), lng, lat })
+const updatePayload = standDetailsSchema.extend({ id: z.number().int().positive() })
 
 /** Editing stands is for managers; staff only see them. */
 function forbidden(user: SyncUser): MutationResult | null {
@@ -67,7 +71,10 @@ export const createStand: SyncHandler<z.infer<typeof createPayload>> = {
       INSERT INTO stands (area_id, number, location)
       VALUES (${p.areaId}, ${p.number}, ST_SetSRID(ST_MakePoint(${p.lng}, ${p.lat}), 4326))
       RETURNING id`)
-    return { status: 'applied', data: { id: res.rows[0].id, outsideArea: await outsideArea(tx, p.areaId, p.lng, p.lat) } }
+    const id = res.rows[0].id
+    const { nickname, status, statusDate } = p
+    const details = nickname || status ? await updateStandDetails(tx, user.estateId, id, { nickname, status, statusDate }) : null
+    return { status: 'applied', data: { id, outsideArea: await outsideArea(tx, p.areaId, p.lng, p.lat), ...(details ? { details } : {}) } }
   },
 }
 
@@ -96,5 +103,21 @@ export const moveStand: SyncHandler<z.infer<typeof movePayload>> = {
 
     await tx.execute(sql`UPDATE stands SET location = ST_SetSRID(ST_MakePoint(${p.lng}, ${p.lat}), 4326) WHERE id = ${p.id}`)
     return { status: 'applied', data: { outsideArea: await outsideArea(tx, areaId, p.lng, p.lat) } }
+  },
+}
+
+/** Nickname and status (with date). Returns the stored values, e.g. the date the server set. */
+export const updateStand: SyncHandler<z.infer<typeof updatePayload>> = {
+  payload: updatePayload,
+  async apply(tx, p, user) {
+    const denied = forbidden(user)
+    if (denied) return denied
+    const { id, ...details } = p
+    try {
+      return { status: 'applied', data: { details: await updateStandDetails(tx, user.estateId, id, details) } }
+    } catch (err) {
+      if (err instanceof StandNotFoundError) return { status: 'rejected', reason: 'stand_not_found' }
+      throw err
+    }
   },
 }

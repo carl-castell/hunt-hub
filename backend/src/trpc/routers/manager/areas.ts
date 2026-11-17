@@ -61,7 +61,10 @@ export const managerAreasRouter = router({
       id: area.id,
       name: area.name,
       boundary: parseGeoJson(area.boundaryGeoJson),
-      stands: stands.map((s) => ({ id: s.id, number: s.number, location: parseGeoJson(s.locationGeoJson) })),
+      stands: stands.map((s) => ({
+        id: s.id, number: s.number, location: parseGeoJson(s.locationGeoJson),
+        nickname: s.nickname, status: s.status, statusDate: s.statusDate,
+      })),
     }
   }),
 
