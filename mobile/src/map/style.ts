@@ -7,9 +7,18 @@ export const BOUNDARY_COLOR = '#dc2626'
 /** inverted: everything outside the area shaded red, plus the line. line: only the line. */
 export type BoundaryStyle = 'inverted' | 'line'
 
+/** Tiles stored on the phone (an MBTiles file), shown wherever the online map has nothing (yet). */
+export type StoredTiles = { filePath: string; tileSize: number; minzoom?: number | null; maxzoom?: number | null }
+
 export type BasemapChoice =
-  | { kind: 'online'; tiles: string[]; maxzoom: number; attribution: string }
-  | { kind: 'mbtiles'; filePath: string; minzoom?: number | null; maxzoom?: number | null; name: string }
+  | {
+      kind: 'online'; tiles: string[]; maxzoom: number; attribution: string
+      /** Pixel size of the source's tiles; 256 unless stated. */
+      tileSize?: number
+      /** The same map stored offline. Drawn below the online tiles, so it shows at once and when there is no connection. */
+      stored?: StoredTiles
+    }
+  | { kind: 'mbtiles'; filePath: string; minzoom?: number | null; maxzoom?: number | null; name: string; tileSize?: number }
 
 /** MapLibre Native reads MBTiles files directly via `mbtiles:///absolute/path`. */
 export function mbtilesUrl(filePath: string) {
@@ -29,17 +38,25 @@ export function buildAreaStyle(
     { id: 'background', type: 'background', paint: { 'background-color': '#eef0e6' } },
   ]
 
+  const fromFile = (file: StoredTiles) => ({
+    type: 'raster' as const, url: mbtilesUrl(file.filePath), tileSize: file.tileSize,
+    ...(file.minzoom != null ? { minzoom: file.minzoom } : {}),
+    ...(file.maxzoom != null ? { maxzoom: file.maxzoom } : {}),
+  })
+
   if (basemap.kind === 'online') {
+    if (basemap.stored) {
+      // Below the online tiles: visible at once, and all there is without a connection.
+      // Online tiles cover it as they arrive, also beyond the stored area.
+      sources.stored = fromFile(basemap.stored)
+      layers.push({ id: 'stored', type: 'raster', source: 'stored' })
+    }
     sources.base = {
-      type: 'raster', tiles: basemap.tiles, tileSize: 256,
+      type: 'raster', tiles: basemap.tiles, tileSize: basemap.tileSize ?? 256,
       maxzoom: basemap.maxzoom, attribution: basemap.attribution,
     }
   } else {
-    sources.base = {
-      type: 'raster', url: mbtilesUrl(basemap.filePath), tileSize: 256,
-      ...(basemap.minzoom != null ? { minzoom: basemap.minzoom } : {}),
-      ...(basemap.maxzoom != null ? { maxzoom: basemap.maxzoom } : {}),
-    }
+    sources.base = fromFile({ ...basemap, tileSize: basemap.tileSize ?? 256 })
   }
   layers.push({ id: 'base', type: 'raster', source: 'base' })
 

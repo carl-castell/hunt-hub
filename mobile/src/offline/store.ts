@@ -34,6 +34,8 @@ export type OfflineMap = {
   error: string | null
   createdAt: string
   completedAt: string | null
+  /** Set while the map is being updated: tiles fetched before this moment are downloaded again. */
+  refreshBefore: string | null
 }
 
 export const OFFLINE_TILES_FILE = 'offline-tiles.mbtiles'
@@ -66,6 +68,9 @@ export function getTileDb(): SQLiteDatabase {
     ) WITHOUT ROWID;
     CREATE INDEX IF NOT EXISTS map_tiles_tile ON map_tiles (z, x, y);
   `)
+  // When each tile was fetched, for updating a map later. (Added after the first version of the file.)
+  const columns = tileDb.getAllSync<{ name: string }>('PRAGMA table_info(tiles)')
+  if (!columns.some((c) => c.name === 'fetched_at')) tileDb.execSync('ALTER TABLE tiles ADD COLUMN fetched_at TEXT')
   const meta: Record<string, string> = {
     name: 'Hunt Hub offline maps', format: 'jpg', type: 'baselayer', minzoom: String(MIN_ZOOM), maxzoom: String(MAX_ZOOM),
   }
@@ -79,7 +84,7 @@ const fromRow = (r: any): OfflineMap => ({
   id: r.id, areaId: r.area_id, areaName: r.area_name, sourceId: r.source_id, status: r.status,
   areaHa: r.area_ha, tilesTotal: r.tiles_total, tilesDone: r.tiles_done, bytes: r.bytes,
   estimatedBytes: r.estimated_bytes, bounds: r.bounds ? JSON.parse(r.bounds) : null,
-  error: r.error, createdAt: r.created_at, completedAt: r.completed_at,
+  error: r.error, createdAt: r.created_at, completedAt: r.completed_at, refreshBefore: r.refresh_before ?? null,
 })
 
 export function listOfflineMaps(): OfflineMap[] {
@@ -120,42 +125,68 @@ export function planOfflineMap(area: { id: number; name: string }, boundary: unk
   return getOfflineMap(id)!
 }
 
-/** Tiles of a map that are not stored yet (another map may already have brought some). */
+const TILE_JOIN = `LEFT JOIN tiles t ON t.zoom_level = m.z AND t.tile_column = m.x AND t.tile_row = (1 << m.z) - 1 - m.y`
+
+function refreshBeforeOf(mapId: string): string | null {
+  return getDb().getFirstSync<{ refresh_before: string | null }>('SELECT refresh_before FROM offline_maps WHERE id = ?', mapId)?.refresh_before ?? null
+}
+
+/**
+ * Tiles of a map that still have to be downloaded: those not stored yet
+ * (another map may already have brought some) and, during an update, those
+ * fetched before the update began.
+ */
 export function missingTiles(mapId: string, limit: number): Tile[] {
+  const before = refreshBeforeOf(mapId)
   return getTileDb().getAllSync<Tile>(
-    `SELECT m.z, m.x, m.y FROM map_tiles m
-     LEFT JOIN tiles t ON t.zoom_level = m.z AND t.tile_column = m.x AND t.tile_row = (1 << m.z) - 1 - m.y
-     WHERE m.map_id = ? AND t.zoom_level IS NULL
+    `SELECT m.z, m.x, m.y FROM map_tiles m ${TILE_JOIN}
+     WHERE m.map_id = ? AND (t.zoom_level IS NULL OR (? IS NOT NULL AND COALESCE(t.fetched_at, '') < ?))
      ORDER BY m.z, m.x, m.y LIMIT ?`,
-    mapId, limit,
+    mapId, before, before, limit,
   )
 }
 
 export function saveTile(tile: Tile, data: Uint8Array) {
   getTileDb().runSync(
-    'INSERT OR REPLACE INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?, ?, ?, ?)',
-    tile.z, tile.x, tmsRow(tile), data,
+    'INSERT OR REPLACE INTO tiles (zoom_level, tile_column, tile_row, tile_data, fetched_at) VALUES (?, ?, ?, ?, ?)',
+    tile.z, tile.x, tmsRow(tile), data, new Date().toISOString(),
   )
 }
 
-/** Counts a map's stored tiles and bytes and writes them to the list, which updates the screens. */
+/**
+ * Counts a map's tiles that are done (during an update: already fetched
+ * again) and its stored bytes, and writes them to the list, which updates
+ * the screens.
+ */
 export function refreshProgress(mapId: string): { done: number; bytes: number } {
+  const before = refreshBeforeOf(mapId)
   const row = getTileDb().getFirstSync<{ done: number; bytes: number }>(
-    `SELECT COUNT(t.zoom_level) AS done, COALESCE(SUM(LENGTH(t.tile_data)), 0) AS bytes FROM map_tiles m
-     LEFT JOIN tiles t ON t.zoom_level = m.z AND t.tile_column = m.x AND t.tile_row = (1 << m.z) - 1 - m.y
-     WHERE m.map_id = ?`,
-    mapId,
+    `SELECT COALESCE(SUM(CASE WHEN t.zoom_level IS NOT NULL AND (? IS NULL OR COALESCE(t.fetched_at, '') >= ?) THEN 1 ELSE 0 END), 0) AS done,
+            COALESCE(SUM(LENGTH(t.tile_data)), 0) AS bytes
+     FROM map_tiles m ${TILE_JOIN} WHERE m.map_id = ?`,
+    before, before, mapId,
   ) ?? { done: 0, bytes: 0 }
   getDb().runSync('UPDATE offline_maps SET tiles_done = ?, bytes = ? WHERE id = ?', row.done, row.bytes, mapId)
   return row
 }
 
+/**
+ * Marks a finished map for updating: all its tiles are downloaded again and
+ * replaced one by one, so the map stays usable meanwhile. The caller starts
+ * the download.
+ */
+export function markForUpdate(mapId: string, now = new Date()) {
+  getDb().runSync('UPDATE offline_maps SET refresh_before = ? WHERE id = ?', now.toISOString(), mapId)
+  refreshProgress(mapId)
+}
+
 export function setStatus(mapId: string, status: OfflineMapStatus, extra: { error?: string | null; estimatedBytes?: number } = {}) {
   getDb().runSync(
     `UPDATE offline_maps SET status = ?, error = ?, estimated_bytes = COALESCE(?, estimated_bytes),
-       completed_at = CASE WHEN ? = 'complete' THEN ? ELSE completed_at END
+       completed_at = CASE WHEN ? = 'complete' THEN ? ELSE completed_at END,
+       refresh_before = CASE WHEN ? = 'complete' THEN NULL ELSE refresh_before END
      WHERE id = ?`,
-    status, extra.error ?? null, extra.estimatedBytes ?? null, status, new Date().toISOString(), mapId,
+    status, extra.error ?? null, extra.estimatedBytes ?? null, status, new Date().toISOString(), status, mapId,
   )
 }
 
