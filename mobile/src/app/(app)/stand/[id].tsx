@@ -4,6 +4,8 @@ import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'rea
 import { getDb } from '../../../db/database'
 import { usePreferences } from '../../../db/mapSettings'
 import { useQuery } from '../../../db/useQuery'
+import { promptRenameStand } from '../../../edit/renameStand'
+import { useSync } from '../../../sync/SyncProvider'
 import { formatCoordinate } from '../../../map/coords'
 import { googleMapsUrl } from '../../../map/stands'
 import { useTheme } from '../../../ui/theme'
@@ -17,6 +19,7 @@ export default function StandDetails() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const db = getDb()
   const prefs = usePreferences()
+  const { syncNow } = useSync()
 
   const stand = useQuery(() => db.getFirstSync<StandDetail>(
     `SELECT s.id, s.number, s.lng, s.lat, s.updated_at, s.area_id, a.name AS area_name
@@ -39,14 +42,17 @@ export default function StandDetails() {
     void Share.share({ message: `Stand ${stand.number} (${stand.area_name}): ${url}`, url })
   }
 
+  // The pencil next to the number renames the stand (also outside edit mode).
+  const rename = () => promptRenameStand(db, { id: stand.id, number: stand.number, areaId: stand.area_id }, () => void syncNow())
+
   const showOnMap = () => {
     // Back to the area's map (instead of opening a second one), which then flies to the stand.
     router.dismissTo({ pathname: '/area/[id]', params: { id: String(stand.area_id), focus: String(stand.id) } })
   }
 
   // Coordinates in the format chosen in the settings; only they can be copied.
-  const rows: { label: string; value: string; copyable?: boolean }[] = [
-    { label: 'Number', value: stand.number },
+  const rows: { label: string; value: string; copyable?: boolean; onEdit?: () => void }[] = [
+    { label: 'Number', value: stand.number, onEdit: rename },
     { label: 'Area', value: stand.area_name },
     hasPosition
       ? { label: 'Coordinates', value: formatCoordinate(stand.lng!, stand.lat!, prefs.coordinateFormat), copyable: true }
@@ -59,11 +65,20 @@ export default function StandDetails() {
       <Stack.Screen options={{ title: `Stand ${stand.number}` }} />
       <View style={[styles.card, { backgroundColor: t.card }]}>
         {rows.map((r) => (
-          <Pressable key={r.label} disabled={!r.copyable} onLongPress={() => void copy(r.label, r.value)}
+          <Pressable key={r.label} disabled={!r.copyable}
+            onLongPress={r.copyable ? () => void copy(r.label, r.value) : undefined}
             accessibilityHint={r.copyable ? 'Long press to copy' : undefined}
             style={({ pressed }) => [styles.row, { borderColor: t.border, backgroundColor: pressed && r.copyable ? t.border : 'transparent' }]}>
             <Text style={{ color: t.muted }}>{r.label}</Text>
-            <Text style={[styles.value, { color: t.text }]}>{r.value}</Text>
+            <View style={styles.valueWrap}>
+              <Text style={[styles.value, { color: t.text }]}>{r.value}</Text>
+              {r.onEdit && (
+                <Pressable onPress={r.onEdit} hitSlop={12} accessibilityRole="button" accessibilityLabel={`Change ${r.label.toLowerCase()}`}
+                  style={[styles.editButton, { backgroundColor: t.bg }]}>
+                  <Text style={{ color: t.accent, fontSize: 16 }}>✎</Text>
+                </Pressable>
+              )}
+            </View>
           </Pressable>
         ))}
       </View>
@@ -89,6 +104,8 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 8, paddingBottom: 48 },
   card: { borderRadius: 12, overflow: 'hidden' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  valueWrap: { flexDirection: 'row', alignItems: 'center', gap: 18, flexShrink: 1 },
+  editButton: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   value: { flexShrink: 1, textAlign: 'right', fontVariant: ['tabular-nums'] },
   hint: { fontSize: 12, marginLeft: 4, marginBottom: 12 },
   action: { paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
