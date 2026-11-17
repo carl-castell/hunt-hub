@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { deleteBasemap, listBasemaps, pickAndImportBasemap, type Basemap } from '../../basemaps/basemaps'
 import { BasemapError } from '../../basemaps/metadata'
 import { useAuth } from '../../auth/AuthProvider'
+import { useEditMode } from '../../edit/EditMode'
 import { getDb } from '../../db/database'
 import { setPreference, usePreferences } from '../../db/mapSettings'
 import type { CoordinateFormat } from '../../map/coords'
@@ -18,6 +19,7 @@ export default function Settings() {
   const sync = useSync()
   const basemaps = useQuery(listBasemaps, ['basemaps'])
   const prefs = usePreferences()
+  const { editStands, setEditStands } = useEditMode()
   const formats: { id: CoordinateFormat; label: string }[] = [
     { id: 'decimal', label: 'Decimal degrees' },
     { id: 'utm', label: 'UTM' },
@@ -99,6 +101,17 @@ export default function Settings() {
           <Text style={{ color: t.text }}>Distance rings</Text>
           <Switch value={prefs.showRings} onValueChange={(v) => setPreference(getDb(), 'showRings', v)} />
         </View>
+      </View>
+
+      <Text style={[styles.heading, { color: t.muted }]}>STANDS</Text>
+      <View style={[styles.card, { backgroundColor: t.card }]}>
+        <View style={[styles.row, { borderColor: t.border }]}>
+          <Text style={{ color: t.text }}>Edit stands</Text>
+          <Switch value={editStands} onValueChange={setEditStands} />
+        </View>
+        <Text style={[styles.hint, { color: t.muted, paddingBottom: 12 }]}>
+          While this is on, a long press on the map creates a stand and a long press on a stand moves it. It turns off when the app restarts. Stand numbers can be changed on the stand's page at any time.
+        </Text>
       </View>
 
       <Text style={[styles.heading, { color: t.muted }]}>BASEMAPS</Text>
