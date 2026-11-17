@@ -88,6 +88,6 @@ For detailed installation and setup instructions see [web/README.md](web/README.
 
 ## Mobile
 
-React Native (Expo) iOS app. Managers and staff log in, see their estate's areas on a map, import offline basemaps (.mbtiles), and keep working without internet.
+React Native (Expo) iOS app. Managers and staff log in, see their estate's areas and stands on a map, edit stands in the field, download offline maps of their areas (or import .mbtiles files), and keep working without internet.
 
 For detailed installation and setup instructions see [mobile/README.md](mobile/README.md).

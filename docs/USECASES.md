@@ -56,7 +56,10 @@ What Hunt Hub does, for whom, and where each use case lives. Hunt Hub is a hybri
 |---|---|---|---|
 | Log in on the iPhone (stays logged in offline) | ✅ | 📱 | [Mobile App API](#mobile-app-api-trpc) |
 | See the estate's areas and stands on a map, offline | ✅ | 📱 | [Mobile App API](#mobile-app-api-trpc) |
-| Use downloaded offline basemaps (.mbtiles) | ✅ | 📱 | [`mobile/README.md`](../mobile/README.md) |
+| Find a stand in a list (number or nickname), see its details, share its position | ✅ | 📱 | [`mobile/README.md`](../mobile/README.md) |
+| Create, rename, move and delete stands and set nickname and status in the field, also offline (managers) | ✅ | 📱 | [Mobile App API](#mobile-app-api-trpc) |
+| Download the aerial photo of an area as an offline map; update or delete it | ✅ | 📱 | [`mobile/README.md`](../mobile/README.md#offline-maps) |
+| Use imported offline basemaps (.mbtiles) | ✅ | 📱 | [`mobile/README.md`](../mobile/README.md) |
 | Edit stands in the field (synced later) | 🚧 | 📱 | planned (sync push handlers) |
 
 Staff have no area in the web app; logging in there shows a hint to use the iPhone app.
@@ -369,11 +372,14 @@ The old server-rendered area pages still exist until they are retired (HUN-49):
 |-----------|------|-------------|
 | `manager.estate.get` | query | Own estate with number of areas |
 | `manager.areas.list` | query | Areas sorted by name, with stand count and boundary status |
-| `manager.areas.get` | query | One area with boundary and stands (GeoJSON), stands in natural order |
+| `manager.areas.get` | query | One area with boundary and stands (GeoJSON, nickname, status with date), stands in natural order |
 | `manager.areas.create` / `rename` | mutation | Create or rename an area |
 | `manager.areas.delete` | mutation | Delete an area and its stands; requires the area's name as confirmation |
-| `manager.areas.uploadBoundary` | mutation | FormData (`areaId`, `file`), max 20 MB; parsed in a worker thread |
+| `manager.areas.uploadBoundary` | mutation | FormData (`areaId`, `file`, optional `crs` as EPSG code), max 20 MB; parsed in a worker thread; any coordinate system PostGIS knows is converted to WGS 84 |
 | `manager.areas.clearBoundary` | mutation | Remove the boundary |
+| `manager.stands.create` | mutation | New stand at a position; without a number it gets the next `NOT-NAMED-n`; reports `outsideArea` |
+| `manager.stands.rename` / `move` / `delete` | mutation | Change the number (once per area), the position, or delete the stand |
+| `manager.stands.update` | mutation | Nickname and status (`ok`, `needs_repair`, `broken`, `removed`) with date; a changed status gets today's date |
 
 Errors: unknown or foreign areas → `NOT_FOUND`, invalid input or wrong confirmation → `BAD_REQUEST`.
 
@@ -389,8 +395,8 @@ Errors: unknown or foreign areas → `NOT_FOUND`, invalid input or wrong confirm
 | `mobile.auth.refresh` | mutation | Rotates the token pair. The previous refresh token stays valid until the new pair is used, so a lost response doesn't log the user out |
 | `mobile.auth.me` | query | Current user |
 | `mobile.auth.logout` | mutation | Revokes the mobile session |
-| `mobile.sync.pull` | query | Without `cursor`: all areas (GeoJSON) and stands. With `cursor`: rows changed since then plus deletions (`sync_tombstones`). Returns the next cursor |
-| `mobile.sync.push` | mutation | Applies queued offline changes in order. Each has a client UUID, so retries are applied only once. Handlers live in `backend/src/sync/handlers/` (none yet, so the app is read-only for now) |
+| `mobile.sync.pull` | query | Without `cursor`: all areas (GeoJSON) and stands (number, position, nickname, status with date). With `cursor`: rows changed since then plus deletions (`sync_tombstones`). Returns the next cursor |
+| `mobile.sync.push` | mutation | Applies queued offline changes in order. Each has a client UUID, so retries are applied only once. Handlers live in `backend/src/sync/handlers/`: `stand.create`, `stand.rename`, `stand.move`, `stand.update` (nickname and status), `stand.delete`; managers only |
 
 `areas.updated_at` / `stands.updated_at` are maintained by database triggers, and deletes are recorded by triggers too (migration `0011_mobile_sync`), so changes made through the manager UI or WFS-T reach the app automatically.
 
