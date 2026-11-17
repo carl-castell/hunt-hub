@@ -37,7 +37,8 @@ function requirePending(ctx: Context): number {
   return pendingAdminId
 }
 
-async function completeAdminLogin(ctx: Context, userId: number): Promise<SessionUser> {
+/** Logs the user in: a new session (against session fixation) with their current data, plus an audit entry. */
+export async function startSessionFor(ctx: Context, userId: number, metadata?: Record<string, unknown>): Promise<SessionUser> {
   const [row] = await db
     .select()
     .from(accountsTable)
@@ -57,7 +58,7 @@ async function completeAdminLogin(ctx: Context, userId: number): Promise<Session
       ctx.req.session.save((saveErr) => saveErr ? reject(saveErr) : resolve())
     })
   })
-  await audit({ userId: user.id, event: 'login', ip: ctx.ip })
+  await audit({ userId: user.id, event: 'login', ip: ctx.ip, metadata })
   return sessionUser
 }
 
@@ -125,7 +126,7 @@ export const authRouter = router({
         await audit({ userId, event: 'failed_totp', ip: ctx.ip })
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid code. Please try again.' })
       }
-      return completeAdminLogin(ctx, userId)
+      return startSessionFor(ctx, userId)
     }),
 
   beginTotpSetup: publicProcedure.mutation(async ({ ctx }) => {
@@ -174,7 +175,7 @@ export const authRouter = router({
   confirmBackupCodesSaved: publicProcedure.mutation(async ({ ctx }) => {
     const userId = requirePending(ctx)
     if (!ctx.session.pendingBackupCodes) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No backup codes in session.' })
-    return completeAdminLogin(ctx, userId)
+    return startSessionFor(ctx, userId)
   }),
 
   useBackupCode: publicProcedure
