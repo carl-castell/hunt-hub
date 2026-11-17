@@ -35,6 +35,10 @@ type AuditEvent =
   | 'stand_created'
   | 'stand_updated'
   | 'stand_deleted'
+  | 'event_created'
+  | 'event_updated'
+  | 'event_deleted'
+  | 'invitation_reminder_sent'
   | 'wfs_token_generated'
   | 'wfs_token_deleted'
   | 'bucket_file_access';

@@ -18,6 +18,8 @@ const { mockDb } = vi.hoisted(() => ({
 
 vi.mock('@/db', () => ({ db: mockDb }));
 vi.mock('@/utils/logError', () => ({ logError: vi.fn() }));
+const { mockCreateEvent } = vi.hoisted(() => ({ mockCreateEvent: vi.fn() }));
+vi.mock('@/services/events', () => ({ createEvent: mockCreateEvent }));
 
 import { getEvents, getEvent, postCreateEvent, postUpdateEvent, postDeleteEvent } from '@/controllers/manager/events';
 
@@ -132,13 +134,13 @@ describe('getEvent', () => {
 // ---------------------------------------------------------------------------
 
 describe('postCreateEvent', () => {
-  it('inserts and redirects to the new event page', async () => {
-    mockDb.returning.mockResolvedValueOnce([fakeEvent]);
+  it('creates the event (with Drive 1 at the given time) and redirects to it', async () => {
+    mockCreateEvent.mockResolvedValueOnce({ id: 10 });
     const res = mockRes();
 
     await postCreateEvent(mockReq({ body: validEventBody }) as Request, res as Response);
 
-    expect(mockDb.insert).toHaveBeenCalled();
+    expect(mockCreateEvent).toHaveBeenCalledWith(5, { name: 'Autumn Hunt', date: '2099-11-01', start: '09:00' }, { userId: 1, ip: '127.0.0.1' });
     expect(res.redirect).toHaveBeenCalledWith('/manager/events/10');
   });
 
@@ -148,7 +150,7 @@ describe('postCreateEvent', () => {
     await postCreateEvent(mockReq({ body: {} }) as Request, res as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(mockDb.insert).not.toHaveBeenCalled();
+    expect(mockCreateEvent).not.toHaveBeenCalled();
   });
 });
 
