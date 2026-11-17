@@ -6,7 +6,7 @@ import { areasTable } from '@/db/schema/areas';
 import { standsTable } from '@/db/schema/stands';
 import { audit } from '@/services/audit';
 import { standDetailsSchema, type StandDetailsInput } from '@/schemas';
-import { updateStandDetails } from '@/services/stands';
+import { nextUnnamedNumber, numberTaken, updateStandDetails } from '@/services/stands';
 import { isStandStatus, STAND_STATUSES } from '@/shared/standStatus';
 import { logError } from '@/utils/logError';
 
@@ -583,8 +583,11 @@ async function handleInsert(op: Element, estateId: number, userId: number, ip: s
 
       if (!area) throw new WfsException('InvalidParameter', 'Area not found.');
 
-      const number = getChildText(featureEl, 'number');
-      if (!number?.trim()) throw new WfsException('MissingParameter', 'Stand number is required.');
+      // Without a number the stand gets the next "NOT-NAMED-<n>"; it can be renamed later.
+      const number = getChildText(featureEl, 'number')?.trim() || await nextUnnamedNumber(db, areaId);
+      if (await numberTaken(db, areaId, number)) {
+        throw new WfsException('InvalidParameterValue', `Stand ${number} already exists in this area. Use another number.`);
+      }
 
       const details = standDetailsFromAttributes({
         nickname: getChildText(featureEl, 'nickname') ?? undefined,
@@ -616,7 +619,7 @@ async function handleInsert(op: Element, estateId: number, userId: number, ip: s
       const [stand] = await db
         .insert(standsTable)
         .values({
-          number: number.trim(),
+          number,
           areaId,
           ...(pointGml ? { location: sql`ST_GeomFromGML(${pointGml})` } : {}),
         })
@@ -704,7 +707,13 @@ async function handleUpdate(op: Element, estateId: number, userId: number, ip: s
   if (!stand) throw new WfsException('NotFound', 'Stand not found.');
 
   const updates: Record<string, unknown> = {};
-  if (props['number']) updates.number = props['number'].textContent?.trim();
+  const newNumber = props['number']?.textContent?.trim();
+  if (newNumber) {
+    if (await numberTaken(db, areaId, newNumber, featureId)) {
+      throw new WfsException('InvalidParameterValue', `Stand ${newNumber} already exists in this area. Use another number.`);
+    }
+    updates.number = newNumber;
+  }
 
   // A Property without a Value (or an empty one) clears the attribute.
   const sent = (name: string) => (name in propNames ? (props[name]?.textContent?.trim() || null) : undefined);

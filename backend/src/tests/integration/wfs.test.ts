@@ -247,6 +247,25 @@ describe('WFS stand attributes: nickname, status, status date', () => {
     expect(row).toMatchObject({ nickname: null, status: 'ok', statusDate: '2026-11-03' });
   });
 
+  it('saves a stand without a number as NOT-NAMED-n', async () => {
+    const insert = () => post(tx(`<wfs:Insert><ms:stands_${areaId}><ms:number></ms:number></ms:stands_${areaId}></wfs:Insert>`));
+    const first = await insert();
+    const second = await insert();
+    expect(first.status).toBe(200);
+    const numberOf = async (res: { text: string }) => {
+      const standId = Number(res.text.match(/fid="stands_\d+\.(\d+)"/)![1]);
+      return (await db.select().from(standsTable).where(eq(standsTable.id, standId)))[0].number;
+    };
+    expect(await numberOf(first)).toBe('NOT-NAMED-1');
+    expect(await numberOf(second)).toBe('NOT-NAMED-2');
+  });
+
+  it('refuses a number that already exists in the area', async () => {
+    const res = await post(tx(`<wfs:Insert><ms:stands_${areaId}><ms:number>A1</ms:number></ms:stands_${areaId}></wfs:Insert>`));
+    expect(res.text).toContain('ExceptionReport');
+    expect(res.text).toContain('Stand A1 already exists in this area');
+  });
+
   it('refuses an unknown status and names the allowed ones', async () => {
     const res = await post(tx(`<wfs:Update typeName="ms:stands_${areaId}">
       <wfs:Property><wfs:Name>status</wfs:Name><wfs:Value>kaputt</wfs:Value></wfs:Property>
