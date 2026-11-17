@@ -51,4 +51,13 @@ export const MIGRATIONS: string[] = [
   -- App settings of this phone (e.g. coordinate format); kept on logout.
   CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT);
   `,
+  `
+  -- Nickname and status of stands (HUN-83). status: 'ok' | 'needs_repair' | 'broken' | 'removed' | NULL
+  ALTER TABLE stands ADD COLUMN nickname TEXT;
+  ALTER TABLE stands ADD COLUMN status TEXT;
+  ALTER TABLE stands ADD COLUMN status_date TEXT;
+  -- Pull everything again once: stands already on the phone haven't changed
+  -- on the server, so an ordinary sync would never send their new fields.
+  DELETE FROM sync_state WHERE key = 'cursor';
+  `,
 ]
