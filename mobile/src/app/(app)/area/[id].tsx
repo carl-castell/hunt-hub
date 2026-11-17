@@ -17,7 +17,7 @@ import { distanceBetween, formatAccuracy, formatAltitude, formatCoordinate } fro
 import { resolveBasemapId } from '../../../map/layerChoice'
 import { distanceRings, formatDistance, metresPerPoint } from '../../../map/scale'
 import { ONLINE_BASEMAPS, onlineBasemap } from '../../../map/sources'
-import { standMarkers, standsBBox, type StandRow } from '../../../map/stands'
+import { standMarkerStyle, standMarkers, standsBBox, type StandRow } from '../../../map/stands'
 import { BOUNDARY_COLOR, buildAreaStyle, type BasemapChoice } from '../../../map/style'
 import { useSync } from '../../../sync/SyncProvider'
 import { LayerSheet } from '../../../ui/LayerSheet'
@@ -211,6 +211,8 @@ export default function AreaMap() {
     setView({ center: e.nativeEvent.center, zoom: e.nativeEvent.zoom, bearing: e.nativeEvent.bearing })
   }, [])
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  // Marker look by zoom step: the native markers only get new values when a step changes.
+  const markerLook = standMarkerStyle(view?.zoom ?? 15)
   const rotated = view !== null && Math.abs(view.bearing) > 0.5
   const turnNorth = () => {
     if (view) cameraRef.current?.easeTo({ center: view.center, bearing: 0, duration: 300 })
@@ -269,9 +271,18 @@ export default function AreaMap() {
         />
         {showLocation && <UserLocation accuracy heading />}
         {settings.showStands && stands.map((s) => {
+          // Zoomed out: a dot without number. While editing, always full size, so stands are easy to grab.
+          const look = editStands ? standMarkerStyle(Infinity) : markerLook
           const label = (
-            <View style={[styles.stand, editStands && styles.standEditable]} accessibilityLabel={`Stand ${s.number}`}>
-              <Text style={styles.standText} numberOfLines={1}>{s.number}</Text>
+            <View
+              style={[styles.stand, { width: look.size, height: look.size, borderRadius: look.size / 2 },
+                look.fontSize === null && styles.standDot, editStands && styles.standEditable]}
+              accessibilityLabel={`Stand ${s.number}`}
+            >
+              {/* Up to three characters fit at full size; only longer numbers shrink to stay inside the circle. */}
+              {look.fontSize !== null && (
+                <Text style={[styles.standText, { fontSize: look.fontSize }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{s.number}</Text>
+              )}
             </View>
           )
           const open = () => { setLayersOpen(false); setSelectedStandId(s.id) }
@@ -376,12 +387,14 @@ const styles = StyleSheet.create({
   titleText: { fontSize: 17, fontWeight: '600' },
   notice: { position: 'absolute', left: 12, right: 12 + BUTTON + GAP, padding: 12, borderRadius: 10 },
   buttons: { position: 'absolute', right: 12, gap: GAP },
-  stand: { minWidth: 26, height: 26, paddingHorizontal: 5, borderRadius: 13, backgroundColor: '#ffffff', borderWidth: 2, borderColor: BOUNDARY_COLOR, alignItems: 'center', justifyContent: 'center' },
+  // Size per zoom step (standMarkerStyle): the same circle for every stand, three digits fit at the same font size.
+  stand: { backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: BOUNDARY_COLOR, alignItems: 'center', justifyContent: 'center' },
+  standDot: { backgroundColor: BOUNDARY_COLOR, borderColor: '#ffffff', borderWidth: 1 },
   newPin: { alignItems: 'center' },
   newPinHead: { width: 30, height: 30, borderRadius: 15, backgroundColor: BOUNDARY_COLOR, borderWidth: 2.5, borderColor: '#ffffff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
   newPinPlus: { color: '#ffffff', fontSize: 20, fontWeight: '700', lineHeight: 22 },
   newPinStem: { width: 2.5, height: 12, backgroundColor: BOUNDARY_COLOR },
   // Dashed border while editing: the stand can be moved.
-  standEditable: { borderStyle: 'dashed', borderWidth: 2.5 },
-  standText: { fontSize: 12, fontWeight: '700', color: BOUNDARY_COLOR },
+  standEditable: { borderStyle: 'dashed', borderWidth: 2 },
+  standText: { fontWeight: '700', color: BOUNDARY_COLOR, fontVariant: ['tabular-nums'], letterSpacing: -0.3 },
 })
