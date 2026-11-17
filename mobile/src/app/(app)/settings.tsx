@@ -1,4 +1,5 @@
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { deleteBasemap, listBasemaps, pickAndImportBasemap, type Basemap } from '../../basemaps/basemaps'
 import { BasemapError } from '../../basemaps/metadata'
@@ -9,15 +10,31 @@ import { setPreference, usePreferences } from '../../db/mapSettings'
 import type { CoordinateFormat } from '../../map/coords'
 import type { BoundaryStyle } from '../../map/style'
 import { useQuery } from '../../db/useQuery'
+import { formatBytes } from '../../offline/eta'
+import { listOfflineMaps, type OfflineMap } from '../../offline/store'
 import { useSync } from '../../sync/SyncProvider'
 import { formatAgo } from '../../ui/SyncBanner'
 import { useTheme } from '../../ui/theme'
+
+/** One line under an offline map's name: its state and size. */
+function offlineMapSummary(m: OfflineMap): string {
+  const percent = m.tilesTotal > 0 ? Math.floor((m.tilesDone / m.tilesTotal) * 100) : 0
+  switch (m.status) {
+    case 'complete': return `Aerial photo · ${formatBytes(m.bytes)}`
+    case 'downloading': return `Downloading… ${percent} %`
+    case 'paused': return `Paused at ${percent} %`
+    case 'failed': return m.error ?? 'Download failed'
+    default: return 'Not downloaded yet'
+  }
+}
 
 export default function Settings() {
   const t = useTheme()
   const { user, logout } = useAuth()
   const sync = useSync()
+  const router = useRouter()
   const basemaps = useQuery(listBasemaps, ['basemaps'])
+  const offlineMaps = useQuery(listOfflineMaps, ['offline_maps'])
   const prefs = usePreferences()
   const { editStands, setEditStands } = useEditMode()
   const formats: { id: CoordinateFormat; label: string }[] = [
@@ -50,7 +67,7 @@ export default function Settings() {
     setImporting(true)
     try {
       const b = await pickAndImportBasemap()
-      if (b) Alert.alert('Basemap added', `"${b.name}" is now available on every area map, also offline.`)
+      if (b) Alert.alert('Map added', `"${b.name}" is now available on every area map, also offline.`)
     } catch (err) {
       Alert.alert('Import failed', err instanceof BasemapError ? err.message : 'The file could not be imported.')
     } finally {
@@ -58,7 +75,7 @@ export default function Settings() {
     }
   }
 
-  const removeBasemap = (b: Basemap) => Alert.alert('Delete basemap?', `"${b.name}" will be removed from this phone.`, [
+  const removeBasemap = (b: Basemap) => Alert.alert('Delete map?', `"${b.name}" will be removed from this phone.`, [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Delete', style: 'destructive', onPress: () => deleteBasemap(b) },
   ])
@@ -67,7 +84,7 @@ export default function Settings() {
     const warn = sync.pending > 0
       ? `${sync.pending} change${sync.pending === 1 ? '' : 's'} haven't been uploaded yet and will be lost. `
       : ''
-    Alert.alert('Log out?', `${warn}Offline areas are removed from this phone. Imported basemaps are kept.`, [
+    Alert.alert('Log out?', `${warn}Offline areas are removed from this phone. Offline maps are kept.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log out', style: 'destructive', onPress: () => void logout() },
     ])
@@ -114,24 +131,38 @@ export default function Settings() {
         </Text>
       </View>
 
-      <Text style={[styles.heading, { color: t.muted }]}>BASEMAPS</Text>
+      {/* Everything stored on the phone for use without internet: downloaded area maps and imported files. */}
+      <Text style={[styles.heading, { color: t.muted }]}>OFFLINE MAPS</Text>
       <View style={[styles.card, { backgroundColor: t.card }]}>
-        {basemaps.length === 0 && (
+        {offlineMaps.length === 0 && basemaps.length === 0 && (
           <Text style={[styles.hint, { color: t.muted }]}>
-            Import a raster .mbtiles file to have a detailed map without internet. Save the file to the Files app (e.g. via AirDrop) first.
+            Download the aerial photo of an area to see it without internet, or import your own .mbtiles file from the Files app.
           </Text>
         )}
+        {offlineMaps.map((m) => (
+          <Pressable key={m.id} onPress={() => router.push({ pathname: '/offline/[id]', params: { id: m.id } })}
+            style={({ pressed }) => [styles.row, { borderColor: t.border, backgroundColor: pressed ? t.border : 'transparent' }]}>
+            <View style={{ flexShrink: 1 }}>
+              <Text style={{ color: t.text }}>{m.areaName}</Text>
+              <Text style={{ color: m.status === 'failed' ? t.danger : t.muted, fontSize: 12 }}>{offlineMapSummary(m)}</Text>
+            </View>
+            <Text style={{ color: t.muted, fontSize: 18 }}>›</Text>
+          </Pressable>
+        ))}
         {basemaps.map((b) => (
           <Pressable key={b.id} onLongPress={() => removeBasemap(b)} style={[styles.row, { borderColor: t.border }]}>
             <View style={{ flexShrink: 1 }}>
               <Text style={{ color: t.text }}>{b.name}</Text>
               <Text style={{ color: t.muted, fontSize: 12 }}>
-                {b.format.toUpperCase()}{b.minzoom != null ? ` · zoom ${b.minzoom}–${b.maxzoom ?? '?'}` : ''}
+                Imported file · {b.format.toUpperCase()}{b.minzoom != null ? ` · zoom ${b.minzoom}–${b.maxzoom ?? '?'}` : ''}
               </Text>
             </View>
             <Pressable onPress={() => removeBasemap(b)} hitSlop={10}><Text style={{ color: t.danger }}>Delete</Text></Pressable>
           </Pressable>
         ))}
+        <Pressable onPress={() => router.push('/offline/new')} style={[styles.action, { borderBottomWidth: StyleSheet.hairlineWidth, borderColor: t.border }]}>
+          <Text style={{ color: t.accent, fontSize: 16 }}>Download offline map for an area</Text>
+        </Pressable>
         <Pressable onPress={importBasemap} disabled={importing} style={styles.action}>
           <Text style={{ color: t.accent, fontSize: 16 }}>{importing ? 'Importing…' : 'Import .mbtiles file'}</Text>
         </Pressable>
