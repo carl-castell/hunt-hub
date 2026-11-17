@@ -3,12 +3,15 @@ import { authRouter } from './routers/auth'
 import { adminRouter } from './routers/admin'
 import { mobileRouter } from './routers/mobile'
 import { managerRouter } from './routers/manager'
+import { devRouter } from './routers/dev'
 
 export const appRouter = router({
   auth: authRouter,
   admin: adminRouter,
   manager: managerRouter,
   mobile: mobileRouter,
+  // Local development only, see utils/devLogin.ts
+  dev: devRouter,
 })
 
 export type AppRouter = typeof appRouter
