@@ -115,10 +115,22 @@ docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrat
 | `SESSION_SECRET` | Yes | Random string for session signing | `change-me-32-chars-min` |
 | `DOMAIN` | Yes | Base URL used in email links and RSVP URLs | `http://localhost:3000` |
 | `SKIP_TOTP` | No | Skip admin TOTP — dev/test only, **throws at startup if set in production** | `true` |
+| `DEV_LOGIN` | No | Dev login: the React login page lists all active admins and managers; one click logs in as that user, without password or TOTP. Local development only, **throws at startup in production or with any database other than `DB_PROVIDER=local`** (see below) | `true` |
 | `WEB_DIST_DIR` | No | Where the built React app is (default `../web/dist`) | `/app/web/dist` |
 | `LOG_LEVEL` | No | `trace` … `fatal`, or `silent` (default `info`; silent in tests) | `info` |
 | `LOG_PRETTY` | No | `true` prints readable lines instead of JSON (`npm run dev` sets it) | `true` |
 | `GIT_COMMIT` | No | Shown in `/health` and logs when not on Render (Render sets `RENDER_GIT_COMMIT`) | `9047a27` |
+
+#### Dev login (`DEV_LOGIN=true`)
+
+For testing pages as different users on your own computer. Put `DEV_LOGIN=true` in `backend/.env`, start the backend and `web/` with `npm run dev`, and open `http://localhost:5173/app/login`: a box "Dev login" lists the active admins and managers.
+
+Safeguards (`src/utils/devLogin.ts`, `src/trpc/routers/dev.ts`):
+- Off unless `DEV_LOGIN` is exactly `true`; the `dev.*` API then answers `NOT_FOUND`.
+- The server **refuses to start** with `NODE_ENV=production` and `DEV_LOGIN=true` (same as `SKIP_TOTP`).
+- It also refuses to start with `DEV_LOGIN=true` and any database other than `DB_PROVIDER=local`, so a local server pointed at the production database (Neon) can't offer it either.
+- Only the Vite dev server asks for the list; the production build of the web app never does.
+- Each dev login is logged as a warning and written to the audit log (`login`, metadata `devLogin: true`).
 
 ### Database
 

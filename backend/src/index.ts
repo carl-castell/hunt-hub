@@ -1,9 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-if (process.env.NODE_ENV === 'production' && process.env.SKIP_TOTP === 'true') {
-  throw new Error('SKIP_TOTP=true is not allowed in production');
-}
+import { assertSafeLoginSettings } from './utils/devLogin';
+assertSafeLoginSettings();
 
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret || sessionSecret.length < 32) {
