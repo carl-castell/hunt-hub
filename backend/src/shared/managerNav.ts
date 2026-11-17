@@ -20,7 +20,7 @@ export const MANAGER_NAV: readonly ManagerNavEntry[] = [
   { label: 'Areas', path: '/manager/areas', inReactApp: true },
   { label: 'Guests', path: '/manager/guests' },
   { label: 'Guest groups', path: '/manager/guest-groups' },
-  { label: 'Events', path: '/manager/events' },
+  { label: 'Events', path: '/manager/events', inReactApp: true },
   { label: 'People', path: '/manager/people' },
   { label: 'Account', path: '/manager/account' },
 ]

@@ -2,60 +2,9 @@ import { Request, Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { eventsTable } from '../../db/schema/events';
-import { drivesTable } from '../../db/schema/drives';
 import { logError } from '@/utils/logError';
 import { eventSchema } from '@/schemas';
 import { createEvent } from '@/services/events';
-import { todayInGermany } from '@/services/stands';
-
-export async function getEvents(req: Request, res: Response) {
-  try {
-    const user = req.session.user!;
-
-    // Today's events count as upcoming (they used to be listed as past).
-    const today = todayInGermany();
-    const allEvents = await db
-      .select()
-      .from(eventsTable)
-      .where(eq(eventsTable.estateId, user.estateId!));
-    const upcomingEvents = allEvents
-      .filter(e => e.date >= today)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    const pastEvents = allEvents
-      .filter(e => e.date < today)
-      .sort((a, b) => b.date.localeCompare(a.date));
-
-    res.render('manager/events/list', { title: 'Events', user, upcomingEvents, pastEvents, breadcrumbs: [{ label: 'Events' }] });
-  } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
-  }
-}
-
-export async function getEvent(req: Request, res: Response) {
-  try {
-    const user = req.session.user!;
-    const { id } = req.params;
-
-    const [event] = await db
-      .select()
-      .from(eventsTable)
-      .where(eq(eventsTable.id, Number(id)))
-      .limit(1);
-
-    if (!event || event.estateId !== user.estateId) return res.status(404).send('Event not found');
-
-    const drives = await db
-      .select()
-      .from(drivesTable)
-      .where(eq(drivesTable.eventId, Number(id)));
-
-    res.render('manager/events/show', { title: event.eventName, user, event, drives, breadcrumbs: [{ label: 'Events', href: '/manager/events' }, { label: event.eventName }] });
-  } catch (err) {
-    logError('[error]', err);
-    res.status(500).send('Server error');
-  }
-}
 
 export async function postCreateEvent(req: Request, res: Response) {
   try {

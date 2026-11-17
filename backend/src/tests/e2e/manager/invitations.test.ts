@@ -55,16 +55,11 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe('event setup', () => {
-  it('event page returns 200 and shows the event name', async () => {
+  // The event pages live in the React app now (HUN-88).
+  it('the old event page sends the manager to the React app', async () => {
     const res = await agent.get(`/manager/events/${eventId}`);
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Autumn Pheasant Drive 2030');
-  });
-
-  it('events list includes the new event', async () => {
-    const res = await agent.get('/manager/events');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Autumn Pheasant Drive 2030');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/app/manager/events/${eventId}`);
   });
 });
 
