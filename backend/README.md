@@ -49,7 +49,7 @@ flowchart LR
     browser["Browser<br/>React app (/app) and<br/>server-rendered pages"]
     iphone["iPhone app<br/>(offline-first, Expo)"]
     qgis["QGIS / QField"]
-    guest["Guest<br/>(email link, no account)"]
+    guest["Guest<br/>(no account)"]
   end
 
   subgraph Render["Render: Docker container"]
@@ -68,7 +68,8 @@ flowchart LR
   mail["Mailgun<br/>invitations, activation"]
 
   browser -- "session cookie" --> express
-  guest --> express
+  guest -- "magic link<br/>(invitation id from the email)" --> express
+  mail -.->|invitation email| guest
   iphone -- "bearer token" --> express
   qgis -- "WFS token" --> express
   express --> trpc
@@ -330,6 +331,60 @@ The app supports two drivers, switched via `DB_PROVIDER`:
 | `neon` | `pg` (SSL) | `NEON_DATABASE_URL` | Production / staging |
 
 ### Schema overview
+
+The core of the data model (sessions, rate limits, sync, audit and token tables are left out of the diagram; all tables are in the list below):
+
+```mermaid
+erDiagram
+  ESTATES ||--o{ USERS : "managers, staff, guests"
+  USERS ||--o| ACCOUNTS : "login (admins, managers, staff)"
+  USERS ||--o| CONTACTS : "guest details"
+  ESTATES ||--o{ AREAS : has
+  AREAS ||--o{ STANDS : contains
+  ESTATES ||--o{ EVENTS : plans
+  EVENTS ||--o{ DRIVES : "split into"
+  EVENTS ||--o{ INVITATIONS : has
+  USERS ||--o{ INVITATIONS : "guest receives"
+  ESTATES ||--o{ GUEST_GROUPS : has
+  GUEST_GROUPS ||--o{ GUEST_GROUP_MEMBERS : contains
+  USERS ||--o{ GUEST_GROUP_MEMBERS : "belongs to"
+  USERS ||--o{ HUNTING_LICENSES : "guest uploads"
+  HUNTING_LICENSES ||--o{ HUNTING_LICENSE_ATTACHMENTS : files
+  USERS ||--o{ TRAINING_CERTIFICATES : "guest uploads"
+  TRAINING_CERTIFICATES ||--o{ TRAINING_CERTIFICATE_ATTACHMENTS : files
+  USERS ||--o{ DOCUMENT_REJECTIONS : "guest gets"
+  DRIVES ||--o{ DRIVE_STAND_ASSIGNMENTS : uses
+  STANDS ||--o{ DRIVE_STAND_ASSIGNMENTS : "assigned in"
+
+  USERS {
+    int id PK
+    enum role "admin, manager, staff, guest"
+    int estate_id FK "null only for admins"
+  }
+  AREAS {
+    int id PK
+    int estate_id FK
+    geometry geofile "PostGIS MultiPolygon, WGS 84"
+  }
+  STANDS {
+    int id PK
+    int area_id FK
+    geometry location "PostGIS Point, WGS 84"
+    enum status "ok, needs_repair, broken, removed"
+  }
+  INVITATIONS {
+    int id PK
+    uuid public_id "the magic link"
+    int event_id FK
+    int user_id FK
+    enum status "staged, sent_email, sent_manually, waitlist, archived"
+    enum response "open, yes, no"
+  }
+```
+
+Guests are `users` with the role `guest` and no account: they reach their answer page through the invitation's `public_id`. Deleting an estate, area or event removes what belongs to it (`ON DELETE CASCADE`).
+
+**All tables and relations** (with the login, sync and template tables) are in [docs/DATABASE.md](../docs/DATABASE.md).
 
 The schema is defined in `src/db/schema/` using Drizzle. Key tables:
 

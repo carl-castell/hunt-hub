@@ -13,6 +13,8 @@ A platform for managing hunting estates, events, and guests.
 - **Managers and staff in the field** see their estate's areas and stands on the iPhone app, also without mobile signal.
 - **Admins** create estates and their managers.
 
+The full data model with a diagram: **[docs/DATABASE.md](docs/DATABASE.md)**.
+
 All use cases, who uses them and where they live (React app, server-rendered pages, iPhone app, QGIS), plus every route and API: **[docs/USECASES.md](docs/USECASES.md)**.
 
 Using Hunt Hub in QGIS, step by step: **[backend/src/qgis/README.md](backend/src/qgis/README.md)**.
