@@ -2,7 +2,7 @@
 
 > This is the `backend/` workspace of the [hunt-hub](https://github.com/carl-castell/hunt-hub) monorepo (with `web/`, the React app, and `mobile/`, the iPhone app). The backend serves the server-rendered pages, the APIs, and the built React app under `/app`. Use cases and all routes: [docs/USECASES.md](../docs/USECASES.md).
 
-Hunting estate management platform. Managers organise events, build guest lists, assign hunting groups to drives and stands, send email invitations with magic-link RSVPs, and track guest documents (hunting licences and training certificates). A separate admin surface manages estates and staff accounts.
+Hunting estate management platform. Managers organise hunts with their drives, build guest lists (single guests or whole groups), send email invitations and reminders with magic-link RSVPs, and check guest documents (hunting licences and training certificates). A separate admin surface manages estates and staff accounts.
 
 ---
 
@@ -35,10 +35,10 @@ Hunting estate management platform. Managers organise events, build guest lists,
 |---|---|---|
 | Login | `/app/login` (`/` and `/login` redirect there) | Everyone |
 | React app: admin area | `/app/admin` | Admins |
-| React app: manager pages (Areas so far) | `/app/manager/...` | Managers |
+| React app: manager pages (Areas, Events) | `/app/manager/...` | Managers |
 | Server-rendered manager pages | `/manager` | Managers |
-| Public RSVP | `/rsvp/:publicId` | Guests (magic link, no login) |
-| RSVP preview | `/rsvp/preview/:eventId` | Managers |
+| Public RSVP | `/app/rsvp/:publicId` (React; email links `/rsvp/:publicId` redirect there) | Guests (magic link, no login) |
+| RSVP preview | `/app/rsvp/preview/:eventId` | Managers |
 | tRPC API | `/api/v1/trpc` | React app (cookie) and iPhone app (bearer token) |
 | WFS endpoint | `/wfs` | QGIS / QField (token, OGC WFS-T 1.1.0), see [the QGIS guide](src/qgis/README.md) |
 | Health check | `/health` | Render, Docker, CI |
