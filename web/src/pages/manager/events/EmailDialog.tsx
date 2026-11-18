@@ -44,7 +44,7 @@ export function EmailDialog({ event, kind, recipients, open, onOpenChange }: {
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!send.isPending) onOpenChange(next) }}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+      <DialogContent className="max-h-[92vh] overflow-y-auto text-sm sm:max-w-[min(72rem,calc(100vw-4rem))]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -81,7 +81,7 @@ export function EmailDialog({ event, kind, recipients, open, onOpenChange }: {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email-message">Message</Label>
-                <textarea id="email-message" value={message} onChange={(e) => setMessage(e.target.value)} rows={8} maxLength={5000}
+                <textarea id="email-message" value={message} onChange={(e) => setMessage(e.target.value)} rows={10} maxLength={5000}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
                 <p className="text-xs text-muted-foreground">{'{{firstName}}'} and {'{{lastName}}'} are replaced by each guest&apos;s name.</p>
               </div>
@@ -118,7 +118,7 @@ export function EmailDialog({ event, kind, recipients, open, onOpenChange }: {
             <div className="space-y-2">
               <p className="text-sm font-medium">Preview <span className="font-normal text-muted-foreground">(for an example guest)</span></p>
               <p className="truncate text-sm text-muted-foreground">Subject: {preview.data?.subject ?? '…'}</p>
-              <iframe title="Email preview" sandbox="" srcDoc={preview.data?.html ?? ''} className="h-[420px] w-full rounded-md border border-border bg-white" />
+              <iframe title="Email preview" sandbox="" srcDoc={preview.data?.html ?? ''} className="h-[min(60vh,560px)] w-full rounded-md border border-border bg-white" />
             </div>
           </div>
         )}
