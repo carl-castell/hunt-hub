@@ -44,7 +44,7 @@ async function findInvitation(publicId: string): Promise<InvitationRow> {
   // Only well-formed ids reach the database (the link could be anything).
   if (!/^[0-9a-f-]{36}$/i.test(publicId)) throw new InvitationNotFoundError();
   const res = await db.execute<InvitationRow>(sql`
-    SELECT i.id, i.user_id, e.estate_id, i.status, i.response, i.respond_by, u.first_name, u.last_name,
+    SELECT i.id, i.user_id, e.estate_id, i.status, i.response, to_char(i.respond_by, 'YYYY-MM-DD') AS respond_by, u.first_name, u.last_name,
            e.id AS event_id, e.event_name, to_char(e.date, 'YYYY-MM-DD') AS date, to_char(e.time, 'HH24:MI') AS start, es.name AS estate
     FROM invitations i JOIN users u ON u.id = i.user_id JOIN events e ON e.id = i.event_id JOIN estates es ON es.id = e.estate_id
     WHERE i.public_id = ${publicId}`);
@@ -65,7 +65,7 @@ export function closedReason(
   if (invitation.status === 'archived') return 'archived';
   if (invitation.date < today) return 'past';
   // The answer-by date is a day: answers are possible until the end of it.
-  if (invitation.respond_by && new Date(invitation.respond_by).toISOString().slice(0, 10) < today) return 'deadline';
+  if (invitation.respond_by && invitation.respond_by.slice(0, 10) < today) return 'deadline';
   return null;
 }
 
@@ -97,7 +97,7 @@ export async function rsvpView(publicId: string): Promise<RsvpView> {
     guest: { firstName: inv.first_name, lastName: inv.last_name },
     event: { name: inv.event_name, date: inv.date, start: inv.start, estate: inv.estate, drives },
     response: inv.response,
-    respondBy: inv.respond_by ? new Date(inv.respond_by).toISOString() : null,
+    respondBy: inv.respond_by,
     closed: closedReason(inv),
     licence: { state: documents.licenceState, expiryDate: documents.licence?.expiryDate ?? null, rejectedBecause: documents.licenceRejection?.reason ?? null },
     certificate: { state: documents.certificateState, issueDate: documents.certificate?.issueDate ?? null, rejectedBecause: documents.certificateRejection?.reason ?? null },

@@ -1,5 +1,4 @@
 import express, { Router } from 'express';
-import { getDashboard } from '../controllers/manager/dashboard';
 import { getEstate, postRenameEstate } from '../controllers/manager/estate';
 import { getArea, postCreateArea, postRenameArea, postDeleteArea, postUploadGeofile, postDeleteGeofile } from '../controllers/manager/areas';
 import { getGuests, getNewGuest, postCreateGuest, getGuest, postUpdateGuest, postDeleteGuest, postGuestAddToGroup, postGuestRemoveFromGroup } from '../controllers/manager/guests';
@@ -23,7 +22,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20_
 const managerRouter: Router = express.Router();
 
 // Dashboard
-managerRouter.get('/',                                getDashboard);
+// The dashboard lives in the React app (HUN-97); /manager (login, old links) is sent there.
+managerRouter.get('/', (_req, res) => res.redirect('/app/manager'));
 
 // Estate
 managerRouter.get('/estate',                          getEstate);

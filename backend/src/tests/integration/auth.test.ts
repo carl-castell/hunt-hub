@@ -171,8 +171,10 @@ describe('Auth Integration Tests', () => {
     it('should allow authenticated manager to access /manager', async () => {
       const agent = request.agent(app);
       await agent.post('/login').send({ email: testUser.email, password: testUser.password });
+      // The manager area lets them in; the dashboard itself is in the React app (HUN-97).
       const res = await agent.get('/manager');
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe('/app/manager');
     });
 
     it('should return 403 if manager tries to access /admin', async () => {

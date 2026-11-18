@@ -15,7 +15,7 @@ export type ManagerNavEntry = {
 }
 
 export const MANAGER_NAV: readonly ManagerNavEntry[] = [
-  { label: 'Dashboard', path: '/manager' },
+  { label: 'Dashboard', path: '/manager', inReactApp: true },
   { label: 'Estate', path: '/manager/estate' },
   { label: 'Areas', path: '/manager/areas', inReactApp: true },
   { label: 'Guests', path: '/manager/guests' },
