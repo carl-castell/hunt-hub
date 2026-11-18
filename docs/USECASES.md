@@ -34,12 +34,12 @@ What Hunt Hub does, for whom, and where each use case lives. Hunt Hub is a hybri
 
 | Use case | Status | Where | Details |
 |---|---|---|---|
-| Dashboard | ✅ | 🖥️ | [Manager – Estate](#manager--estate) |
+| **Dashboard**: the next hunt with the guests' answers, and a to-do list (documents to check, guests coming without a valid licence, answer-by dates, invitations not sent, broken stands, areas without a boundary), each linking to where it is solved | ✅ | ⚛️ | [Manager – Dashboard](#manager--dashboard-react-app) |
 | Manage the estate | ✅ | 🖥️ | [Manager – Estate](#manager--estate) |
 | **Manage hunting areas** (list, create, rename, delete, upload boundary file) | ✅ | ⚛️ | [Manager – Areas](#manager--areas-react-app) |
 | **See an area on a map** (satellite, OpenTopoMap or OpenStreetMap) with its boundary and stands | ✅ | ⚛️ | [Manager – Areas](#manager--areas-react-app) |
 | Manage guests | ✅ | 🖥️ | [Manager – Guests](#manager--guests) |
-| Verify guest documents (licences & certificates) | ✅ | 🖥️ | [Manager – Document Verification](#manager--document-verification) |
+| **Check guest documents** (licences and certificates): confirm with a corrected date, reject with a reason (the guest is emailed), delete, upload for the guest; a check queue per hunt | ✅ | ⚛️ | [Manager – Document check](#manager--document-check-react-app) |
 | Manage guest groups | ✅ | 🖥️ | [Manager – Guest Groups](#manager--guest-groups) |
 | **Plan hunts**: events with their drives (start, length, end) | ✅ | ⚛️ | [Manager – Events](#manager--events-react-app) |
 | **Invite guests** (single or whole groups), send invitations and reminders by email with a preview, follow the answers | ✅ | ⚛️ | [Manager – Events](#manager--events-react-app) |
@@ -131,9 +131,19 @@ Staff have no area in the web app; logging in there shows a hint to use the iPho
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/manager/` | Manager dashboard |
+| GET | `/manager/` | Redirects to the React dashboard (`/app/manager`) |
 | GET | `/manager/estate` | Estate overview (areas, staff) |
 | POST | `/manager/estate/rename` | Rename the estate |
+
+---
+
+## Manager – Dashboard (React app)
+
+> In the React app (HUN-97), the manager's start page after login. Calls `manager.dashboard.get`; the rules live in [`backend/src/services/dashboard.ts`](../backend/src/services/dashboard.ts). Only data of the manager's own estate.
+
+| Page | Description |
+|------|-------------|
+| `/app/manager` | The next hunt (today counts as upcoming): date, days to go, start, drives, the guests' answers as a bar, and buttons for the next steps. A to-do list, most urgent first: documents to check, guests coming without a valid licence, answer-by dates coming up, rejected documents waiting for a new upload, invitations not sent, broken stands, areas without a boundary. Each item links to where it is solved; links to the event open the right dialog by themselves (`?open=invite`, `send`, `remind`, `check`). Also: upcoming hunts, areas with stand condition, quick links |
 
 ---
 
@@ -176,35 +186,24 @@ The old server-rendered area pages still exist until they are retired (HUN-49):
 
 ---
 
-## Manager – Document Verification
+## Manager – Document check (React app)
 
-> Requires `requireManager`. Manage and verify hunting licenses and training certificates per guest.
+> In the React app (HUN-95). Calls `manager.documents.*`; the rules live in [`backend/src/services/guestDocuments.ts`](../backend/src/services/guestDocuments.ts). Only guests of the manager's own estate.
 
-### Hunting License
+| Page | Description |
+|------|-------------|
+| `/app/manager/guests/:guestId/documents` | The guest's licence and certificate. The photo (zoom, rotate) or PDF next to the guest's name and date of birth, the date on the document, whether it is valid on the hunt day and how long it is still valid. Confirm (with the date corrected if needed), reject with a reason, delete, or upload a document for the guest (counts as checked) |
+| Event page, guests tab, "Check documents" | The same tool as a check queue: all unchecked documents of the hunt, one after the other (`?open=check`) |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/manager/guests/:id/hunting-license` | View guest's hunting license |
-| POST | `/manager/guests/:id/hunting-license` | Upload hunting license files (up to 4) |
-| POST | `/manager/guests/:id/hunting-license/check` | Mark hunting license as verified |
-| POST | `/manager/guests/:id/hunting-license/update` | Update hunting license details |
-| POST | `/manager/guests/:id/hunting-license/delete` | Delete hunting license |
+Rejecting removes the document and its files, emails the guest the reason with the link to their answer page, and shows "rejected, waiting for a new upload" in the guest list and on the dashboard. The answer page shows the reason.
 
-### Training Certificate
+Old addresses redirect: `GET /manager/guests/:id/hunting-license` and `/training-certificate` → the check tool with `?kind=licence` or `?kind=certificate`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/manager/guests/:id/training-certificate` | View guest's training certificate |
-| POST | `/manager/guests/:id/training-certificate` | Upload training certificate files (up to 2) |
-| POST | `/manager/guests/:id/training-certificate/check` | Mark training certificate as verified |
-| POST | `/manager/guests/:id/training-certificate/update` | Update training certificate details |
-| POST | `/manager/guests/:id/training-certificate/delete` | Delete training certificate |
-
-### File Access
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/manager/files/*` | Serve uploaded document files |
+| POST | `/manager/guests/:id/hunting-license` | Upload hunting licence files from the server-rendered guest page (up to 4) |
+| POST | `/manager/guests/:id/training-certificate` | Upload training certificate files from the server-rendered guest page (up to 2) |
+| GET | `/manager/files/*` | Serve uploaded document files (only the manager's own estate) |
 
 ---
 
@@ -274,7 +273,7 @@ Old addresses redirect to these pages: `/manager/events` → `/app/manager/event
 
 | Page | Description |
 |------|-------------|
-| `/app/rsvp/:publicId` | One page: the hunt with date, start and drives; "I'm coming" / "I can't come" (can be changed until the answer-by date). After "I'm coming": hunting licence, training certificate and contact on the hunt day, each saved on its own; documents on file are shown as checked or to be checked. Answers are refused for invitations never sent, archived ones, past hunts and passed answer-by dates |
+| `/app/rsvp/:publicId` | One page: the hunt with date, start and drives; "I'm coming" / "I can't come" (can be changed until the answer-by date). After "I'm coming": hunting licence, training certificate and contact on the hunt day, each saved on its own; documents on file are shown as checked or to be checked; a rejected document shows the manager's reason. Answers are refused for invitations never sent, archived ones, past hunts and passed answer-by dates |
 | `/app/rsvp/preview/:eventId` | For managers: the same page for an example guest; nothing is saved |
 
 `/rsvp/:publicId` (the address in invitation emails, also in emails sent before the move) and `/rsvp/preview/:eventId` redirect to these pages. The link's id is redacted in the logs.
@@ -360,6 +359,17 @@ Errors: unknown or foreign areas → `NOT_FOUND`, invalid input or wrong confirm
 | `manager.invitations.send` | mutation | `kind: invitation` (not sent yet) or `reminder` (sent, no answer yet); a few at a time; sent and failed per guest. Names and message are escaped |
 | `manager.invitations.checkDocument` | mutation | Mark the guest's licence or certificate as checked; older ones are deleted with their files |
 
+**Dashboard and document check**
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `manager.dashboard.get` | query | The next hunt, upcoming hunts, the to-do list (each with a code, numbers and a link target; the text is built in the browser), areas with stand condition |
+| `manager.documents.get` | query | The guest (name, date of birth) and their documents with files, judged for the hunt's date if an event is given |
+| `manager.documents.confirm` | mutation | Confirm a document, optionally with the date corrected |
+| `manager.documents.reject` | mutation | Reject with a reason: the document and its files go, the guest is emailed if they have an open invitation |
+| `manager.documents.delete` | mutation | Delete a document and its files |
+| `manager.documents.upload` | mutation | FormData (`guestId`, `kind`, `date`, files): the manager uploads for the guest; counts as checked |
+
 ## RSVP API (tRPC)
 
 > Public, used by the guests' answer page. Every procedure takes the invitation's `publicId`. Rate-limited per call (`middlewares/trpcAuthLimits.ts`).
@@ -395,7 +405,7 @@ Errors: unknown or foreign areas → `NOT_FOUND`, invalid input or wrong confirm
 
 Step-by-step guide for managers, and the code: [backend/src/qgis/](../backend/src/qgis/README.md).
 
-> Token-authenticated (`?token=`). OGC WFS-T 1.1.0 endpoint for QGIS and QField. The token is scoped to a user and estate and is managed via the manager dashboard.
+> Token-authenticated (`?token=`). OGC WFS-T 1.1.0 endpoint for QGIS and QField. The token is scoped to a user and estate and is managed on the manager's account page (`/manager/account`).
 >
 > All requests go to `/wfs` — the `REQUEST` query parameter selects the operation.
 
