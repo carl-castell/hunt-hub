@@ -18,6 +18,7 @@ import { MANAGER_NAV, managerNavHref } from './shared/managerNav';
 
 import homeRouter from "./routes/home";
 import { createHealthRouter } from "./routes/health";
+import { showInstance } from "./utils/instance";
 import wfsRouter from "./qgis/router";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
@@ -40,6 +41,8 @@ import { eq, sql } from 'drizzle-orm';
 
 const app: Express = express();
 app.set('trust proxy', 1);
+// X-Instance header for the local scaling demo; does nothing unless SHOW_INSTANCE=true.
+app.use(showInstance);
 const PgStore = connectPg(session);
 
 export const sessionPool = new pg.Pool({

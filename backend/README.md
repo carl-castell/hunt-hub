@@ -10,7 +10,7 @@ Hunting estate management platform. Managers organise hunts with their drives, b
 
 - **Overview:** [Tech Stack](#tech-stack) · [Architecture](#architecture) · [User Surfaces](#user-surfaces) · [Roles & Access](#roles--access)
 - **Run it:** [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Running the app in Docker](#running-the-app-in-docker) · [Environment Variables](#environment-variables) · [Scripts](#scripts)
-- **Inside the code:** [Project Structure](#project-structure) · [Database and schema](#database-and-schema) · [Tests](#tests) · [Logging and monitoring](#logging-and-monitoring) · [Security](#security) · [Load test and caching](#load-test-and-caching) · [Routes Reference](#routes-reference)
+- **Inside the code:** [Project Structure](#project-structure) · [Database and schema](#database-and-schema) · [Tests](#tests) · [Logging and monitoring](#logging-and-monitoring) · [Security](#security) · [Load test and caching](#load-test-and-caching) · [Horizontal scaling demo](#horizontal-scaling-demo) ([benchmark](#do-more-instances-mean-more-performance)) · [Routes Reference](#routes-reference)
 - **Ship it:** [Development workflow](#development-workflow) · [Production Deployment](#production-deployment)
 
 ---
@@ -41,7 +41,7 @@ Hunting estate management platform. Managers organise hunts with their drives, b
 
 ## Architecture
 
-One Express application (a modular monolith) in one Docker container serves every client. It keeps no state of its own: data, sessions, rate-limit counters and the mobile sync history are in PostgreSQL, so more instances can run side by side.
+One Express application (a modular monolith) in one Docker container serves every client. It keeps no state of its own: data, sessions, rate-limit counters and the mobile sync history are in PostgreSQL, so more instances can run side by side; locally this is shown with several instances behind an nginx load balancer (see "Horizontal scaling demo"). Production runs one instance on Render.
 
 ```mermaid
 flowchart LR
@@ -160,9 +160,13 @@ The repo-root `Dockerfile` builds one image with the backend and the built React
 
 ```bash
 cd backend
-docker compose --profile app up -d --build                       # http://localhost:3001
+docker compose --profile app up -d --build                       # http://localhost:3001 (one instance)
+APP_INSTANCES=3 docker compose --profile app up -d --build       # three instances behind the load balancer
 docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrations, if needed
 ```
+
+- The app containers have no port of their own: an nginx load balancer (`lb`, config in `loadbalancer/nginx.conf`) listens on `localhost:3001` and sends requests to the instances in turn. `APP_INSTANCES` (default 1) sets how many run; running the command again with another number adds or removes instances, and nginx picks them up within 5 seconds.
+- The containers run with `SHOW_INSTANCE=true`, so every response has an `X-Instance` header with the container id.
 
 - `GET /health` returns 200 when the database is reachable, otherwise 503 (used by Docker's `HEALTHCHECK`, Render and CI)
 - On `SIGTERM` (e.g. `docker stop`, a Render deploy) the server stops accepting connections, finishes running requests and closes the database pools before exiting
@@ -184,6 +188,7 @@ docker compose --profile app run --rm app node dist/src/db/migrate.js   # migrat
 | `WEB_DIST_DIR` | No | Where the built React app is (default `../web/dist`) | `/app/web/dist` |
 | `LOG_LEVEL` | No | `trace` … `fatal`, or `silent` (default `info`; silent in tests) | `info` |
 | `LOG_PRETTY` | No | `true` prints readable lines instead of JSON (`npm run dev` sets it) | `true` |
+| `SHOW_INSTANCE` | No | `true` adds an `X-Instance` header (the hostname) to every response and an `instance` field to `/health`, to see which instance answered. Set by docker compose for the scaling demo; not set in production | `true` |
 | `GIT_COMMIT` | No | Shown in `/health` and logs when not on Render (Render sets `RENDER_GIT_COMMIT`) | `9047a27` |
 
 #### Dev login (`DEV_LOGIN=true`)
@@ -272,6 +277,7 @@ Safeguards (`src/utils/devLogin.ts`, `src/trpc/routers/dev.ts`):
 | `npm run db:reset:test` | Wipe and re-migrate the test database (port 5434) |
 | `npm run db:push` | Apply schema directly via drizzle-kit (bypasses migration files — dev only) |
 | `npm run db:push:neon` | Same against Neon. **Don't use for production changes:** production is changed only through migrations |
+| `npm run loadtest` | Load test with 1 to 4 instances behind the load balancer: creates the test data, then measures (see "Do more instances mean more performance?"; needs Docker) |
 | `npm run db:analyze` | `EXPLAIN ANALYZE` of the main queries against the local database (`scripts/analyze-queries.ts`) |
 | `npm run studio` | Open Drizzle Studio (database GUI) |
 
@@ -317,7 +323,70 @@ npx tsx scripts/load-test.ts run                                     # 20 connec
 
 Single runs on a laptop: the numbers show the order of magnitude, not exact capacity on Render.
 
-**Next steps, not done yet:** HTTP caching (`ETag` + `304 Not Modified`) so unchanged boundaries aren't sent again at all; a simplified boundary for small zoom levels (`ST_SimplifyPreserveTopology`); gzip/brotli for the large JSON responses. Scaling out works now: sessions and rate-limit counters are in Postgres, and the cache needs no coordination between instances.
+**Next steps, not done yet:** HTTP caching (`ETag` + `304 Not Modified`) so unchanged boundaries aren't sent again at all; a simplified boundary for small zoom levels (`ST_SimplifyPreserveTopology`); gzip/brotli for the large JSON responses. Scaling out works: sessions and rate-limit counters are in Postgres, and the cache needs no coordination between instances (shown in the "Horizontal scaling demo").
+
+## Horizontal scaling demo
+
+Shows that several instances behind a load balancer behave like one, because no instance keeps state of its own (`scripts/scale-demo.ts`, local database only):
+
+```bash
+docker compose up -d && npm run db:migrate
+npx tsx scripts/load-test.ts setup                          # test manager, once
+APP_INSTANCES=3 docker compose --profile app up -d --build  # three instances behind nginx on :3001
+APP_INSTANCES=3 npx tsx scripts/scale-demo.ts
+```
+
+| Check | What it proves |
+|---|---|
+| 1. Round robin | 20 requests are answered by every instance in turn (`X-Instance` header) |
+| 2. Shared session | One login works on every instance: the session is in Postgres, not in the instance's memory |
+| 3. Shared rate limit | 20 wrong logins are allowed **in total**, the 21st gets 429, although the attempts were spread over the instances. With counters in memory, each instance would have allowed 20 |
+
+Result with three instances (18 Nov 2026):
+
+```
+1. Round robin         PASS  20 requests answered by 3 instances
+2. Shared session      PASS  10/10 requests with one login cookie succeeded, on 3 instances
+3. Shared rate limit   PASS  20 wrong logins allowed, attempt 21 → 429 (attempts per instance: 8, 7, 6)
+```
+
+The demo clears its own login counters (`rate_limits` keys `auth:…`) before and after, so it can be repeated and doesn't block real logins. Production runs one instance; more would need a paid Render plan, and the load balancer would then be Render's own.
+
+### Do more instances mean more performance?
+
+> **Local test only.** These numbers come from one laptop (MacBook, Docker Desktop), not from the server. Production on Render runs one instance on different hardware, with the network between the app and the database (Neon) in between, so the absolute numbers there will be different. What carries over is the trend: more instances help while there is free CPU, and stop helping when the instances compete for the same cores or wait for the shared database.
+
+`scripts/scale-benchmark.ts` measures the most expensive request (`manager.areas.get`: area with a 10,000-point boundary and 300 stands, ~260 KB) through the load balancer with 1 to n instances. It starts each setting with `LOAD_TEST=true APP_INSTANCES=<n>`, warms up every instance's cache, and reports the median of three 20 s runs (20 connections, autocannon):
+
+```bash
+npm run loadtest                              # test data + 1 to 4 instances, about 6 minutes
+INSTANCES=1,2,3,4,6 npm run loadtest          # other numbers of instances (also RUNS, DURATION)
+```
+
+Results (18 Nov 2026, MacBook, Docker Desktop; no errors in any run):
+
+| Instances | Docker with 2 CPUs: req/s | vs 1 | p99 | Docker with 6 CPUs: req/s | vs 1 | p99 |
+|---|---|---|---|---|---|---|
+| 1 | 110 | 100 % | 414 ms | 128 | 100 % | 388 ms |
+| 2 | **145** | **131 %** | 325 ms | 187 | 146 % | 275 ms |
+| 3 | 126 | 114 % | 722 ms | **210** | **165 %** | 224 ms |
+| 4 | 95 | 86 % | 805 ms | 195 | 153 % | 268 ms |
+| 6 | – | | | 160 | 125 % | 322 ms |
+
+The command-line output of both series (rendered from the raw output in [docs/benchmarks/2026-11-18/](../docs/benchmarks/2026-11-18/)):
+
+![Series 1: Docker with 2 CPUs](../docs/benchmarks/2026-11-18/series-1-docker-2cpu.png)
+![Series 2: Docker with 6 CPUs](../docs/benchmarks/2026-11-18/series-2-docker-6cpu.png)
+
+**What it shows:**
+- **Horizontal scaling works while there is free CPU.** One Node process uses about one core for this request (parsing and serialising the large JSON), so a second instance on a second core adds a lot.
+- **More instances than the hardware can carry make it worse.** With 2 CPUs the best is 2 instances; with 6 CPUs it is 3. Beyond that, the instances, nginx and PostgreSQL compete for the same cores: throughput drops and the slowest requests (p99) get slower.
+- **Vertical scaling alone helps little:** one instance on 6 instead of 2 CPUs is only 16 % faster (110 → 128 req/s), because a single Node process mostly uses one core. More cores pay off only with more instances.
+- **Why not 6 × faster with 6 instances:** all instances share one database, one load balancer and one machine, and part of each request is the database query and moving ~260 KB through nginx.
+
+**Limits:** the load generator, nginx, PostgreSQL and the instances all run on one laptop, Docker on macOS runs in a virtual machine, and the numbers are single series; other programs running on the laptop change them noticeably. Compare the ratio between settings, not the absolute numbers. They show the trend, not the capacity of the production server. On a real host the instances would also get their own CPUs, and the database would be the next bottleneck (then: connection pooling, read replicas, or the HTTP caching listed under "Next steps").
+
+---
 
 ## Database and schema
 
@@ -480,6 +549,9 @@ views/                       # EJS page templates (manager/, admin/, totp/)
 drizzle/                     # Migration SQL files (generated by drizzle-kit)
 public/                      # Static assets of the server-rendered pages
 scripts/load-test.ts         # Load test (see "Load test and caching")
+scripts/scale-demo.ts        # Horizontal scaling demo
+scripts/scale-benchmark.ts   # Throughput with 1 to n instances
+loadbalancer/nginx.conf      # Local load balancer for the scaling demo (docker compose --profile app)
 ```
 
 ---
