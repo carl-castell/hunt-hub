@@ -24,7 +24,8 @@
     "db:docker-reset": "docker compose down -v && docker compose up -d && node -e \"console.log('Waiting for DB...')\" && tsx -e \"setTimeout(()=>process.exit(0), 5000)\" && npm run db:migrate && npm run db:seed",
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:neon": "DB_PROVIDER=neon SEED_MOCK_DATA=false tsx src/db/seed.ts",
-    "db:analyze": "tsx scripts/analyze-queries.ts"
+    "db:analyze": "tsx scripts/analyze-queries.ts",
+    "loadtest": "tsx scripts/load-test.ts setup && tsx scripts/scale-benchmark.ts"
   },
   "keywords": [],
   "author": "",

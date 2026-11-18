@@ -1,4 +1,5 @@
 import express, { Router, Request, Response } from 'express';
+import { instanceName } from '@/utils/instance';
 
 /** Any cheap query against the database, e.g. `SELECT 1`. */
 export type DatabasePing = () => Promise<unknown>;
@@ -48,6 +49,8 @@ export function createHealthRouter(ping: DatabasePing): Router {
         status: healthy ? 'ok' : 'error',
         checks: { database },
         commit: deployedCommit(),
+        // Only with SHOW_INSTANCE=true (local scaling demo).
+        ...(instanceName() ? { instance: instanceName() } : {}),
         uptimeSeconds: Math.round(process.uptime()),
       });
   });

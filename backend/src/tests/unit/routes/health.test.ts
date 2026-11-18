@@ -33,6 +33,16 @@ describe('GET /health', () => {
     expect(res.body.commit).toBe('3bb1768');
   });
 
+  it('names the instance only with SHOW_INSTANCE=true (local scaling demo)', async () => {
+    const without = await request(appWith(vi.fn().mockResolvedValue({}))).get('/health');
+    expect(without.body).not.toHaveProperty('instance');
+
+    vi.stubEnv('SHOW_INSTANCE', 'true');
+    const withFlag = await request(appWith(vi.fn().mockResolvedValue({}))).get('/health');
+    vi.unstubAllEnvs();
+    expect(typeof withFlag.body.instance).toBe('string');
+  });
+
   it('does not leak error details', async () => {
     const res = await request(appWith(vi.fn().mockRejectedValue(new Error('password authentication failed')))).get('/health');
     expect(JSON.stringify(res.body)).not.toContain('password');
