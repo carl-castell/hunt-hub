@@ -7,6 +7,8 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Badge } from './Badge'
 import { CERTIFICATE_LABELS, LICENCE_LABELS, RESPONSE_LABELS, invitationText } from './labels'
 import { useInvalidateGuests } from './useInvalidateEvent'
+import { CheckDialog } from '../documents/CheckDialog'
+import { useState } from 'react'
 
 const selectClass = 'h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const formatDate = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
@@ -27,10 +29,7 @@ export function GuestDrawer({ eventId, invitationId, onClose }: { eventId: numbe
     onSuccess: () => { invalidate(); toast.success('Saved') },
     onError: (err) => toast.error(err.message),
   })
-  const check = trpc.manager.invitations.checkDocument.useMutation({
-    onSuccess: () => { invalidate(); toast.success('Marked as checked') },
-    onError: (err) => toast.error(err.message),
-  })
+  const [checking, setChecking] = useState<'licence' | 'certificate' | null>(null)
 
   const d = details.data
   const name = d ? `${d.guest.firstName} ${d.guest.lastName}` : 'Guest'
@@ -73,22 +72,24 @@ export function GuestDrawer({ eventId, invitationId, onClose }: { eventId: numbe
               label={LICENCE_LABELS[d.documents.licenceState]}
               document={d.documents.licence}
               facts={d.documents.licence ? [`Valid until ${formatDate(d.documents.licence.expiryDate)}`] : []}
-              checking={check.isPending}
-              onCheck={(documentId) => check.mutate({ eventId, invitationId, kind: 'licence', documentId })}
+              onCheck={() => setChecking('licence')}
             />
             <DocumentCard
               title="Training certificate"
               label={CERTIFICATE_LABELS[d.documents.certificateState]}
               document={d.documents.certificate}
               facts={d.documents.certificate ? [`Issued on ${formatDate(d.documents.certificate.issueDate)}`] : []}
-              checking={check.isPending}
-              onCheck={(documentId) => check.mutate({ eventId, invitationId, kind: 'certificate', documentId })}
+              onCheck={() => setChecking('certificate')}
             />
 
             <Button asChild variant="outline" size="sm">
               <a href={`/manager/guests/${d.guest.id}`}><ArrowSquareOutIcon /> Full guest page</a>
             </Button>
           </div>
+        )}
+        {d && checking && (
+          <CheckDialog eventId={eventId} onClose={() => setChecking(null)}
+            items={[{ guestId: d.guest.id, name: `${d.guest.firstName} ${d.guest.lastName}`, kind: checking }]} />
         )}
       </SheetContent>
     </Sheet>
@@ -124,13 +125,12 @@ function InvitationState({ status, text, onChange }: {
   )
 }
 
-function DocumentCard({ title, label, document, facts, checking, onCheck }: {
+function DocumentCard({ title, label, document, facts, onCheck }: {
   title: string
   label: { text: string; tone: 'green' | 'amber' | 'red' | 'grey' }
   document: { id: number; checked: boolean; checkedAt: string | null; uploadedAt: string; files: { key: string; name: string }[] } | null
   facts: string[]
-  checking: boolean
-  onCheck: (documentId: number) => void
+  onCheck: () => void
 }) {
   return (
     <section className="space-y-2 rounded-md border border-border p-4">
@@ -138,33 +138,17 @@ function DocumentCard({ title, label, document, facts, checking, onCheck }: {
         <h3 className="font-medium">{title}</h3>
         <Badge label={label} />
       </div>
-      {!document && <p className="text-sm text-muted-foreground">Not uploaded yet. The guest can upload it on their answer page.</p>}
+      {!document && <p className="text-sm text-muted-foreground">Not uploaded. The guest can upload it on their answer page, or you upload it for them.</p>}
       {document && (
-        <>
-          <ul className="space-y-1 text-sm text-muted-foreground">
-            {facts.map((f) => <li key={f}>{f}</li>)}
-            <li>Uploaded on {formatDate(document.uploadedAt)}</li>
-            {document.checkedAt && <li>Checked on {formatDate(document.checkedAt)}</li>}
-          </ul>
-          {document.files.length > 0 ? (
-            <ul className="flex flex-wrap gap-2">
-              {document.files.map((f) => (
-                <li key={f.key}>
-                  <a href={`/manager/files/${f.key}`} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded border border-border px-2 py-1 text-sm hover:bg-muted">
-                    <FileIcon aria-hidden /> {f.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : <p className="text-sm text-muted-foreground">No file attached.</p>}
-          {!document.checked && (
-            <Button size="sm" disabled={checking} onClick={() => onCheck(document.id)}>
-              <CheckCircleIcon /> {checking ? 'Saving…' : 'Mark as checked'}
-            </Button>
-          )}
-        </>
+        <ul className="space-y-1 text-sm text-muted-foreground">
+          {facts.map((f) => <li key={f}>{f}</li>)}
+          <li>Uploaded on {formatDate(document.uploadedAt)}{document.files.length ? ` · ${document.files.length === 1 ? '1 file' : `${document.files.length} files`}` : ''}</li>
+          {document.checkedAt && <li>Checked on {formatDate(document.checkedAt)}</li>}
+        </ul>
       )}
+      <Button size="sm" variant={document && !document.checked ? 'default' : 'outline'} onClick={onCheck}>
+        {!document ? <><FileIcon /> Upload for the guest…</> : document.checked ? <><FileIcon /> View</> : <><CheckCircleIcon /> Check…</>}
+      </Button>
     </section>
   )
 }

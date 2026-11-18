@@ -29,12 +29,14 @@ export const LICENCE_LABELS: Record<LicenceState, Label> = {
   valid: { text: 'Licence checked', tone: 'green' },
   unchecked: { text: 'Licence to check', tone: 'amber' },
   expired: { text: 'Licence expires before the hunt', tone: 'red' },
+  rejected: { text: 'Licence rejected, waiting for a new one', tone: 'red' },
   missing: { text: 'No licence', tone: 'grey' },
 }
 
 export const CERTIFICATE_LABELS: Record<CertificateState, Label> = {
   valid: { text: 'Certificate checked', tone: 'green' },
   unchecked: { text: 'Certificate to check', tone: 'amber' },
+  rejected: { text: 'Certificate rejected, waiting for a new one', tone: 'red' },
   missing: { text: 'No certificate', tone: 'grey' },
 }
 
