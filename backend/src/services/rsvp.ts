@@ -1,8 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { guestDocuments } from '@/services/guestDocuments';
+import { DocumentRejectedError, guestDocuments, storeDocument, type UploadedFile } from '@/services/guestDocuments';
 import { todayInGermany } from '@/services/stands';
-import { uploadFile } from '@/services/storage';
 import { durationBetween } from '@/shared/driveTimes';
 import type { CertificateState, InvitationResponse, LicenceState } from '@/shared/invitationStates';
 
@@ -18,9 +17,8 @@ export class InvitationNotFoundError extends Error {
 export class RsvpClosedError extends Error {
   constructor(message: string) { super(message); this.name = 'RsvpClosedError'; }
 }
-export class UploadRejectedError extends Error {
-  constructor(message: string) { super(message); this.name = 'UploadRejectedError'; }
-}
+/** Upload problems (wrong file, impossible date) come from the documents service. */
+export { DocumentRejectedError as UploadRejectedError };
 
 /** Why a guest can't answer (any more); null if they can. */
 export type ClosedReason = 'not_sent' | 'deadline' | 'past' | 'archived' | null;
@@ -31,8 +29,8 @@ export type RsvpView = {
   response: InvitationResponse;
   respondBy: string | null;
   closed: ClosedReason;
-  licence: { state: LicenceState; expiryDate: string | null };
-  certificate: { state: CertificateState; issueDate: string | null };
+  licence: { state: LicenceState; expiryDate: string | null; rejectedBecause: string | null };
+  certificate: { state: CertificateState; issueDate: string | null; rejectedBecause: string | null };
   contact: { phone: string | null; dateOfBirth: string | null };
 };
 
@@ -101,8 +99,8 @@ export async function rsvpView(publicId: string): Promise<RsvpView> {
     response: inv.response,
     respondBy: inv.respond_by ? new Date(inv.respond_by).toISOString() : null,
     closed: closedReason(inv),
-    licence: { state: documents.licenceState, expiryDate: documents.licence?.expiryDate ?? null },
-    certificate: { state: documents.certificateState, issueDate: documents.certificate?.issueDate ?? null },
+    licence: { state: documents.licenceState, expiryDate: documents.licence?.expiryDate ?? null, rejectedBecause: documents.licenceRejection?.reason ?? null },
+    certificate: { state: documents.certificateState, issueDate: documents.certificate?.issueDate ?? null, rejectedBecause: documents.certificateRejection?.reason ?? null },
     contact: { phone: contact.rows[0]?.phone ?? null, dateOfBirth: contact.rows[0]?.date_of_birth ?? null },
   };
 }
@@ -125,59 +123,18 @@ async function comingGuest(publicId: string) {
 
 // ── Uploads ─────────────────────────────────────────────────────────────────
 
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
-const PDF_TYPE = 'application/pdf';
-export const MAX_DOCUMENT_BYTES = 10_000_000;
-
-export type UploadedFile = { name: string; type: string; size: number; bytes: Buffer };
-
-function safeFilename(name: string): string {
-  let decoded: string;
-  try { decoded = decodeURIComponent(name); } catch { decoded = name; }
-  return decoded.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '_');
-}
-
-/** One PDF, or up to `maxImages` photos (JPEG, PNG, WEBP, HEIC), each at most 10 MB. */
-export function checkFiles(files: UploadedFile[], maxImages: number) {
-  if (files.length === 0) throw new UploadRejectedError('Please choose a file.');
-  if (files.some((f) => f.size > MAX_DOCUMENT_BYTES)) throw new UploadRejectedError('Each file can be at most 10 MB.');
-  const onePdf = files.length === 1 && files[0].type === PDF_TYPE;
-  const images = files.every((f) => IMAGE_TYPES.includes(f.type));
-  if (!onePdf && !images) throw new UploadRejectedError('Upload one PDF or photos (JPEG, PNG, WEBP, HEIC).');
-  if (images && files.length > maxImages) throw new UploadRejectedError(`At most ${maxImages} photos.`);
-}
-
-async function storeAttachments(table: 'hunting_license_attachments' | 'training_certificate_attachments', ownerId: number, prefix: string, files: UploadedFile[]) {
-  for (const file of files) {
-    const key = `${prefix}/${ownerId}/${safeFilename(file.name)}`;
-    await uploadFile(key, file.bytes, file.type);
-    const kind = file.type === PDF_TYPE ? 'document' : 'photo';
-    await db.execute(table === 'hunting_license_attachments'
-      ? sql`INSERT INTO hunting_license_attachments (license_id, kind, key, content_type, original_name, size_bytes)
-            VALUES (${ownerId}, ${kind}, ${key}, ${file.type}, ${file.name}, ${file.size})`
-      : sql`INSERT INTO training_certificate_attachments (cert_id, kind, key, content_type, original_name, size_bytes)
-            VALUES (${ownerId}, ${kind}, ${key}, ${file.type}, ${file.name}, ${file.size})`);
-  }
-}
+export { MAX_DOCUMENT_BYTES, type UploadedFile } from '@/services/guestDocuments';
 
 /** A new hunting licence (to be checked by the manager). The expiry date must not be in the past. */
-export async function uploadLicence(publicId: string, input: { expiryDate: string; files: UploadedFile[] }, today = todayInGermany()) {
+export async function uploadLicence(publicId: string, input: { expiryDate: string; files: UploadedFile[] }) {
   const inv = await comingGuest(publicId);
-  if (input.expiryDate < today) throw new UploadRejectedError('The licence has expired: the expiry date is in the past.');
-  checkFiles(input.files, 4);
-  const res = await db.execute<{ id: number }>(sql`
-    INSERT INTO hunting_licenses (user_id, estate_id, expiry_date) VALUES (${inv.user_id}, ${inv.estate_id}, ${input.expiryDate}) RETURNING id`);
-  await storeAttachments('hunting_license_attachments', res.rows[0].id, 'licenses/hunting', input.files);
+  await storeDocument(inv.estate_id, inv.user_id, 'licence', input.expiryDate, input.files, false);
 }
 
 /** A new training certificate (to be checked by the manager). The issue date must not be in the future. */
-export async function uploadCertificate(publicId: string, input: { issueDate: string; files: UploadedFile[] }, today = todayInGermany()) {
+export async function uploadCertificate(publicId: string, input: { issueDate: string; files: UploadedFile[] }) {
   const inv = await comingGuest(publicId);
-  if (input.issueDate > today) throw new UploadRejectedError('The issue date can’t be in the future.');
-  checkFiles(input.files, 2);
-  const res = await db.execute<{ id: number }>(sql`
-    INSERT INTO training_certificates (user_id, estate_id, issue_date) VALUES (${inv.user_id}, ${inv.estate_id}, ${input.issueDate}) RETURNING id`);
-  await storeAttachments('training_certificate_attachments', res.rows[0].id, 'certificates', input.files);
+  await storeDocument(inv.estate_id, inv.user_id, 'certificate', input.issueDate, input.files, false);
 }
 
 /** Phone and date of birth; empty fields are left as they are. */
@@ -204,8 +161,8 @@ export async function previewView(estateId: number, eventId: number): Promise<Rs
     response: 'open',
     respondBy: null,
     closed: null,
-    licence: { state: 'missing', expiryDate: null },
-    certificate: { state: 'missing', issueDate: null },
+    licence: { state: 'missing', expiryDate: null, rejectedBecause: null },
+    certificate: { state: 'missing', issueDate: null, rejectedBecause: null },
     contact: { phone: null, dateOfBirth: null },
   };
 }

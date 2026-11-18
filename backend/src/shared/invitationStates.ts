@@ -14,13 +14,14 @@ export type InvitationResponse = (typeof INVITATION_RESPONSES)[number]
 /**
  * A guest's hunting licence for a given hunt:
  * valid = checked by the manager and valid on the hunt day;
- * unchecked = uploaded, not checked yet; expired = expires before the hunt; missing = none.
+ * unchecked = uploaded, not checked yet; expired = expires before the hunt;
+ * rejected = the manager rejected it and the guest hasn't uploaded a new one; missing = none.
  */
-export const LICENCE_STATES = ['valid', 'unchecked', 'expired', 'missing'] as const
+export const LICENCE_STATES = ['valid', 'unchecked', 'expired', 'rejected', 'missing'] as const
 export type LicenceState = (typeof LICENCE_STATES)[number]
 
-/** A guest's training certificate (Schießnachweis): valid = checked; unchecked; missing. */
-export const CERTIFICATE_STATES = ['valid', 'unchecked', 'missing'] as const
+/** A guest's training certificate (Schießnachweis): valid = checked; unchecked; rejected; missing. */
+export const CERTIFICATE_STATES = ['valid', 'unchecked', 'rejected', 'missing'] as const
 export type CertificateState = (typeof CERTIFICATE_STATES)[number]
 
 /** Whether the invitation link has gone out to the guest (by email or by hand). */
@@ -50,13 +51,26 @@ export function guestFilters(i: { status: InvitationStatus; response: Invitation
   return filters
 }
 
-export function licenceState(newest: { checked: boolean; expiryDate: string } | null, huntDate: string): LicenceState {
+type Newest = { checked: boolean; uploadedAt?: string | null } | null
+type Rejection = { rejectedAt: string } | null
+
+/** A rejection counts until the guest uploads a newer document. */
+function rejectedSince(newest: Newest, rejection: Rejection): boolean {
+  if (!rejection) return false
+  return !newest || !newest.uploadedAt || new Date(newest.uploadedAt) < new Date(rejection.rejectedAt)
+}
+
+export function licenceState(
+  newest: (NonNullable<Newest> & { expiryDate: string }) | null, huntDate: string, rejection: Rejection = null,
+): LicenceState {
+  if (rejectedSince(newest, rejection)) return 'rejected'
   if (!newest) return 'missing'
   if (newest.expiryDate <= huntDate) return 'expired'
   return newest.checked ? 'valid' : 'unchecked'
 }
 
-export function certificateState(newest: { checked: boolean } | null): CertificateState {
+export function certificateState(newest: Newest, rejection: Rejection = null): CertificateState {
+  if (rejectedSince(newest, rejection)) return 'rejected'
   if (!newest) return 'missing'
   return newest.checked ? 'valid' : 'unchecked'
 }

@@ -5,6 +5,7 @@ import { AreasPage } from './areas/AreasPage'
 import { AreaPage } from './areas/AreaPage'
 import { EventsPage } from './events/EventsPage'
 import { EventPage } from './events/EventPage'
+import { GuestDocumentsPage } from './documents/GuestDocumentsPage'
 
 /** Manager pages that already live in the React app. */
 export function ManagerRouter() {
@@ -17,6 +18,7 @@ export function ManagerRouter() {
         <Route path="areas/:id" element={<AreaPage />} />
         <Route path="events" element={<EventsPage />} />
         <Route path="events/:id" element={<EventPage />} />
+        <Route path="guests/:guestId/documents" element={<GuestDocumentsPage />} />
         <Route path="*" element={<Navigate to="/manager/areas" replace />} />
       </Route>
     </Routes>

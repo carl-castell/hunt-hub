@@ -12,8 +12,7 @@ import {
 import { getAccount, postChangePassword, postGenerateWfsToken, postDeleteWfsToken } from '../controllers/manager/account';
 import { getGroups, postCreateGroup, getGroup, postRenameGroup, postDeleteGroup, postAddMember, postRemoveMember } from '../controllers/manager/guest_groups';
 import {
-  getHuntingLicense, postCreateHuntingLicense, postCheckHuntingLicense, postDeleteHuntingLicense, postUpdateHuntingLicense,
-  getTrainingCertificate, postCreateTrainingCertificate, postCheckTrainingCertificate, postDeleteTrainingCertificate, postUpdateTrainingCertificate,
+  postCreateHuntingLicense, postCreateTrainingCertificate,
 } from '@/controllers/licenses';
 import { getFile } from '@/controllers/files';
 import { verifyCsrfTokenMultipart } from '@/middlewares/csrf';
@@ -49,18 +48,14 @@ managerRouter.post('/guests/:id/update',              postUpdateGuest);
 managerRouter.post('/guests/:id/delete',              postDeleteGuest);
 
 // Hunting License
-managerRouter.get('/guests/:id/hunting-license',          getHuntingLicense);
+// Viewing and checking happen in the React check tool (HUN-95).
+managerRouter.get('/guests/:id(\\d+)/hunting-license', (req, res) => res.redirect(`/app/manager/guests/${req.params.id}/documents?kind=licence`));
 managerRouter.post('/guests/:id/hunting-license',         upload.array('files', 4), verifyCsrfTokenMultipart, postCreateHuntingLicense);
-managerRouter.post('/guests/:id/hunting-license/check',   postCheckHuntingLicense);
-managerRouter.post('/guests/:id/hunting-license/delete',  postDeleteHuntingLicense);
-managerRouter.post('/guests/:id/hunting-license/update',  postUpdateHuntingLicense);
 
 // Training Certificate
-managerRouter.get('/guests/:id/training-certificate',          getTrainingCertificate);
+// Viewing and checking happen in the React check tool (HUN-95).
+managerRouter.get('/guests/:id(\\d+)/training-certificate', (req, res) => res.redirect(`/app/manager/guests/${req.params.id}/documents?kind=certificate`));
 managerRouter.post('/guests/:id/training-certificate',         upload.array('files', 2), verifyCsrfTokenMultipart, postCreateTrainingCertificate);
-managerRouter.post('/guests/:id/training-certificate/check',   postCheckTrainingCertificate);
-managerRouter.post('/guests/:id/training-certificate/delete',  postDeleteTrainingCertificate);
-managerRouter.post('/guests/:id/training-certificate/update',  postUpdateTrainingCertificate);
 
 
 // Files

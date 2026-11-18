@@ -8,7 +8,6 @@ vi.mock('@/services/storage', () => ({
 import { db } from '@/db';
 import { usersTable } from '@/db/schema/users';
 import { contactsTable } from '@/db/schema/contacts';
-import { trainingCertificatesTable } from '@/db/schema/licenses';
 import { setupManager, teardown, ManagerSetup } from '@/tests/helpers/manager';
 
 const jpegBuffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0xFF, 0xD9]);
@@ -53,62 +52,5 @@ describe('POST /manager/guests/:id/training-certificate (create)', () => {
       .post(`/manager/guests/${guestId}/training-certificate`)
       .send({ issueDate: '2023-01-01' });
     expect(res.status).toBe(400);
-  });
-});
-
-describe('POST /manager/guests/:id/training-certificate/update', () => {
-  it('updates issue date to a valid past date', async () => {
-    const [cert] = await db
-      .insert(trainingCertificatesTable)
-      .values({ userId: guestId, estateId: setup.estateId, issueDate: '2022-01-01' })
-      .returning();
-
-    const res = await setup.agent
-      .post(`/manager/guests/${guestId}/training-certificate/update`)
-      .send({ certId: cert.id, issueDate: '2021-06-15' });
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain(`certId=${cert.id}`);
-  });
-
-  it('returns 400 for a future issue date', async () => {
-    const [cert] = await db
-      .insert(trainingCertificatesTable)
-      .values({ userId: guestId, estateId: setup.estateId, issueDate: '2022-01-01' })
-      .returning();
-
-    const res = await setup.agent
-      .post(`/manager/guests/${guestId}/training-certificate/update`)
-      .send({ certId: cert.id, issueDate: '2030-01-01' });
-    expect(res.status).toBe(400);
-  });
-});
-
-describe('POST /manager/guests/:id/training-certificate/check', () => {
-  it('marks certificate as checked and redirects to guest page', async () => {
-    const [cert] = await db
-      .insert(trainingCertificatesTable)
-      .values({ userId: guestId, estateId: setup.estateId, issueDate: '2022-01-01' })
-      .returning();
-
-    const res = await setup.agent
-      .post(`/manager/guests/${guestId}/training-certificate/check`)
-      .send({ certId: cert.id });
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/manager/guests/${guestId}`);
-  });
-});
-
-describe('POST /manager/guests/:id/training-certificate/delete', () => {
-  it('deletes certificate and redirects to guest page', async () => {
-    const [cert] = await db
-      .insert(trainingCertificatesTable)
-      .values({ userId: guestId, estateId: setup.estateId, issueDate: '2022-01-01' })
-      .returning();
-
-    const res = await setup.agent
-      .post(`/manager/guests/${guestId}/training-certificate/delete`)
-      .send({ certId: cert.id });
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/manager/guests/${guestId}`);
   });
 });

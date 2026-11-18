@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { BellRingingIcon, PaperPlaneTiltIcon, PlusIcon, TrashIcon, WarningIcon } from '@phosphor-icons/react'
+import { BellRingingIcon, CheckSquareIcon, PaperPlaneTiltIcon, PlusIcon, TrashIcon, WarningIcon } from '@phosphor-icons/react'
 import { guestFilters, linkSent, type GuestFilter } from '@hunt-hub/backend/src/shared/invitationStates'
 import { trpc } from '@/lib/trpc'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { GuestDrawer } from './GuestDrawer'
 import { InviteSheet } from './InviteSheet'
 import { CERTIFICATE_LABELS, LICENCE_LABELS, RESPONSE_LABELS, invitationText } from './labels'
 import { useInvalidateGuests } from './useInvalidateEvent'
+import { CheckDialog, type CheckItem } from '../documents/CheckDialog'
 
 type EventInfo = { id: number; name: string; date: string; start: string }
 
@@ -38,6 +39,7 @@ export function GuestsTab({ event }: { event: EventInfo }) {
   const [inviting, setInviting] = useState(false)
   const [email, setEmail] = useState<EmailKind | null>(null)
   const [openGuest, setOpenGuest] = useState<number | null>(null)
+  const [checkQueue, setCheckQueue] = useState<CheckItem[] | null>(null)
 
   // Every guest counts in the filters they belong to; "All" leaves out archived ones.
   const filtersOf = useMemo(() => new Map(invitations.map((i) => [i.id, guestFilters(i)])), [invitations])
@@ -58,7 +60,25 @@ export function GuestsTab({ event }: { event: EventInfo }) {
 
   const toSend = invitations.filter((i) => i.status === 'staged')
   const toRemind = invitations.filter((i) => linkSent(i.status) && i.response === 'open')
-  const recipients = (email === 'reminder' ? toRemind : toSend).map((i) => ({ id: i.id, name: `${i.guest.firstName} ${i.guest.lastName}`, email: i.guest.email }))
+  const asRecipient = (i: (typeof invitations)[number]) => ({ id: i.id, name: `${i.guest.firstName} ${i.guest.lastName}`, email: i.guest.email })
+  const toSendRecipients = toSend.map(asRecipient)
+  const toRemindRecipients = toRemind.map(asRecipient)
+
+  // Every uploaded document that still needs checking, of guests who aren't archived.
+  const toCheck: CheckItem[] = invitations.filter((i) => i.status !== 'archived').flatMap((i) => {
+    const name = `${i.guest.firstName} ${i.guest.lastName}`
+    return [
+      ...(i.licence === 'unchecked' ? [{ guestId: i.guest.id, name, kind: 'licence' as const }] : []),
+      ...(i.certificate === 'unchecked' ? [{ guestId: i.guest.id, name, kind: 'certificate' as const }] : []),
+    ]
+  })
+
+  // Links from the dashboard open a dialog directly (?open=invite|send|remind|check); closing it removes the request.
+  const requested = params.get('open')
+  const clearRequest = () => setParams((p) => { p.delete('open'); return p }, { replace: true })
+  const invitingNow = inviting || requested === 'invite'
+  const emailNow: EmailKind | null = email ?? (requested === 'send' && toSend.length > 0 ? 'invitation' : requested === 'remind' && toRemind.length > 0 ? 'reminder' : null)
+  const checkQueueNow = checkQueue ?? (requested === 'check' && toCheck.length > 0 ? toCheck : null)
 
   const allShownSelected = shown.length > 0 && shown.every((i) => selected.has(i.id))
   const toggleAll = () => setSelected(allShownSelected ? new Set() : new Set(shown.map((i) => i.id)))
@@ -79,6 +99,11 @@ export function GuestsTab({ event }: { event: EventInfo }) {
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
+          {toCheck.length > 0 && (
+            <Button variant="outline" onClick={() => setCheckQueue(toCheck)}>
+              <CheckSquareIcon /> {toCheck.length === 1 ? 'Check 1 document' : `Check ${toCheck.length} documents`}
+            </Button>
+          )}
           {toRemind.length > 0 && (
             <Button variant="outline" onClick={() => setEmail('reminder')}><BellRingingIcon /> Remind {toRemind.length}</Button>
           )}
@@ -146,11 +171,13 @@ export function GuestsTab({ event }: { event: EventInfo }) {
         </div>
       )}
 
-      <InviteSheet eventId={event.id} open={inviting} onOpenChange={setInviting} />
-      {email && (
-        <EmailDialog key={email} event={event} kind={email} recipients={recipients} open onOpenChange={(o) => { if (!o) setEmail(null) }} />
+      <InviteSheet eventId={event.id} open={invitingNow} onOpenChange={(o) => { setInviting(o); if (!o) clearRequest() }} />
+      {emailNow && (
+        <EmailDialog key={emailNow} event={event} kind={emailNow} recipients={emailNow === 'reminder' ? toRemindRecipients : toSendRecipients} open
+          onOpenChange={(o) => { if (!o) { setEmail(null); clearRequest() } }} />
       )}
       <GuestDrawer eventId={event.id} invitationId={openGuest} onClose={() => setOpenGuest(null)} />
+      {checkQueueNow && <CheckDialog items={checkQueueNow} eventId={event.id} onClose={() => { setCheckQueue(null); clearRequest() }} />}
     </div>
   )
 }

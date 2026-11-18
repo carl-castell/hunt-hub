@@ -217,10 +217,20 @@ function LicenceCard(props: CardProps) {
       {state === 'unchecked' && <p className="text-sm text-muted-foreground">Uploaded (valid until {shortDate(expiryDate!)}). The estate will check it.</p>}
       {state === 'expired' && <p className="text-sm text-destructive">The licence on file expires before the hunt. Please upload your current one.</p>}
       {state === 'missing' && <p className="text-sm text-muted-foreground">Please upload a photo or PDF of your hunting licence.</p>}
-      {(state === 'missing' || state === 'expired' || replace)
+      {state === 'rejected' && <Rejected reason={props.view.licence.rejectedBecause} />}
+      {(state === 'missing' || state === 'expired' || state === 'rejected' || replace)
         ? <DocumentForm dateLabel="Valid until" dateLimits={{ min: todayIso() }} maxPhotos={4} saving={saving} onSave={save} />
         : <Button variant="ghost" size="sm" className="-ml-3" onClick={() => setReplace(true)}>Upload a newer one</Button>}
     </Card>
+  )
+}
+
+/** The estate couldn't accept the last upload; the guest sees why. */
+function Rejected({ reason }: { reason: string | null }) {
+  return (
+    <p className="rounded-md bg-red-600/10 p-3 text-sm">
+      The estate couldn&apos;t accept your last upload{reason ? `: ${reason}` : '.'} Please upload it again.
+    </p>
   )
 }
 
@@ -229,11 +239,12 @@ function CertificateCard(props: CardProps) {
   const { save, saving } = useUpload('certificate', props)
   const [replace, setReplace] = useState(false)
   return (
-    <Card title="Training certificate" done={state !== 'missing'}>
+    <Card title="Training certificate" done={state === 'valid' || state === 'unchecked'}>
       {state === 'valid' && <p className="text-sm text-muted-foreground">Checked by the estate (issued on {shortDate(issueDate!)}).</p>}
       {state === 'unchecked' && <p className="text-sm text-muted-foreground">Uploaded (issued on {shortDate(issueDate!)}). The estate will check it.</p>}
       {state === 'missing' && <p className="text-sm text-muted-foreground">Please upload your shooting training certificate (Schießnachweis).</p>}
-      {(state === 'missing' || replace)
+      {state === 'rejected' && <Rejected reason={props.view.certificate.rejectedBecause} />}
+      {(state === 'missing' || state === 'rejected' || replace)
         ? <DocumentForm dateLabel="Issued on" dateLimits={{ max: todayIso() }} maxPhotos={2} saving={saving} onSave={save} />
         : <Button variant="ghost" size="sm" className="-ml-3" onClick={() => setReplace(true)}>Upload a newer one</Button>}
     </Card>
