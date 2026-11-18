@@ -151,3 +151,26 @@ export const trainingCertificateAttachmentsRelations = relations(
     }),
   })
 );
+
+// ─── Rejected documents ──────────────────────────────────────────────────────
+
+export const documentKindEnum = pgEnum("document_kind", ["licence", "certificate"]);
+
+/**
+ * A document the manager rejected (not readable, wrong person, …). The
+ * document itself is deleted; this row keeps the reason, so the guest list
+ * shows "rejected" and the guest's answer page says why, until the guest
+ * uploads a new one.
+ */
+export const documentRejectionsTable = pgTable(
+  "document_rejections",
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    estateId: integer("estate_id").notNull().references(() => estatesTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    kind: documentKindEnum("kind").notNull(),
+    reason: text("reason").notNull(),
+    rejectedAt: timestamp("rejected_at").notNull().defaultNow(),
+  },
+  (t) => [index("idx_document_rejections_user").on(t.userId, t.kind)]
+);

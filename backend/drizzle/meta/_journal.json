@@ -99,6 +99,13 @@
       "when": 1794943525913,
       "tag": "0013_stand_status_nickname",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794962230333,
+      "tag": "0014_document_rejections",
+      "breakpoints": true
     }
   ]
 }

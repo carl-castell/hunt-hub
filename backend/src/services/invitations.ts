@@ -50,8 +50,10 @@ type InvitationDbRow = {
   respond_by: unknown; responded_at: unknown; opened_at: unknown; email_sent_at: unknown;
   user_id: number; first_name: string; last_name: string; email: string | null; phone: string | null;
   groups: string[] | null;
-  licence: { checked: boolean; expiryDate: string } | null;
-  certificate: { checked: boolean } | null;
+  licence: { checked: boolean; expiryDate: string; uploadedAt: string } | null;
+  certificate: { checked: boolean; uploadedAt: string } | null;
+  licence_rejection: { rejectedAt: string } | null;
+  certificate_rejection: { rejectedAt: string } | null;
 };
 type GuestDbRow = { id: number; first_name: string; last_name: string; email: string; groups: string[] | null };
 
@@ -62,12 +64,16 @@ export async function listInvitations(estateId: number, eventId: number): Promis
            u.id AS user_id, u.first_name, u.last_name, c.email, c.phone,
            COALESCE((SELECT array_agg(g.name ORDER BY g.name) FROM guest_group_members m
                      JOIN guest_groups g ON g.id = m.group_id WHERE m.user_id = u.id AND g.estate_id = ${estateId}), '{}') AS groups,
-           (SELECT json_build_object('checked', l.checked, 'expiryDate', to_char(l.expiry_date, 'YYYY-MM-DD'))
+           (SELECT json_build_object('checked', l.checked, 'expiryDate', to_char(l.expiry_date, 'YYYY-MM-DD'), 'uploadedAt', l.upload_date)
               FROM hunting_licenses l WHERE l.user_id = u.id AND l.estate_id = ${estateId}
               ORDER BY l.upload_date DESC LIMIT 1) AS licence,
-           (SELECT json_build_object('checked', t.checked)
+           (SELECT json_build_object('checked', t.checked, 'uploadedAt', t.upload_date)
               FROM training_certificates t WHERE t.user_id = u.id AND t.estate_id = ${estateId}
-              ORDER BY t.upload_date DESC LIMIT 1) AS certificate
+              ORDER BY t.upload_date DESC LIMIT 1) AS certificate,
+           (SELECT json_build_object('rejectedAt', r.rejected_at) FROM document_rejections r
+              WHERE r.user_id = u.id AND r.estate_id = ${estateId} AND r.kind = 'licence' ORDER BY r.rejected_at DESC LIMIT 1) AS licence_rejection,
+           (SELECT json_build_object('rejectedAt', r.rejected_at) FROM document_rejections r
+              WHERE r.user_id = u.id AND r.estate_id = ${estateId} AND r.kind = 'certificate' ORDER BY r.rejected_at DESC LIMIT 1) AS certificate_rejection
     FROM invitations i
     JOIN users u ON u.id = i.user_id
     LEFT JOIN contacts c ON c.user_id = u.id
@@ -84,8 +90,8 @@ export async function listInvitations(estateId: number, eventId: number): Promis
     respondedAt: iso(r.responded_at),
     openedAt: iso(r.opened_at),
     emailSentAt: iso(r.email_sent_at),
-    licence: licenceState(r.licence ?? null, event.date),
-    certificate: certificateState(r.certificate ?? null),
+    licence: licenceState(r.licence ?? null, event.date, r.licence_rejection ?? null),
+    certificate: certificateState(r.certificate ?? null, r.certificate_rejection ?? null),
   }));
 }
 

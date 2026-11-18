@@ -87,7 +87,7 @@ describe('the answer page', () => {
     const licences = await db.select().from(huntingLicensesTable).where(eq(huntingLicensesTable.userId, guestId))
     expect(licences).toHaveLength(1)
     expect(licences[0]).toMatchObject({ checked: false, expiryDate: '2100-03-31' })
-    expect(data(await call('open', { publicId })).licence).toEqual({ state: 'unchecked', expiryDate: '2100-03-31' })
+    expect(data(await call('open', { publicId })).licence).toEqual({ state: 'unchecked', expiryDate: '2100-03-31', rejectedBecause: null })
 
     const past = await uploadLicence(publicId, '2020-01-01')
     expect(past.status).toBe(400)

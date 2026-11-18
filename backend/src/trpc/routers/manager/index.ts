@@ -3,6 +3,7 @@ import { managerEstateRouter } from './estate'
 import { managerAreasRouter } from './areas'
 import { managerStandsRouter } from './stands'
 import { managerDrivesRouter, managerEventsRouter, managerInvitationsRouter } from './events'
+import { managerDocumentsRouter } from './documents'
 
 /**
  * API for the React manager area. Every procedure uses `managerProcedure`
@@ -16,4 +17,5 @@ export const managerRouter = router({
   events: managerEventsRouter,
   drives: managerDrivesRouter,
   invitations: managerInvitationsRouter,
+  documents: managerDocumentsRouter,
 })
