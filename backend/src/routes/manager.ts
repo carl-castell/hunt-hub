@@ -2,8 +2,6 @@ import express, { Router } from 'express';
 import { getEstate, postRenameEstate } from '../controllers/manager/estate';
 import { getArea, postCreateArea, postRenameArea, postDeleteArea, postUploadGeofile, postDeleteGeofile } from '../controllers/manager/areas';
 import { getGuests, getNewGuest, postCreateGuest, getGuest, postUpdateGuest, postDeleteGuest, postGuestAddToGroup, postGuestRemoveFromGroup } from '../controllers/manager/guests';
-import { postCreateEvent, postUpdateEvent, postDeleteEvent } from '../controllers/manager/events';
-import { postCreateDrive } from '../controllers/manager/drives';
 import {
   getPeople, postCreateUser,
   getUser, postUpdateUserRole, postDeleteUser, postDeactivateUser, postResendActivation, postReactivateUser,
@@ -64,18 +62,15 @@ managerRouter.get('/files/*', getFile);
 
 // Events
 // The events list, the event page and the drive pages live in the React app (HUN-88);
-// old links (dashboard, breadcrumbs, bookmarks) are sent there.
+// old links (dashboard, breadcrumbs, bookmarks) are sent there. Creating, changing and
+// deleting events and drives goes through the tRPC API (manager.events / manager.drives).
 managerRouter.get('/events', (_req, res) => res.redirect('/app/manager/events'));
 managerRouter.get('/events/:id(\\d+)', (req, res) => res.redirect(`/app/manager/events/${req.params.id}`));
-managerRouter.post('/events',                         postCreateEvent);
-managerRouter.post('/events/:id/update',              postUpdateEvent);
-managerRouter.post('/events/:id/delete',              postDeleteEvent);
 
 // Invitations: the guest list is the Guests tab of the React event page (HUN-89).
 managerRouter.get('/events/:eventId(\\d+)/invitations*', (req, res) => res.redirect(`/app/manager/events/${req.params.eventId}?tab=guests`));
 
 // Drives
-managerRouter.post('/events/:eventId/drives',         postCreateDrive);
 managerRouter.get('/events/:eventId(\\d+)/drives/:id', (req, res) => res.redirect(`/app/manager/events/${req.params.eventId}?tab=drives`));
 
 // People
