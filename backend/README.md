@@ -6,6 +6,15 @@ Hunting estate management platform. Managers organise hunts with their drives, b
 
 ---
 
+## Contents
+
+- **Overview:** [Tech Stack](#tech-stack) · [Architecture](#architecture) · [User Surfaces](#user-surfaces) · [Roles & Access](#roles--access)
+- **Run it:** [Prerequisites](#prerequisites) · [Quick Start](#quick-start) · [Running the app in Docker](#running-the-app-in-docker) · [Environment Variables](#environment-variables) · [Scripts](#scripts)
+- **Inside the code:** [Project Structure](#project-structure) · [Database and schema](#database-and-schema) · [Tests](#tests) · [Logging and monitoring](#logging-and-monitoring) · [Security](#security) · [Load test and caching](#load-test-and-caching) · [Routes Reference](#routes-reference)
+- **Ship it:** [Development workflow](#development-workflow) · [Production Deployment](#production-deployment)
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -20,12 +29,66 @@ Hunting estate management platform. Managers organise hunts with their drives, b
 | Email | Nodemailer — Mailgun HTTP API in production, Mailpit locally |
 | API layer | tRPC v11 at `/api/v1/trpc`: auth, admin and manager APIs for the React app (session cookie), mobile API for the iPhone app (bearer tokens) |
 | Validation | Zod |
-| Security | Helmet (CSP, HSTS, etc.), bcrypt, CSRF tokens, express-rate-limit, HIBP Pwned Passwords, per-account lockout, audit logging, session invalidation |
+| Security | Helmet (CSP, HSTS, etc.), bcrypt, CSRF tokens, express-rate-limit (counters stored in Postgres), HIBP Pwned Passwords, per-account lockout, audit logging, session invalidation |
+| Caching | In-memory LRU cache for area boundaries, keyed by `updated_at` (see "Load test and caching") |
 | 2FA | TOTP via otpauth + qrcode (admin accounts) |
 | GIS | OGC WFS-T 1.1.0 — QGIS and QField compatible |
 | Logging | pino: one JSON line per request (request id, user, status, duration); secrets and personal data redacted |
 | Deployment | Docker image (multi-stage, non-root), GitHub Actions CI/CD, Render (Docker runtime), Neon, Cloudflare R2, Mailgun (EU) |
 | Testing | Vitest + Supertest (unit, integration, e2e, workers) |
+
+---
+
+## Architecture
+
+One Express application (a modular monolith) in one Docker container serves every client. It keeps no state of its own: data, sessions, rate-limit counters and the mobile sync history are in PostgreSQL, so more instances can run side by side.
+
+```mermaid
+flowchart LR
+  subgraph Clients
+    browser["Browser<br/>React app (/app) and<br/>server-rendered pages"]
+    iphone["iPhone app<br/>(offline-first, Expo)"]
+    qgis["QGIS / QField"]
+    guest["Guest<br/>(email link, no account)"]
+  end
+
+  subgraph Render["Render: Docker container"]
+    express["Express app<br/>Helmet, sessions, CSRF,<br/>rate limits, pino logging"]
+    trpc["tRPC API /api/v1/trpc<br/>auth, admin, manager,<br/>mobile, rsvp"]
+    pages["Server-rendered pages<br/>(EJS) and redirects"]
+    wfs["WFS-T /wfs"]
+    sync["Mobile sync<br/>(pull and push)"]
+    services["Service layer<br/>areas, stands, events,<br/>invitations, documents, dashboard"]
+    worker["Worker thread<br/>geo file parsing"]
+    cache["Boundary cache<br/>(LRU, in memory)"]
+  end
+
+  db[("Neon: PostgreSQL + PostGIS<br/>data, sessions, rate limits,<br/>sync history")]
+  r2[("Cloudflare R2<br/>licences, certificates")]
+  mail["Mailgun<br/>invitations, activation"]
+
+  browser -- "session cookie" --> express
+  guest --> express
+  iphone -- "bearer token" --> express
+  qgis -- "WFS token" --> express
+  express --> trpc
+  express --> pages
+  express --> wfs
+  trpc --> sync
+  trpc --> services
+  pages --> services
+  wfs --> services
+  sync --> db
+  services --> cache
+  services --> worker
+  services --> db
+  services --> r2
+  services --> mail
+```
+
+**How a request flows:** the Express middleware stack (security headers, session, rate limit, request logging) runs first. tRPC procedures then check the role in the database and limit every query to the user's estate, validate the input with Zod, and call the service layer, which holds the business logic shared by the APIs and the server-rendered pages. Errors become typed tRPC codes, or `{ error: { code, message, requestId } }` from the central error handler (`src/middlewares/errorHandler.ts`).
+
+**Deployment:** every pull request runs the CI pipeline (lint, type checks, all test suites, Docker image build with `/health` and shutdown check). A merge to `main` publishes the image to GitHub Container Registry, runs the migrations against Neon with that image, and Render deploys it after all checks have passed (see "Production Deployment").
 
 ---
 
@@ -35,8 +98,8 @@ Hunting estate management platform. Managers organise hunts with their drives, b
 |---|---|---|
 | Login | `/app/login` (`/` and `/login` redirect there) | Everyone |
 | React app: admin area | `/app/admin` | Admins |
-| React app: manager pages (Areas, Events) | `/app/manager/...` | Managers |
-| Server-rendered manager pages | `/manager` | Managers |
+| React app: manager pages (dashboard, areas, events with guests and drives, document check) | `/app/manager/...` (`/manager` redirects to the dashboard) | Managers |
+| Server-rendered manager pages (estate, guests, guest groups, staff, account) | `/manager/...` | Managers |
 | Public RSVP | `/app/rsvp/:publicId` (React; email links `/rsvp/:publicId` redirect there) | Guests (magic link, no login) |
 | RSVP preview | `/app/rsvp/preview/:eventId` | Managers |
 | tRPC API | `/api/v1/trpc` | React app (cookie) and iPhone app (bearer token) |
@@ -207,6 +270,8 @@ Safeguards (`src/utils/devLogin.ts`, `src/trpc/routers/dev.ts`):
 | `npm run db:docker-reset` | Wipe Docker volumes, restart containers, migrate, and seed |
 | `npm run db:reset:test` | Wipe and re-migrate the test database (port 5434) |
 | `npm run db:push` | Apply schema directly via drizzle-kit (bypasses migration files — dev only) |
+| `npm run db:push:neon` | Same against Neon. **Don't use for production changes:** production is changed only through migrations |
+| `npm run db:analyze` | `EXPLAIN ANALYZE` of the main queries against the local database (`scripts/analyze-queries.ts`) |
 | `npm run studio` | Open Drizzle Studio (database GUI) |
 
 ### Testing
@@ -253,7 +318,7 @@ Single runs on a laptop: the numbers show the order of magnitude, not exact capa
 
 **Next steps, not done yet:** HTTP caching (`ETag` + `304 Not Modified`) so unchanged boundaries aren't sent again at all; a simplified boundary for small zoom levels (`ST_SimplifyPreserveTopology`); gzip/brotli for the large JSON responses. Scaling out works now: sessions and rate-limit counters are in Postgres, and the cache needs no coordination between instances.
 
-## Database
+## Database and schema
 
 ### Dual-database support
 
@@ -279,7 +344,8 @@ The schema is defined in `src/db/schema/` using Drizzle. Key tables:
 | `drive_groups` | Groups of guests assigned to a drive |
 | `drive_stand_assignments` | Stands used within a drive |
 | `areas` | Geographic areas of the estate (PostGIS geometry) |
-| `stands` | Individual hunting positions within an area |
+| `stands` | Individual hunting positions within an area (point, number, nickname, status with date) |
+| `templates`, `template_groups`, `template_stand_assignments` | Drive templates (schema only, not used by the app yet; see HUN-91) |
 | `invitations` | Guest invitations — status, RSVP response, magic link token |
 | `guest_groups` | Reusable named groups of guests |
 | `guest_group_members` | Members of a guest group |
@@ -287,18 +353,21 @@ The schema is defined in `src/db/schema/` using Drizzle. Key tables:
 | `hunting_license_attachments` | Files attached to a licence (photo or document) |
 | `training_certificates` | Guest training certificate records + checked/issue date |
 | `training_certificate_attachments` | Files attached to a certificate |
+| `document_rejections` | Rejected licences and certificates with the reason shown to the guest |
 | `user_auth_tokens` | Activation and password reset tokens (with expiry) |
 | `totp_backup_codes` | One-time backup codes for admin 2FA recovery (tracked as used/unused) |
 | `audit_logs` | Immutable event log (login, logout, invitations, etc.) |
 | `mobile_sessions` | iPhone app logins (hashed access and refresh tokens, expiry, revocation) |
 | `sync_mutations` | Offline changes received from the app (applied exactly once) |
 | `sync_tombstones` | Deleted areas and stands, so the app can remove them (written by triggers) |
+| `rate_limits` | Rate-limit counters shared by all instances |
+| `session` | Login sessions (created by connect-pg-simple) |
 
-PostGIS is required for geospatial area data. The Docker Compose file uses the `postgis/postgis:16-3.4` image.
+The schema changes only through the numbered SQL migrations in `drizzle/` (0000 to 0014), which CI tests and the deployment applies. PostGIS is required for geospatial area data. The Docker Compose file uses the `postgis/postgis:16-3.4` image.
 
 ---
 
-## Testing
+## Tests
 
 Tests use **Vitest** (with Supertest for HTTP) in four suites, all in `src/tests/`:
 
@@ -325,32 +394,63 @@ src/
 ├── index.ts                 # Startup checks (env), listen, graceful shutdown
 ├── app.ts                   # Middleware stack + route mounting
 ├── db/                      # Drizzle client, schema (one file per table), migrate, seed, reset
-├── routes/                  # Express routers (auth, manager, admin, rsvp, health, …)
-├── controllers/             # Server-rendered pages and form handlers (manager/, admin/, users/, rsvp, licenses, files, map)
-├── services/                # Business logic shared by pages and APIs
-│   ├── areas.ts             #   areas: list, get, create, rename, delete, boundary upload (estate-scoped, typed errors)
+├── routes/                  # Express routers (auth, manager, admin, rsvp, health, …); old page URLs redirect to /app
+├── controllers/             # Server-rendered pages and form handlers (manager/, admin/, users/, licenses, files, map)
+├── services/                # Business logic shared by pages and APIs (estate-scoped, typed errors)
+│   ├── areas.ts, stands.ts  #   areas with boundary upload and cache; stands (number, nickname, status)
+│   ├── events.ts            #   events and drives
+│   ├── invitations.ts       #   guest lists, sending and reminders
+│   ├── rsvp.ts              #   the guest's answer page
+│   ├── guestDocuments.ts    #   licences and certificates: check, reject, upload for the guest
+│   ├── dashboard.ts         #   next hunt and to-dos for the manager's start page
 │   ├── credentials.ts       #   email/password check with lockout (web and mobile login)
 │   ├── userAccess.ts        #   current role/estate/active flag from the database
 │   ├── mobileSessions.ts    #   iPhone app tokens (issue, rotate, revoke)
 │   ├── storage.ts, mail.ts, audit.ts, hibp.ts
 ├── trpc/
 │   ├── trpc.ts              # Procedures: public, protected, admin, manager (estate-scoped), field (mobile)
-│   ├── router.ts            # auth, admin, manager, mobile
-│   └── routers/             # One file per area (e.g. manager/areas.ts)
+│   ├── router.ts            # auth, admin, manager, mobile, rsvp, dev (local only)
+│   └── routers/             # One file per area (e.g. manager/areas.ts, manager/events.ts, manager/documents.ts)
 ├── sync/                    # Mobile sync: pull (changes since cursor) and push (offline changes)
-├── shared/managerNav.ts     # The manager menu, used by the EJS layout and the React app
+├── shared/                  # Rules shared with the React app: managerNav, invitationStates, driveTimes, standStatus
 ├── qgis/                    # QGIS / QField (WFS-T at /wfs): router, controller, token check, README
-├── middlewares/             # csrf, requireRole, rateLimiter, serveWebApp (/app), trpcAuthLimits, trpcMultipart
-├── utils/                   # logger (pino), logError, gracefulShutdown, redirectByRole, runWorker, geofile-parsers, url
+├── middlewares/             # errorHandler, csrf, requireRole, rateLimiter + postgresRateLimitStore, serveWebApp (/app), trpcAuthLimits, trpcMultipart
+├── utils/                   # logger (pino), logError, gracefulShutdown, lruCache, crs, devLogin, redirectByRole, runWorker, geofile-parsers, url
 ├── workers/                 # geofile.worker.ts: parses GeoJSON/KML/GPX/SHP/GPKG off the event loop
 ├── schemas/                 # Shared Zod schemas
 ├── mail-views/              # EJS email templates
 └── tests/
 
-views/                       # EJS page templates (manager/, admin/, rsvp/, totp/)
+views/                       # EJS page templates (manager/, admin/, totp/)
 drizzle/                     # Migration SQL files (generated by drizzle-kit)
 public/                      # Static assets of the server-rendered pages
+scripts/load-test.ts         # Load test (see "Load test and caching")
 ```
+
+---
+
+## Logging and monitoring
+
+- **Request logs** (`src/utils/logger.ts`, pino): one JSON line per request with request id, user id and role, method, path, status code and duration. Cookies, authorization headers, passwords and tokens are removed. `LOG_PRETTY=true` prints readable lines locally.
+- **Request id:** every response has an `X-Request-Id` header (an incoming one from a proxy is reused if it looks safe). API errors contain the same id, so an error a user reports can be found in the logs.
+- **Errors** are logged once by the central error handler with the request id; unexpected errors return a generic message, never a stack trace.
+- **Health:** `GET /health` checks the database and shows the deployed commit; Docker, Render and CI use it.
+- **Where to look:** the logs are in Render's log view (searchable by request id); security-relevant actions are also in the audit log (React admin area).
+
+---
+
+## Security
+
+- **Authentication:** server-side sessions in Postgres with `httpOnly`, `SameSite=lax` cookies (`secure` in production); bcrypt passwords checked against Have I Been Pwned; account lockout after repeated failed logins; activation by one-time email token; TOTP two-factor login with backup codes for admins. The iPhone app uses random tokens stored only as SHA-256 hashes (access token 1 hour, refresh token 60 days).
+- **Authorisation:** roles (admin, manager, staff, guest). Every manager request re-checks the role and the active flag in the database, and every query is limited to the manager's estate. QGIS uses a personal token per manager, accepted only for active managers and limited to their estate.
+- **Web security:** Helmet (CSP, HSTS and other headers), CSRF tokens on forms, request bodies limited to 10 KB, upload size and type limits, a general rate limit on all requests plus stricter ones on login, backup codes, activation and the guest answer page and uploads (counters in Postgres), audit log.
+- **Safe defaults:** development switches (`SKIP_TOTP`, `DEV_LOGIN`, `LOAD_TEST`) make the server refuse to start in production; secrets live only in Render's environment variables and a protected GitHub environment.
+
+---
+
+## Development workflow
+
+One Linear issue per change → one branch → small commits → pull request → CI must be green → merge to `main` → automatic deployment. ESLint and the TypeScript compiler run in CI; see the root [README](../README.md#code-quality).
 
 ---
 
@@ -365,7 +465,7 @@ A full list of all routes, grouped by feature area and access level, is in [docs
 | Role | How created | Access |
 |---|---|---|
 | `admin` | Seeded via `npm run db:seed` or created by another admin | React admin area: estates, managers, admins, audit log. Two-factor login required |
-| `manager` | Created by an admin (React admin area) | Their own estate only: areas (React), guests, events, invitations, documents, staff (server-rendered), iPhone app, QGIS |
+| `manager` | Created by an admin (React admin area) | Their own estate only: dashboard, areas, events, invitations and the document check (React); estate, guests, guest groups and staff (server-rendered); iPhone app; QGIS |
 | `staff` | Created by a manager under `/manager/people` | iPhone app only (no web area) |
 | Guest | Added to the guest list by a manager | No account: RSVP page via the magic link in the invitation email |
 
