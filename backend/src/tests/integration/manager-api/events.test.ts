@@ -208,6 +208,19 @@ describe('invitations', () => {
     expect((await mutate('invitations.checkDocument', { eventId, invitationId: benRow.id, kind: 'licence', documentId: annaLicence.id })).status).toBe(404)
   })
 
+  it('takes guests off the waiting list back to where they were', async () => {
+    const list = data(await query('invitations.list', { eventId }))
+    const ids = list.map((r: { id: number }) => r.id)
+    const before = Object.fromEntries(list.map((r: { id: number; status: string }) => [r.id, r.status]))
+    await mutate('invitations.update', { eventId, ids, status: 'waitlist' })
+    expect(data(await query('invitations.list', { eventId })).every((r: { status: string }) => r.status === 'waitlist')).toBe(true)
+
+    await mutate('invitations.update', { eventId, ids, restore: true })
+    const after = data(await query('invitations.list', { eventId }))
+    // Sent ones are "sent by email" again; Carla's email failed, so she is "not sent".
+    for (const r of after) expect(r.status).toBe(before[r.id])
+  })
+
   it('removing reports how many links were already sent', async () => {
     const ids = data(await query('invitations.list', { eventId })).map((r: { id: number }) => r.id)
     expect(data(await mutate('invitations.remove', { eventId, ids }))).toEqual({ removed: 3, sentLinks: 2 })
