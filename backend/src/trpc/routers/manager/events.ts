@@ -102,6 +102,8 @@ export const managerInvitationsRouter = router({
       eventId: id, ids,
       status: z.enum(INVITATION_STATUSES).optional(),
       response: z.enum(INVITATION_RESPONSES).optional(),
+      /** Off the waiting list / out of the archive, back to where the guest was. */
+      restore: z.boolean().optional(),
     }))
     .mutation(({ ctx, input }) => updateInvitations(ctx.estateId, input.eventId, input.ids, input)),
 

@@ -1,11 +1,11 @@
 import { toast } from 'sonner'
 import { ArrowSquareOutIcon, CheckCircleIcon, FileIcon } from '@phosphor-icons/react'
-import { INVITATION_RESPONSES, INVITATION_STATUSES } from '@hunt-hub/backend/src/shared/invitationStates'
+import { INVITATION_RESPONSES, type InvitationStatus } from '@hunt-hub/backend/src/shared/invitationStates'
 import { trpc } from '@/lib/trpc'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Badge } from './Badge'
-import { CERTIFICATE_LABELS, LICENCE_LABELS, RESPONSE_LABELS, STATUS_LABELS, invitationText } from './labels'
+import { CERTIFICATE_LABELS, LICENCE_LABELS, RESPONSE_LABELS, invitationText } from './labels'
 import { useInvalidateGuests } from './useInvalidateEvent'
 
 const selectClass = 'h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -51,10 +51,8 @@ export function GuestDrawer({ eventId, invitationId, onClose }: { eventId: numbe
                   {INVITATION_RESPONSES.map((r) => <option key={r} value={r}>{RESPONSE_LABELS[r].text}</option>)}
                 </select>
                 <span className="text-muted-foreground">Invitation</span>
-                <select className={selectClass} value={d.status} aria-label="Invitation"
-                  onChange={(e) => update.mutate({ eventId, ids: [invitationId], status: e.target.value as (typeof INVITATION_STATUSES)[number] })}>
-                  {INVITATION_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                </select>
+                <InvitationState status={d.status} text={invitationText(d)}
+                  onChange={(change) => update.mutate({ eventId, ids: [invitationId], ...change })} />
                 {d.respondBy && <><span className="text-muted-foreground">Answer by</span><span>{formatDate(d.respondBy)}</span></>}
                 {d.respondedAt && <><span className="text-muted-foreground">Answered on</span><span>{formatDate(d.respondedAt)}</span></>}
               </div>
@@ -94,6 +92,35 @@ export function GuestDrawer({ eventId, invitationId, onClose }: { eventId: numbe
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/**
+ * The invitation's state and what can be done with it. Sending happens in the
+ * send dialog; here a guest can be marked as invited in person, put on the
+ * waiting list or archived, and taken back again.
+ */
+function InvitationState({ status, text, onChange }: {
+  status: InvitationStatus
+  text: string
+  onChange: (change: { status?: 'sent_manually' | 'waitlist' | 'archived'; restore?: boolean }) => void
+}) {
+  const parked = status === 'waitlist' || status === 'archived'
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span>{text}</span>
+      {parked ? (
+        <Button variant="outline" size="sm" onClick={() => onChange({ restore: true })}>Back on the guest list</Button>
+      ) : (
+        <select className={selectClass} value="" aria-label="Change invitation"
+          onChange={(e) => onChange({ status: e.target.value as 'sent_manually' | 'waitlist' | 'archived' })}>
+          <option value="" disabled>Change…</option>
+          {status === 'staged' && <option value="sent_manually">Invited in person</option>}
+          <option value="waitlist">Waiting list</option>
+          <option value="archived">Archived</option>
+        </select>
+      )}
+    </div>
   )
 }
 

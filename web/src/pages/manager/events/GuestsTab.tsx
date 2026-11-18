@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { BellRingingIcon, PaperPlaneTiltIcon, PlusIcon, TrashIcon, WarningIcon } from '@phosphor-icons/react'
-import { linkSent } from '@hunt-hub/backend/src/shared/invitationStates'
+import { guestFilters, linkSent, type GuestFilter } from '@hunt-hub/backend/src/shared/invitationStates'
 import { trpc } from '@/lib/trpc'
 import { Button } from '@/components/ui/button'
 import { Badge } from './Badge'
@@ -14,9 +14,13 @@ import { useInvalidateGuests } from './useInvalidateEvent'
 
 type EventInfo = { id: number; name: string; date: string; start: string }
 
-const FILTERS = ['all', 'yes', 'no', 'open', 'notSent'] as const
+const FILTERS = ['all', 'yes', 'no', 'open', 'notSent', 'waitlist', 'archived'] as const
 type Filter = (typeof FILTERS)[number]
-const FILTER_TEXT: Record<Filter, string> = { all: 'All', yes: 'Coming', no: 'Not coming', open: 'No answer', notSent: 'Not sent' }
+const FILTER_TEXT: Record<Filter, string> = {
+  all: 'All', yes: 'Coming', no: 'Not coming', open: 'No answer', notSent: 'Not sent', waitlist: 'Waiting list', archived: 'Archived',
+}
+/** Shown only when someone is in them. */
+const OCCASIONAL: Filter[] = ['waitlist', 'archived']
 
 const selectClass = 'h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
@@ -35,19 +39,22 @@ export function GuestsTab({ event }: { event: EventInfo }) {
   const [email, setEmail] = useState<EmailKind | null>(null)
   const [openGuest, setOpenGuest] = useState<number | null>(null)
 
-  const counts = useMemo(() => ({
-    all: invitations.length,
-    yes: invitations.filter((i) => i.response === 'yes').length,
-    no: invitations.filter((i) => i.response === 'no').length,
-    open: invitations.filter((i) => i.response === 'open' && i.status !== 'staged').length,
-    notSent: invitations.filter((i) => i.status === 'staged').length,
-  }), [invitations])
+  // Every guest counts in the filters they belong to; "All" leaves out archived ones.
+  const filtersOf = useMemo(() => new Map(invitations.map((i) => [i.id, guestFilters(i)])), [invitations])
+  const counts = useMemo(() => {
+    const c: Record<Filter, number> = { all: 0, yes: 0, no: 0, open: 0, notSent: 0, waitlist: 0, archived: 0 }
+    for (const i of invitations) {
+      const filters = filtersOf.get(i.id) ?? []
+      if (!filters.includes('archived')) c.all++
+      for (const f of filters) c[f as GuestFilter]++
+    }
+    return c
+  }, [invitations, filtersOf])
 
-  const shown = invitations.filter((i) =>
-    filter === 'all' ? true
-      : filter === 'notSent' ? i.status === 'staged'
-        : filter === 'open' ? i.response === 'open' && i.status !== 'staged'
-          : i.response === filter)
+  const shown = invitations.filter((i) => {
+    const filters = filtersOf.get(i.id) ?? []
+    return filter === 'all' ? !filters.includes('archived') : filters.includes(filter)
+  })
 
   const toSend = invitations.filter((i) => i.status === 'staged')
   const toRemind = invitations.filter((i) => linkSent(i.status) && i.response === 'open')
@@ -64,7 +71,7 @@ export function GuestsTab({ event }: { event: EventInfo }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show">
-          {FILTERS.map((f) => (
+          {FILTERS.filter((f) => !OCCASIONAL.includes(f) || counts[f] > 0 || filter === f).map((f) => (
             <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}
               className={`rounded-full border px-3 py-1 text-sm tabular-nums ${filter === f ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'}`}>
               {FILTER_TEXT[f]} {counts[f]}
@@ -178,11 +185,18 @@ function BulkBar({ eventId, selected, onDone }: { eventId: number; selected: Sel
             <option value="open">No answer</option>
           </select>
           <select className={selectClass} value="" aria-label="Set invitation"
-            onChange={(e) => update.mutate({ eventId, ids, status: e.target.value as 'sent_manually' | 'waitlist' | 'archived' })}>
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === 'restore') update.mutate({ eventId, ids, restore: true })
+              else update.mutate({ eventId, ids, status: value as 'sent_manually' | 'waitlist' | 'archived' })
+            }}>
             <option value="" disabled>Set invitation…</option>
             <option value="sent_manually">Invited in person</option>
             <option value="waitlist">Waiting list</option>
             <option value="archived">Archived</option>
+            {selected.some((s) => s.status === 'waitlist' || s.status === 'archived') && (
+              <option value="restore">Back on the guest list</option>
+            )}
           </select>
           <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setConfirmRemove(true)}><TrashIcon /> Remove</Button>
           <Button variant="ghost" size="sm" className="ml-auto" onClick={onDone}>Clear selection</Button>

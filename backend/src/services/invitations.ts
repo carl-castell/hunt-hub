@@ -154,14 +154,25 @@ export async function stageInvitations(estateId: number, eventId: number, input:
   return { added };
 }
 
-/** Sets status and/or answer of several invitations. Setting an answer records when; "open" clears it. */
+/**
+ * Sets status and/or answer of several invitations. Setting an answer records
+ * when; "open" clears it. `restore` takes guests off the waiting list or out
+ * of the archive: back to "sent by email" if their email went out, otherwise
+ * back to "not sent".
+ */
 export async function updateInvitations(
-  estateId: number, eventId: number, ids: number[], change: { status?: InvitationStatus; response?: InvitationResponse },
+  estateId: number, eventId: number, ids: number[],
+  change: { status?: InvitationStatus; response?: InvitationResponse; restore?: boolean },
 ) {
   await requireEvent(estateId, eventId);
+  const status = change.restore
+    ? sql`CASE WHEN status IN ('waitlist', 'archived')
+               THEN (CASE WHEN email_sent_at IS NOT NULL THEN 'sent_email' ELSE 'staged' END)::invitation_status
+               ELSE status END`
+    : sql`COALESCE(${change.status ?? null}::invitation_status, status)`;
   const res = await db.execute(sql`
     UPDATE invitations SET
-      status = COALESCE(${change.status ?? null}::invitation_status, status),
+      status = ${status},
       response = COALESCE(${change.response ?? null}::invitation_response, response),
       responded_at = CASE
         WHEN ${change.response ?? null}::text IS NULL THEN responded_at

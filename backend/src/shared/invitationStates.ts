@@ -28,6 +28,28 @@ export function linkSent(status: InvitationStatus): boolean {
   return status === 'sent_email' || status === 'sent_manually'
 }
 
+/**
+ * Whether the guest has received the invitation: their email went out (they
+ * may be on the waiting list since) or they were invited in person.
+ */
+export function invitationWentOut(i: { status: InvitationStatus; emailSentAt: string | null }): boolean {
+  return i.emailSentAt !== null || i.status === 'sent_manually'
+}
+
+/** Which filter of the guest list an invitation belongs to (archived ones only count there). */
+export type GuestFilter = 'yes' | 'no' | 'open' | 'notSent' | 'waitlist' | 'archived'
+
+export function guestFilters(i: { status: InvitationStatus; response: InvitationResponse; emailSentAt: string | null }): GuestFilter[] {
+  if (i.status === 'archived') return ['archived']
+  const filters: GuestFilter[] = []
+  if (i.status === 'waitlist') filters.push('waitlist')
+  if (!invitationWentOut(i)) filters.push('notSent')
+  else if (i.response === 'open') filters.push('open')
+  if (i.response === 'yes') filters.push('yes')
+  if (i.response === 'no') filters.push('no')
+  return filters
+}
+
 export function licenceState(newest: { checked: boolean; expiryDate: string } | null, huntDate: string): LicenceState {
   if (!newest) return 'missing'
   if (newest.expiryDate <= huntDate) return 'expired'

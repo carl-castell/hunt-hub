@@ -39,12 +39,15 @@ export type EventDetails = EventSummary & {
   sentLinks: number;
 };
 
+// Same rules as guestFilters() in shared/invitationStates.ts: archived invitations don't count;
+// "not sent" = the invitation hasn't gone out (also while on the waiting list).
 const COUNTS = sql`
-  COUNT(i.id)::int AS invited,
-  COUNT(i.id) FILTER (WHERE i.response = 'yes')::int AS yes,
-  COUNT(i.id) FILTER (WHERE i.response = 'no')::int AS no,
-  COUNT(i.id) FILTER (WHERE i.response = 'open' AND i.status <> 'staged')::int AS open,
-  COUNT(i.id) FILTER (WHERE i.status = 'staged')::int AS not_sent,
+  COUNT(i.id) FILTER (WHERE i.status <> 'archived')::int AS invited,
+  COUNT(i.id) FILTER (WHERE i.status <> 'archived' AND i.response = 'yes')::int AS yes,
+  COUNT(i.id) FILTER (WHERE i.status <> 'archived' AND i.response = 'no')::int AS no,
+  COUNT(i.id) FILTER (WHERE i.status <> 'archived' AND i.response = 'open'
+                        AND (i.email_sent_at IS NOT NULL OR i.status = 'sent_manually'))::int AS open,
+  COUNT(i.id) FILTER (WHERE i.status <> 'archived' AND i.email_sent_at IS NULL AND i.status <> 'sent_manually')::int AS not_sent,
   COUNT(i.id) FILTER (WHERE i.status IN ('sent_email', 'sent_manually'))::int AS sent_links`;
 
 type EventRow = {
