@@ -73,7 +73,7 @@ To share builds without a cable later: `npx eas-cli@latest build --platform ios`
   on the server since the last sync (`mobile.sync.pull`). It runs after login, when the connection returns,
   when the app is opened, every 5 minutes, and on pull-to-refresh.
 - Login tokens are kept in the iOS Keychain. Being offline never logs you out. If the server rejects the session
-  (expired after 60 days unused, or revoked), you're asked to log in again. Offline data and queued changes are kept.
+  (expired after 60 days unused, or revoked), you're asked to log in again. Offline data and queued changes are kept. How the server issues and checks these tokens: [backend security](../backend/README.md#security).
 - Offline maps and imported basemaps are stored in the app's Documents folder, are never synced and are kept on logout.
 
 ## The area map

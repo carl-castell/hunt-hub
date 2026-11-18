@@ -74,13 +74,13 @@ npm start -w backend       # runs with backend/ as working directory
 
 Express API and server-rendered web app. This is the current production application.
 
-For detailed installation and setup instructions see [backend/README.md](backend/README.md).
+For detailed installation and setup instructions see [backend/README.md](backend/README.md). It also describes the [architecture](backend/README.md#architecture) (with a diagram), [security](backend/README.md#security) and [logging and monitoring](backend/README.md#logging-and-monitoring).
 
 ---
 
 ## Web
 
-React web frontend, served under `/app`: the admin area and, step by step, the manager area (starting with Areas). Menu entries switch between the React pages and the server-rendered pages; both share one login session.
+React web frontend, served under `/app`: the admin area and most of the manager area (dashboard, areas, events with guests and drives, the document check). The remaining manager pages (estate, guests, guest groups, staff) are still server-rendered and move step by step. Menu entries switch between the React pages and the server-rendered pages; both share one login session.
 
 For detailed installation and setup instructions see [web/README.md](web/README.md).
 
