@@ -77,22 +77,25 @@ describe('guest lifecycle: create → upload licence → upload cert → check b
     expect(res.text).toContain('training-certificate');
   });
 
+  // Checking happens in the React check tool (HUN-95), through manager.documents.confirm.
   it('manager checks the hunting licence', async () => {
     const res = await setup.agent
-      .post(`/manager/guests/${guestId}/hunting-license/check`)
-      .send({ licenseId });
-
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/manager/guests/${guestId}`);
+      .post('/api/v1/trpc/manager.documents.confirm')
+      .send({ guestId, kind: 'licence', documentId: licenseId });
+    expect(res.status).toBe(200);
   });
 
   it('manager checks the training certificate', async () => {
     const res = await setup.agent
-      .post(`/manager/guests/${guestId}/training-certificate/check`)
-      .send({ certId });
+      .post('/api/v1/trpc/manager.documents.confirm')
+      .send({ guestId, kind: 'certificate', documentId: certId });
+    expect(res.status).toBe(200);
+  });
 
+  it('the old licence page sends the manager to the check tool', async () => {
+    const res = await setup.agent.get(`/manager/guests/${guestId}/hunting-license`);
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/manager/guests/${guestId}`);
+    expect(res.headers.location).toBe(`/app/manager/guests/${guestId}/documents?kind=licence`);
   });
 
   it('guest profile is still accessible after both checks', async () => {
