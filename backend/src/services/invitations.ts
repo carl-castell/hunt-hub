@@ -26,6 +26,7 @@ export type InvitationRow = {
   groups: string[];
   status: InvitationStatus;
   response: InvitationResponse;
+  /** The answer-by day, YYYY-MM-DD. */
   respondBy: string | null;
   respondedAt: string | null;
   openedAt: string | null;
@@ -47,7 +48,7 @@ const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 
 type InvitationDbRow = {
   id: number; public_id: string; status: InvitationStatus; response: InvitationResponse;
-  respond_by: unknown; responded_at: unknown; opened_at: unknown; email_sent_at: unknown;
+  respond_by: string | null; responded_at: unknown; opened_at: unknown; email_sent_at: unknown;
   user_id: number; first_name: string; last_name: string; email: string | null; phone: string | null;
   groups: string[] | null;
   licence: { checked: boolean; expiryDate: string; uploadedAt: string } | null;
@@ -60,7 +61,7 @@ type GuestDbRow = { id: number; first_name: string; last_name: string; email: st
 export async function listInvitations(estateId: number, eventId: number): Promise<InvitationRow[]> {
   const event = await requireEvent(estateId, eventId);
   const res = await db.execute<InvitationDbRow>(sql`
-    SELECT i.id, i.public_id, i.status, i.response, i.respond_by, i.responded_at, i.opened_at, i.email_sent_at,
+    SELECT i.id, i.public_id, i.status, i.response, to_char(i.respond_by, 'YYYY-MM-DD') AS respond_by, i.responded_at, i.opened_at, i.email_sent_at,
            u.id AS user_id, u.first_name, u.last_name, c.email, c.phone,
            COALESCE((SELECT array_agg(g.name ORDER BY g.name) FROM guest_group_members m
                      JOIN guest_groups g ON g.id = m.group_id WHERE m.user_id = u.id AND g.estate_id = ${estateId}), '{}') AS groups,
@@ -86,7 +87,8 @@ export async function listInvitations(estateId: number, eventId: number): Promis
     groups: r.groups ?? [],
     status: r.status,
     response: r.response,
-    respondBy: iso(r.respond_by),
+    // A day (YYYY-MM-DD), not a moment: converting midnight over UTC would move it a day back.
+    respondBy: r.respond_by,
     respondedAt: iso(r.responded_at),
     openedAt: iso(r.opened_at),
     emailSentAt: iso(r.email_sent_at),
