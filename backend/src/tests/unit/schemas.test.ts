@@ -9,8 +9,6 @@ import {
   changePasswordSchema,
   createPersonSchema,
   updateRoleSchema,
-  driveSchema,
-  eventSchema,
   guestSchema,
   areaNameSchema,
   deleteConfirmSchema,
@@ -319,42 +317,6 @@ describe('updateRoleSchema', () => {
 
   it('fails with an invalid role', () => {
     expect(updateRoleSchema.safeParse({ role: 'admin' }).success).toBe(false);
-  });
-});
-
-describe('driveSchema', () => {
-  const valid = { name: 'Morning Drive', startTime: '08:00', endTime: '12:00' };
-
-  it('passes with valid data', () => {
-    expect(driveSchema.safeParse(valid).success).toBe(true);
-  });
-
-  it('fails with empty name', () => {
-    expect(driveSchema.safeParse({ ...valid, name: '' }).success).toBe(false);
-  });
-
-  it('fails with empty startTime', () => {
-    expect(driveSchema.safeParse({ ...valid, startTime: '' }).success).toBe(false);
-  });
-
-  it('fails with empty endTime', () => {
-    expect(driveSchema.safeParse({ ...valid, endTime: '' }).success).toBe(false);
-  });
-});
-
-describe('eventSchema', () => {
-  const valid = { eventName: 'Opening Day', date: '2026-09-01', time: '09:00' };
-
-  it('passes with valid data', () => {
-    expect(eventSchema.safeParse(valid).success).toBe(true);
-  });
-
-  it('fails with empty eventName', () => {
-    expect(eventSchema.safeParse({ ...valid, eventName: '' }).success).toBe(false);
-  });
-
-  it('fails with empty date', () => {
-    expect(eventSchema.safeParse({ ...valid, date: '' }).success).toBe(false);
   });
 });
 

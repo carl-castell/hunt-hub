@@ -36,43 +36,6 @@ afterAll(async () => {
   await teardown(setup.estateId);
 });
 
-describe('POST /manager/events/:eventId/drives', () => {
-  it('creates a drive and redirects to the drive page', async () => {
-    const res = await setup.agent
-      .post(`/manager/events/${eventId}/drives`)
-      .send({ name: 'Morning Drive', startTime: '08:00', endTime: '10:00' });
-
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toMatch(
-      new RegExp(`^/manager/events/${eventId}/drives/\\d+$`),
-    );
-  });
-
-  it('returns 400 when the drive name is missing', async () => {
-    const res = await setup.agent
-      .post(`/manager/events/${eventId}/drives`)
-      .send({ name: '', startTime: '08:00', endTime: '10:00' });
-
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 400 when startTime is missing', async () => {
-    const res = await setup.agent
-      .post(`/manager/events/${eventId}/drives`)
-      .send({ name: 'Afternoon Drive', startTime: '', endTime: '15:00' });
-
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 404 for an event in another estate', async () => {
-    const res = await setup.agent
-      .post(`/manager/events/${otherEventId}/drives`)
-      .send({ name: 'Hack Drive', startTime: '09:00', endTime: '11:00' });
-
-    expect(res.status).toBe(404);
-  });
-});
-
 describe('GET /manager/events/:eventId/drives/:id', () => {
   let driveId: number;
 

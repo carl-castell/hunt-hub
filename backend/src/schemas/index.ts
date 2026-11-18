@@ -76,18 +76,6 @@ export const updateRoleSchema = z.object({
   role: z.enum(['manager', 'staff']),
 });
 
-export const driveSchema = z.object({
-  name:      z.string().min(1).max(255),
-  startTime: z.string().min(1),
-  endTime:   z.string().min(1),
-});
-
-export const eventSchema = z.object({
-  eventName: z.string().min(1).max(255),
-  date:      z.string().min(1),
-  time:      z.string().min(1),
-});
-
 const optionalString = z.string().optional().transform(v => v === '' ? undefined : v).pipe(z.string().min(1).optional());
 
 export const guestSchema = z.object({

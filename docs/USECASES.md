@@ -236,7 +236,7 @@ The old server-rendered area pages still exist until they are retired (HUN-49):
 | Drives tab | Every hunt has at least one drive. A new event gets "Drive 1" (09:00 / 2 h the first time, afterwards like the first drive of the last event); new drives are "Drive 2", "Drive 3", … and their time list opens at the next full hour after the previous drive. Start (15-minute steps), length in hours (30-minute steps), end shown; the hunt's start is its first drive's start |
 | Details tab | Name and date; delete the hunt with its drives and invitations (warns when invitation links were already sent) |
 
-Old addresses redirect to these pages: `/manager/events` → `/app/manager/events`, `/manager/events/:id` → `/app/manager/events/:id`, `/manager/events/:id/drives/:driveId` → `…?tab=drives`, `/manager/events/:id/invitations…` → `…?tab=guests`. The old form handlers `POST /manager/events`, `/manager/events/:id/update`, `/manager/events/:id/delete` and `POST /manager/events/:id/drives` still exist, but no page uses them any more.
+Old addresses redirect to these pages: `/manager/events` → `/app/manager/events`, `/manager/events/:id` → `/app/manager/events/:id`, `/manager/events/:id/drives/:driveId` → `…?tab=drives`, `/manager/events/:id/invitations…` → `…?tab=guests`. The old form handlers for creating, changing and deleting events and drives were removed; this goes through the API above.
 
 ---
 
